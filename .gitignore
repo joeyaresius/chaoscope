@@ -32,3 +32,13 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Kotlin compiler cache
+.kotlin/
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude Code (personal/local settings)
+.claude/

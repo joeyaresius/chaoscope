@@ -1,0 +1,4 @@
+<resources>
+    <!-- Base application theme — the Compose theme (ChaoscopeTheme) takes over at runtime -->
+    <style name="Theme.Chaoscope" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

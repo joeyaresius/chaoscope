@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chaoscope</string>
+
+    <!-- Export feedback -->
+    <string name="export_saved">Saved to Pictures/Chaoscope</string>
+    <string name="export_failed">Could not save: %1$s</string>
+    <string name="export_share">Share</string>
+    <string name="share_render_chooser">Share render</string>
+
+    <!-- Top-bar actions -->
+    <string name="cd_about">About Chaoscope</string>
+    <string name="cd_cancel_render">Cancel render</string>
+    <string name="cd_skip_welcome">Skip welcome screen</string>
+    <string name="cd_close">Close</string>
+
+    <!-- Recents -->
+    <string name="cd_recent_open">Recent render — tap to open</string>
+    <string name="cd_recent_share">Share this render</string>
+
+    <!-- Live preview -->
+    <string name="cd_live_preview">Live preview of %1$s attractor</string>
+</resources>
