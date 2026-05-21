@@ -416,4 +416,5 @@ data class UiState(
     val bgColor: BgColor             = BgColor.BLACK,
     val renderQuality: RenderQuality = RenderQuality.STANDARD,
     val previewDensity: PreviewDensity = PreviewDensity.MEDIUM,
+    val autoRotate: Boolean          = false,
 )

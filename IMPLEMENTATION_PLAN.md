@@ -1,14 +1,20 @@
 # Chaoscope — Implementation Plan
 
-_Last updated: 2026-05-20_
+_Last updated: 2026-05-21_
 
-This plan covers three tracks for advancing the Android app, ordered by value-to-effort:
+This plan covers tracks for advancing the Android app, ordered by value-to-effort:
 
-1. **Track A — Curated preset gallery** (high impact, contained)
-2. **Track B — Depth shading for 3D attractors** (makes existing 3D work read visually)
-3. **Track C — Complete the 3D set** (3D Barnsley Fern, quaternion Julia, fix Pickover)
+1. **Track A — Curated preset gallery** (high impact, contained) — ✅ DONE
+2. **Track B — Depth shading for 3D attractors** (makes existing 3D work read visually) — ✅ DONE
+3. **Track C — Complete the 3D set** (3D Barnsley Fern, quaternion Julia, Pickover) — ✅ DONE
+4. **Track D — auto-rotate toggle** (cheap motion win) — ✅ DONE
+5. **Track E — bigger bets** (video export, wallpaper/4K, true quaternion ray-marcher) — NOT STARTED
 
-Plus a short **Track D — auto-rotate toggle** as a cheap motion win.
+**Status (2026-05-21):** Tracks A–D shipped, plus a batch of fixes/extras beyond the
+original plan: zoom fix, full-palette-range (histogram equalisation), auto-render on look
+changes, 2D colour picker + "start from" palettes, Icon Snowflake fix, and configurable
+render detail + preview density. The engine is now 10/12 attractors in 3-D (only
+Gumowski-Mira and Icon remain 2-D — no canonical 3-D form). Track E is the remaining work.
 
 ---
 
@@ -185,14 +191,41 @@ Update `AttractorDefsTest.kt`.
 
 ## Suggested sequencing
 
-1. **Track A** (preset gallery) — biggest perceived-quality jump, no math/native risk.
-2. **Track B** (depth shading) — makes the 8 existing 3D attractors pay off visually.
-3. **Track C** (complete 3D) — directly closes the "make them all 3D" goal; do C1 + C3
-   first (low risk), scope C2's true quaternion path separately.
-4. **Track D** (auto-rotate) — drop in whenever; pairs naturally with B.
+1. **Track A** (preset gallery) — biggest perceived-quality jump, no math/native risk. ✅
+2. **Track B** (depth shading) — makes the 8 existing 3D attractors pay off visually. ✅
+3. **Track C** (complete 3D) — directly closes the "make them all 3D" goal. ✅
+4. **Track D** (auto-rotate) — drop in whenever; pairs naturally with B. ✅
 
-## Out of scope (future bets)
-- Parameter animation / morphing exported to looping video (needs a frame-capture
-  pipeline).
-- Wallpaper + 4K / transparent-PNG export upgrades.
-- True quaternion-Julia ray-marcher (Track C2 large option).
+---
+
+## Track E — Bigger bets (future)
+
+The marquee features that need new infrastructure. Ordered by likely value.
+
+### E1. Parameter animation / morphing → looping video
+- The headline feature. Interpolate between two parameter sets (and/or sweep the camera
+  yaw) over N frames, render each frame, and encode to an MP4/GIF loop.
+- **Needs a frame-capture pipeline:** drive `renderAttractor` per frame off the UI thread,
+  feed frames to `MediaCodec` + `MediaMuxer` (H.264/MP4) or an animated-GIF/WebP encoder.
+- Design questions: keyframe model (A→B param lerp, or a timeline of stops), frame count /
+  fps / duration controls, resolution (preview vs export), progress + cancel UI, and where
+  output lands (MediaStore, like PNG export).
+- **Risk:** High — new encoder dependency, long-running background work, memory pressure if
+  frames are buffered. Render time × frame count can be minutes; needs robust progress/cancel.
+
+### E2. Wallpaper + export upgrades
+- **Live/static wallpaper:** set the current render as the device wallpaper
+  (`WallpaperManager`); optionally a `WallpaperService` that slow-auto-rotates (reuse Track D).
+- **Export upgrades:** 4K resolution (mind the `W·H·(hist+depth+dens)` memory — ~256MB at 4K,
+  so allocate carefully or tile), transparent-PNG (skip the bg fill, emit alpha), and a
+  share-sheet "set as wallpaper" action.
+- **Risk:** Medium — 4K memory is the main hazard; wallpaper APIs are straightforward.
+
+### E3. True quaternion-Julia ray-marcher (the "large" C2 option)
+- The current Julia is an inverse-iteration point cloud in a k=0 slice (Track C2). A *true*
+  solid quaternion Julia needs a different render path: a distance-estimator ray-marcher
+  (ideally a GLSL compute/fragment shader), separate from the histogram pipeline.
+- **Risk:** High — essentially a second renderer (GPU). Only worth it if E1/E2 land first.
+
+**Suggested order:** E2 (contained, high user value) → E1 (marquee, big effort) → E3 (only
+if there's appetite for a GPU path).

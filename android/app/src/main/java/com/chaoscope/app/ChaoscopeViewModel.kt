@@ -13,6 +13,7 @@ import com.chaoscope.data.ChaoscopePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -76,9 +77,10 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private val _showPaletteEditor = MutableStateFlow(false)
     val showPaletteEditor: StateFlow<Boolean> = _showPaletteEditor.asStateFlow()
 
-    private var renderJob: Job? = null
-    private var finishJob:  Job? = null
-    private var dotJob:     Job? = null
+    private var renderJob:     Job? = null
+    private var finishJob:     Job? = null
+    private var dotJob:        Job? = null
+    private var autoRotateJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -116,6 +118,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Parameter updates (state only – no auto render) ────────────────────
 
     fun setAttractorType(type: AttractorType) {
+        cancelAutoRotate()
         _uiState.update {
             it.copy(
                 attractorType = type,
@@ -154,6 +157,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Apply a curated preset: attractor + params + camera + look, then preview. */
     fun applyPreset(preset: Preset) {
+        cancelAutoRotate()
         _uiState.update {
             it.copy(
                 attractorType = preset.type,
@@ -190,6 +194,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         roll:  Float? = null,
         zoom:  Float? = null,
     ) {
+        cancelAutoRotate()
         _uiState.update { s ->
             s.copy(
                 yaw   = yaw   ?: s.yaw,
@@ -293,6 +298,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called on every drag frame – shows dot cloud, no histogram render. */
     fun rotateBy(deltaYaw: Float, deltaPitch: Float) {
+        cancelAutoRotate()
         _uiState.update { s ->
             s.copy(
                 yaw   = (s.yaw   + deltaYaw)   % 360f,
@@ -304,6 +310,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pinch-to-zoom on every gesture frame – shows dot cloud. */
     fun zoomBy(factor: Float) {
+        cancelAutoRotate()
         _uiState.update { s ->
             s.copy(zoom = (s.zoom * factor).coerceIn(0.1f, 20f))
         }
@@ -318,19 +325,53 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
         dotJob?.cancel()
         dotJob = viewModelScope.launch(Dispatchers.Default) {
-            val s   = _uiState.value
-            val pts = ChaoscopeEngine.nativeGetPoints(
-                attractorType = s.attractorType.ordinal,
-                params        = s.params.toFloatArray(),
-                nPts          = s.previewDensity.dots,
-                yaw           = s.yaw,
-                pitch         = s.pitch,
-                roll          = s.roll,
-                zoom          = s.zoom,
-            )
-            _dotPoints.value = pts
+            _dotPoints.value = computeDots(_uiState.value)
         }
         // No finishJob — dots stay visible until a render completes
+    }
+
+    /** Compute the projected dot cloud for a state snapshot (shared by preview + auto-rotate). */
+    private fun computeDots(s: UiState): FloatArray =
+        ChaoscopeEngine.nativeGetPoints(
+            attractorType = s.attractorType.ordinal,
+            params        = s.params.toFloatArray(),
+            nPts          = s.previewDensity.dots,
+            yaw           = s.yaw,
+            pitch         = s.pitch,
+            roll          = s.roll,
+            zoom          = s.zoom,
+        )
+
+    // ── Auto-rotate ──────────────────────────────────────────────────────────
+
+    /** Toggle continuous yaw spin (3-D attractors only). Shows the dot cloud while
+     *  spinning; settles to a full preview render when turned off. */
+    fun setAutoRotate(enabled: Boolean) {
+        if (enabled && !_uiState.value.attractorType.is3D) return // no-op for 2-D
+        autoRotateJob?.cancel()
+        autoRotateJob = null
+        _uiState.update { it.copy(autoRotate = enabled) }
+        if (enabled) {
+            renderJob?.cancel()
+            renderJob = null
+            autoRotateJob = viewModelScope.launch(Dispatchers.Default) {
+                while (isActive) {
+                    _uiState.update { it.copy(yaw = (it.yaw + AUTO_ROTATE_STEP) % 360f) }
+                    _dotPoints.value = computeDots(_uiState.value)
+                    delay(AUTO_ROTATE_FRAME_MS)
+                }
+            }
+        } else {
+            renderPreview() // settle to a full render at the stopped angle
+        }
+    }
+
+    /** Stop spinning without rendering — used when a manual interaction takes over. */
+    private fun cancelAutoRotate() {
+        if (autoRotateJob == null && !_uiState.value.autoRotate) return
+        autoRotateJob?.cancel()
+        autoRotateJob = null
+        _uiState.update { it.copy(autoRotate = false) }
     }
 
     /** Called when the finger lifts – just clears dot state, no render. */
@@ -342,6 +383,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Reset camera to default orientation and zoom — no render. */
     fun resetCamera() {
+        cancelAutoRotate()
         finishJob?.cancel()
         _isDragging.value = false
         _dotPoints.value  = null
@@ -350,17 +392,24 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Explicit renders (user-initiated only) ───────────────────────────────
 
-    fun renderPreview() =
+    fun renderPreview() {
+        cancelAutoRotate()
         scheduleRender(_uiState.value.renderQuality.previewIterations, PREVIEW_SIZE)
+    }
 
-    fun renderHD() =
+    fun renderHD() {
+        cancelAutoRotate()
         scheduleRender(_uiState.value.renderQuality.hdIterations, HD_SIZE)
+    }
 
     /** Debounced preview render used when a "look" parameter changes, so palette,
-     *  depth, gamma, style, background and full-range changes are visible live. */
-    private fun renderLookPreview() =
+     *  depth, gamma, style, background and full-range changes are visible live.
+     *  Suppressed while auto-rotating — the dot cloud is on screen then. */
+    private fun renderLookPreview() {
+        if (_uiState.value.autoRotate) return
         scheduleRender(_uiState.value.renderQuality.previewIterations, PREVIEW_SIZE,
                        debounceMs = LOOK_DEBOUNCE_MS)
+    }
 
     /** Cancel an in-flight render. The native call can't be interrupted mid-flight,
      *  but the result is dropped so the UI returns immediately. */
@@ -415,6 +464,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Randomize ─────────────────────────────────────────────────────────────
 
     fun randomize() {
+        cancelAutoRotate()
         val type    = AttractorType.entries.random()
         val palette = PaletteType.entries.filter { it != PaletteType.CUSTOM }.random()
         val params  = type.paramRanges.map { range ->
@@ -526,6 +576,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         private const val DEBOUNCE_MS         = 80L
         private const val LOOK_DEBOUNCE_MS    = 300L
         private const val PERSIST_DEBOUNCE_MS = 500L
+        private const val AUTO_ROTATE_STEP    = 1.5f  // degrees of yaw per frame
+        private const val AUTO_ROTATE_FRAME_MS = 40L  // ~25 fps
 
         // Iteration counts now come from RenderQuality; only the canvas sizes are fixed.
         const val PREVIEW_SIZE       = 768

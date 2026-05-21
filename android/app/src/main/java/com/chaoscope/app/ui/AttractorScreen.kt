@@ -304,6 +304,7 @@ fun AttractorScreen(
                     onPitch            = { vm.setCamera(pitch = it) },
                     onRoll             = { vm.setCamera(roll  = it) },
                     onZoom             = { vm.setCamera(zoom  = it) },
+                    onAutoRotate       = vm::setAutoRotate,
                     onGamma            = vm::setGamma,
                     onDepthCue         = vm::setDepthCue,
                     onFullRange        = vm::setFullRange,
@@ -468,6 +469,7 @@ private fun ControlPanel(
     onPitch:            (Float)         -> Unit,
     onRoll:             (Float)         -> Unit,
     onZoom:             (Float)         -> Unit,
+    onAutoRotate:       (Boolean)       -> Unit,
     onGamma:            (Float)         -> Unit,
     onDepthCue:         (Float)         -> Unit,
     onFullRange:        (Boolean)       -> Unit,
@@ -763,6 +765,18 @@ private fun ControlPanel(
         // ── Camera (3-D attractors only) ─────────────────────────────────────
         if (state.attractorType.is3D) {
             SectionLabel("Camera")
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text  = "Auto-rotate",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Switch(checked = state.autoRotate, onCheckedChange = onAutoRotate)
+            }
             LabelledSlider("Yaw = ${"%.0f".format(state.yaw)}°",
                 state.yaw,   -180f..180f, onValueChange = onYaw)
             LabelledSlider("Pitch = ${"%.0f".format(state.pitch)}°",
