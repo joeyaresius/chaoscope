@@ -13,6 +13,8 @@ import com.chaoscope.BgColor
 import com.chaoscope.ColorStop
 import com.chaoscope.PaletteType
 import com.chaoscope.Preset
+import com.chaoscope.PreviewDensity
+import com.chaoscope.RenderQuality
 import com.chaoscope.RenderStyle
 import com.chaoscope.UiState
 import com.chaoscope.colorStopsToString
@@ -91,6 +93,10 @@ class ChaoscopePreferences(private val context: Context) {
             gamma         = prefs[KEY_GAMMA] ?: 1f,
             depthCue      = prefs[KEY_DEPTH_CUE] ?: 0.5f,
             fullRange     = prefs[KEY_FULL_RANGE] ?: false,
+            renderQuality = RenderQuality.entries.getOrNull(prefs[KEY_RENDER_QUALITY] ?: 1)
+                            ?: RenderQuality.STANDARD,
+            previewDensity = PreviewDensity.entries.getOrNull(prefs[KEY_PREVIEW_DENSITY] ?: 1)
+                            ?: PreviewDensity.MEDIUM,
             customStops   = savedCustomStops,
         )
     }
@@ -108,6 +114,8 @@ class ChaoscopePreferences(private val context: Context) {
             prefs[KEY_GAMMA]         = state.gamma
             prefs[KEY_DEPTH_CUE]     = state.depthCue
             prefs[KEY_FULL_RANGE]    = state.fullRange
+            prefs[KEY_RENDER_QUALITY]  = state.renderQuality.ordinal
+            prefs[KEY_PREVIEW_DENSITY] = state.previewDensity.ordinal
 
             // Clear any stale param entries from a previous attractor with more params.
             val maxParams = AttractorType.entries.maxOf { it.paramNames.size }
@@ -184,6 +192,8 @@ class ChaoscopePreferences(private val context: Context) {
         private val KEY_GAMMA              = floatPreferencesKey("gamma")
         private val KEY_DEPTH_CUE          = floatPreferencesKey("depth_cue")
         private val KEY_FULL_RANGE         = booleanPreferencesKey("full_range")
+        private val KEY_RENDER_QUALITY     = intPreferencesKey("render_quality")
+        private val KEY_PREVIEW_DENSITY    = intPreferencesKey("preview_density")
         private val KEY_RECENTS            = stringPreferencesKey("recent_exports")
         private val KEY_CUSTOM_STOPS       = stringPreferencesKey("custom_stops")
         private val KEY_USER_PRESETS       = stringPreferencesKey("user_presets")

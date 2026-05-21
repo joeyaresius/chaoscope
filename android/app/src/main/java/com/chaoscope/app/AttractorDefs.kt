@@ -258,6 +258,31 @@ enum class RenderStyle(val displayName: String, val description: String) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Performance: render detail + preview density
+// ────────────────────────────────────────────────────────────────────────────
+
+/** How many points to iterate. More = denser, smoother, slower. Iteration count
+ *  scales time, not memory (the histogram size is fixed by resolution). */
+enum class RenderQuality(
+    val displayName: String,
+    val previewIterations: Long,
+    val hdIterations: Long,
+    val description: String,
+) {
+    DRAFT   ("Draft",    1_000_000L,  15_000_000L, "Fastest — fewer points, rougher detail."),
+    STANDARD("Standard", 2_000_000L,  50_000_000L, "Balanced default."),
+    HIGH    ("High",     5_000_000L, 120_000_000L, "Denser and smoother — slower render."),
+    ULTRA   ("Ultra",   10_000_000L, 300_000_000L, "Maximum detail — an HD render can take a while."),
+}
+
+/** How many dots the live rotation preview draws. Lower if rotation feels sluggish. */
+enum class PreviewDensity(val displayName: String, val dots: Int, val description: String) {
+    LOW   ("Low",  20_000,  "Lightest — smoothest rotation on slower phones."),
+    MEDIUM("Med",  60_000,  "Balanced default."),
+    HIGH  ("High", 120_000, "Most detail while rotating — best on fast phones."),
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Background colour presets
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -389,4 +414,6 @@ data class UiState(
     val lastExportUri: String?       = null,
     val renderStyle: RenderStyle     = RenderStyle.STANDARD,
     val bgColor: BgColor             = BgColor.BLACK,
+    val renderQuality: RenderQuality = RenderQuality.STANDARD,
+    val previewDensity: PreviewDensity = PreviewDensity.MEDIUM,
 )

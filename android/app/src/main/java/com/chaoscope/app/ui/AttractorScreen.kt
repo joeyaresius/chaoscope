@@ -307,6 +307,8 @@ fun AttractorScreen(
                     onGamma            = vm::setGamma,
                     onDepthCue         = vm::setDepthCue,
                     onFullRange        = vm::setFullRange,
+                    onRenderQuality    = vm::setRenderQuality,
+                    onPreviewDensity   = vm::setPreviewDensity,
                     onRenderStyle      = vm::setRenderStyle,
                     onRender           = vm::renderPreview,
                     onRenderHD         = vm::renderHD,
@@ -469,6 +471,8 @@ private fun ControlPanel(
     onGamma:            (Float)         -> Unit,
     onDepthCue:         (Float)         -> Unit,
     onFullRange:        (Boolean)       -> Unit,
+    onRenderQuality:    (RenderQuality) -> Unit,
+    onPreviewDensity:   (PreviewDensity)-> Unit,
     onRenderStyle:      (RenderStyle)   -> Unit,
     onRender:           ()              -> Unit,
     onRenderHD:         ()              -> Unit,
@@ -803,6 +807,40 @@ private fun ControlPanel(
                 )
             }
             Switch(checked = state.fullRange, onCheckedChange = onFullRange)
+        }
+
+        // ── Performance ──────────────────────────────────────────────────────
+        InfoSection(
+            title       = "Render Detail",
+            description = state.renderQuality.description,
+        ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(RenderQuality.entries) { q ->
+                    FilterChip(
+                        selected = state.renderQuality == q,
+                        onClick  = { onRenderQuality(q) },
+                        label    = {
+                            Text(q.displayName, style = MaterialTheme.typography.labelSmall)
+                        },
+                    )
+                }
+            }
+        }
+        InfoSection(
+            title       = "Preview Density",
+            description = state.previewDensity.description,
+        ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(PreviewDensity.entries) { d ->
+                    FilterChip(
+                        selected = state.previewDensity == d,
+                        onClick  = { onPreviewDensity(d) },
+                        label    = {
+                            Text(d.displayName, style = MaterialTheme.typography.labelSmall)
+                        },
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(8.dp))

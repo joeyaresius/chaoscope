@@ -226,6 +226,16 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         renderLookPreview()
     }
 
+    fun setRenderQuality(quality: RenderQuality) {
+        _uiState.update { it.copy(renderQuality = quality) }
+        renderLookPreview() // re-render preview at the new detail so the change shows
+    }
+
+    fun setPreviewDensity(density: PreviewDensity) {
+        _uiState.update { it.copy(previewDensity = density) }
+        fetchDotPoints()
+    }
+
     fun clearRenderFailedMessage() = _uiState.update { it.copy(renderFailedMessage = null) }
 
     // ── Splash / tutorial ────────────────────────────────────────────────────
@@ -312,7 +322,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             val pts = ChaoscopeEngine.nativeGetPoints(
                 attractorType = s.attractorType.ordinal,
                 params        = s.params.toFloatArray(),
-                nPts          = DOT_POINTS,
+                nPts          = s.previewDensity.dots,
                 yaw           = s.yaw,
                 pitch         = s.pitch,
                 roll          = s.roll,
@@ -340,14 +350,17 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Explicit renders (user-initiated only) ───────────────────────────────
 
-    fun renderPreview() = scheduleRender(PREVIEW_ITERATIONS, PREVIEW_SIZE)
+    fun renderPreview() =
+        scheduleRender(_uiState.value.renderQuality.previewIterations, PREVIEW_SIZE)
 
-    fun renderHD() = scheduleRender(HD_ITERATIONS, HD_SIZE)
+    fun renderHD() =
+        scheduleRender(_uiState.value.renderQuality.hdIterations, HD_SIZE)
 
     /** Debounced preview render used when a "look" parameter changes, so palette,
      *  depth, gamma, style, background and full-range changes are visible live. */
     private fun renderLookPreview() =
-        scheduleRender(PREVIEW_ITERATIONS, PREVIEW_SIZE, debounceMs = LOOK_DEBOUNCE_MS)
+        scheduleRender(_uiState.value.renderQuality.previewIterations, PREVIEW_SIZE,
+                       debounceMs = LOOK_DEBOUNCE_MS)
 
     /** Cancel an in-flight render. The native call can't be interrupted mid-flight,
      *  but the result is dropped so the UI returns immediately. */
@@ -513,12 +526,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         private const val DEBOUNCE_MS         = 80L
         private const val LOOK_DEBOUNCE_MS    = 300L
         private const val PERSIST_DEBOUNCE_MS = 500L
-        private const val DOT_POINTS          = 60_000
 
-        const val PREVIEW_ITERATIONS = 2_000_000L
+        // Iteration counts now come from RenderQuality; only the canvas sizes are fixed.
         const val PREVIEW_SIZE       = 768
-
-        const val HD_ITERATIONS      = 50_000_000L
         const val HD_SIZE            = 2048
 
         const val TUTORIAL_STEPS     = 5 // Canvas, AttractorRow, ParamSlider, RenderHD, Palette
