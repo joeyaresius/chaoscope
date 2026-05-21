@@ -157,54 +157,78 @@ void attractorIterateN(
         break;
     }
 
-    // ── IFS: Barnsley Fern ───────────────────────────────────────────────────
-    // Four affine transforms with fixed probabilities.
-    // params: width (stem x-scale), lean (stem rotation offset).
+    // ── IFS: Barnsley Fern (3-D) ──────────────────────────────────────────────
+    // Four affine transforms with fixed probabilities. The dominant frond map
+    // rotates the y-z plane by `twist` each application, so repeated fronds spiral
+    // out of the plane into a true 3-D fern. twist = 0 recovers the flat 2-D fern.
+    // params: width (stem x-scale), lean (stem shear offset), twist (3-D angle).
     case ATTRACTOR_IFS: {
         const float wd = p[0]; // stem width multiplier (default 1.0)
-        const float ln = p[1]; // stem lean offset (default 0.0)
+        const float ln = p[1]; // stem lean/shear offset (default 0.0)
+        const float tw = p[2]; // 3-D twist angle in radians (default ~0.2)
+        const float ct = cosf(tw), st = sinf(tw);
         uint32_t rng = (uint32_t)((xs[0] + 1.f) * 1e5f) ^ 0xABCD1234u;
         if (rng == 0) rng = 0xDEADu;
         for (int i = 0; i < n; i++) {
             rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
             float r = (float)(rng >> 8) * (1.f / (float)(1u << 24));
-            float x = xs[i], y = ys[i];
+            float x = xs[i], y = ys[i], z = zs[i];
             if (r < 0.01f) {
                 xs[i] = 0.f;
                 ys[i] = 0.16f * y;
+                zs[i] = 0.16f * z;
             } else if (r < 0.86f) {
+                // contract y,z by 0.85 then rotate the y-z plane by `twist`
+                float cy = 0.85f * y, cz = 0.85f * z;
                 xs[i] =  (0.85f * wd) * x + (0.04f + ln) * y;
-                ys[i] = -(0.04f + ln) * x +  0.85f        * y + 1.6f;
+                ys[i] = -(0.04f + ln) * x + (ct * cy - st * cz) + 1.6f;
+                zs[i] =  st * cy + ct * cz;
             } else if (r < 0.93f) {
                 xs[i] =  0.20f * x - 0.26f * y;
                 ys[i] =  0.23f * x + 0.22f * y + 1.6f;
+                zs[i] =  0.30f * z;
             } else {
                 xs[i] = -0.15f * x + 0.28f * y;
                 ys[i] =  0.26f * x + 0.24f * y + 0.44f;
+                zs[i] =  0.30f * z;
             }
-            zs[i] = 0.f;
         }
         break;
     }
 
-    // ── Julia: inverse iteration ─────────────────────────────────────────────
-    // Plots the Julia set J(z²+c) via the inverse map z = sqrt(z_prev - c),
-    // choosing the ± branch randomly each step.
+    // ── Julia: quaternion inverse iteration (3-D) ────────────────────────────
+    // Plots the boundary of the quaternion Julia set q' = q² + c in the k = 0
+    // slice (q = w + x·i + y·j), via the inverse map q = sqrt(q_prev - c) with a
+    // random ± branch. Render coords are (w, x, y) → a genuine 3-D surface.
+    // params: c_re (scalar), c_im (i part), c_j (j part — drives the 3-D depth;
+    // 0 collapses to the flat 2-D Julia).
     case ATTRACTOR_JULIA: {
-        const float cre = p[0], cim = p[1];
+        const float cw = p[0], cx = p[1], cy = p[2];
         uint32_t rng = (uint32_t)((xs[0] + 2.f) * 1e5f) ^ 0x9E3779B9u;
         if (rng == 0) rng = 1;
         const float pi = 3.14159265f;
         for (int i = 0; i < n; i++) {
-            float tx = xs[i] - cre;
-            float ty = ys[i] - cim;
-            float mag   = powf(tx*tx + ty*ty, 0.25f); // |z-c|^0.5
-            float theta = atan2f(ty, tx) * 0.5f;
+            // T = q - c   (quaternion, k = 0)
+            float tw = xs[i] - cw;
+            float tx = ys[i] - cx;
+            float ty = zs[i] - cy;
+            float vm  = sqrtf(tx*tx + ty*ty);          // |vector part|
+            float mag = sqrtf(tw*tw + tx*tx + ty*ty);  // |T|
+            float r     = sqrtf(mag);                  // |sqrt(T)|
+            float theta = 0.5f * atan2f(vm, tw);
             rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
-            if (rng & 1u) theta += pi;
-            xs[i] = mag * cosf(theta);
-            ys[i] = mag * sinf(theta);
-            zs[i] = 0.f;
+            if (rng & 1u) theta += pi;                 // random ± branch
+            float sw  = r * cosf(theta);               // new scalar
+            float svm = r * sinf(theta);               // new vector magnitude
+            xs[i] = sw;
+            if (vm > 1e-6f) {
+                float k = svm / vm;
+                ys[i] = k * tx;
+                zs[i] = k * ty;
+            } else {
+                ys[i] = svm;
+                zs[i] = 0.f;
+            }
         }
         break;
     }
@@ -212,7 +236,7 @@ void attractorIterateN(
     // ── Pickover ─────────────────────────────────────────────────────────────
     // x' = sin(a·y) - z·cos(b·x)
     // y' = z·sin(c·x) - cos(d·y)
-    // z' = sin(x)
+    // z' = sin(x)   (canonical Pickover; z feeds back into x and y → 3-D cloud)
     case ATTRACTOR_PICKOVER: {
         const float a = p[0], b = p[1], c = p[2], d = p[3];
         for (int i = 0; i < n; i++) {

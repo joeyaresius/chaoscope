@@ -28,8 +28,8 @@ static constexpr int ATTRACTOR_PICKOVER      = 11; // Pickover
  *   THOMAS         params[0..1] : b, dt
  *   CHAOTIC_FLOW   params[0..5] : a, b, c, d, e, dt
  *   ICON           params[0..3] : lambda, alpha, beta, omega  (p=3 fixed)
- *   IFS            params[0..1] : width, lean  (Barnsley Fern)
- *   JULIA          params[0..1] : c_re, c_im   (inverse iteration)
+ *   IFS            params[0..2] : width, lean, twist     (Barnsley Fern, 3-D)
+ *   JULIA          params[0..2] : c_re, c_im, c_j        (quaternion Julia, 3-D)
  *   PICKOVER       params[0..3] : a, b, c, d
  */
 void attractorIterateN(
