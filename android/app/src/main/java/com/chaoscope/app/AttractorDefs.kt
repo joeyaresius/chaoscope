@@ -349,6 +349,7 @@ data class UiState(
     val roll: Float                  = 0f,
     val zoom: Float                  = 1f,
     val gamma: Float                 = 1f,
+    val depthCue: Float              = 0.5f,
     val exportDone: Boolean          = false,
     val exportError: String?         = null,
     val lastExportUri: String?       = null,

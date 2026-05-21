@@ -42,6 +42,7 @@ object ChaoscopeEngine {
         renderStyle: Int,
         bgColor: Int,
         boundsExtraPad: Float = 0f,
+        depthCue: Float = 0f,
         customStops: FloatArray? = null,
     ): IntArray?
 

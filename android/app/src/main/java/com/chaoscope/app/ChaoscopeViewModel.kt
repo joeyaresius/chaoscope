@@ -204,6 +204,10 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.update { it.copy(gamma = gamma) }
     }
 
+    fun setDepthCue(value: Float) {
+        _uiState.update { it.copy(depthCue = value) }
+    }
+
     fun setRenderStyle(style: RenderStyle) {
         _uiState.update { it.copy(renderStyle = style) }
     }
@@ -446,6 +450,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             renderStyle    = s.renderStyle.ordinal,
             bgColor        = s.bgColor.argb,
             boundsExtraPad = boundsExtraPad,
+            depthCue       = if (s.attractorType.is3D) s.depthCue else 0f,
             customStops    = customStops,
         )
     }

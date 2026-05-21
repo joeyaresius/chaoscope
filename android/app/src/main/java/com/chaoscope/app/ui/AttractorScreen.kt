@@ -305,6 +305,7 @@ fun AttractorScreen(
                     onRoll             = { vm.setCamera(roll  = it) },
                     onZoom             = { vm.setCamera(zoom  = it) },
                     onGamma            = vm::setGamma,
+                    onDepthCue         = vm::setDepthCue,
                     onRenderStyle      = vm::setRenderStyle,
                     onRender           = vm::renderPreview,
                     onRenderHD         = vm::renderHD,
@@ -465,6 +466,7 @@ private fun ControlPanel(
     onRoll:             (Float)         -> Unit,
     onZoom:             (Float)         -> Unit,
     onGamma:            (Float)         -> Unit,
+    onDepthCue:         (Float)         -> Unit,
     onRenderStyle:      (RenderStyle)   -> Unit,
     onRender:           ()              -> Unit,
     onRenderHD:         ()              -> Unit,
@@ -763,6 +765,13 @@ private fun ControlPanel(
                 state.roll,  -180f..180f, onValueChange = onRoll)
             LabelledSlider("Zoom = ${"%.2f".format(state.zoom)}",
                 state.zoom,  0.1f..5f,    onValueChange = onZoom)
+            LabelledSlider(
+                label         = "Depth = ${"%.0f".format(state.depthCue * 100)}%",
+                value         = state.depthCue,
+                valueRange    = 0f..1f,
+                hint          = "Dims points farther from the camera to bring out 3-D form. 0% is flat.",
+                onValueChange = onDepthCue,
+            )
         }
 
         // ── Tone mapping ─────────────────────────────────────────────────────

@@ -25,6 +25,7 @@ struct RenderParams {
     int       renderStyle; // 0=standard 1=gas 2=liquid 3=plasma 4=solid
     int       bgColor;     // ARGB_8888 background colour (default 0xFF000000)
     float     boundsExtraPad; // extra fraction added to auto-bounds (0 = default 5%)
+    float     depthCue;    // 0 = flat, 1 = full depth shading (3-D attractors)
     // Custom palette stops: flattened [pos, r, g, b, ...] with r/g/b in 0..1
     float     customStops[8 * 4];
     int       numCustomStops;

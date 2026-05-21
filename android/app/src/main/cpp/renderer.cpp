@@ -37,6 +37,18 @@ static void projectBatch(const float R[9], float zoom,
     }
 }
 
+// As projectBatch, but also writes camera-axis depth (third rotation row).
+static void projectBatchDepth(const float R[9], float zoom,
+                               const float* xs, const float* ys, const float* zs, int n,
+                               float* us, float* vs, float* ws) {
+    for (int i = 0; i < n; i++) {
+        float x = xs[i], y = ys[i], z = zs[i];
+        us[i] = (R[0]*x + R[1]*y + R[2]*z) * zoom;
+        vs[i] = (R[3]*x + R[4]*y + R[5]*z) * zoom;
+        ws[i] =  R[6]*x + R[7]*y + R[8]*z;
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Palette (linear multi-stop gradient → 1 024-entry LUT)
 // ────────────────────────────────────────────────────────────────────────────
@@ -141,6 +153,23 @@ static void accumulateBatch(const float* us, const float* vs, int n,
     }
 }
 
+// As accumulateBatch, but also sums per-pixel depth so we can shade by mean depth.
+static void accumulateBatchDepth(const float* us, const float* vs, const float* ws, int n,
+                                  uint32_t* hist, float* depthAccum, int width, int height,
+                                  float xMin, float xMax, float yMin, float yMax) {
+    float xScale = (float)(width  - 1) / (xMax - xMin);
+    float yScale = (float)(height - 1) / (yMax - yMin);
+    for (int i = 0; i < n; i++) {
+        int px = (int)((us[i] - xMin) * xScale);
+        int py = (int)((vs[i] - yMin) * yScale);
+        if ((unsigned)px < (unsigned)width && (unsigned)py < (unsigned)height) {
+            int idx = py * width + px;
+            hist[idx]++;
+            depthAccum[idx] += ws[i];
+        }
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Main render function
 // ────────────────────────────────────────────────────────────────────────────
@@ -157,9 +186,13 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     buildRotationMatrix(rp.yaw, rp.pitch, rp.roll, R);
 
     // ── Work buffers ─────────────────────────────────────────────────────────
+    const bool useDepth = rp.depthCue > 0.f;
     std::vector<float>    xs(BATCH_SIZE), ys(BATCH_SIZE), zs(BATCH_SIZE);
     std::vector<float>    us(BATCH_SIZE), vs(BATCH_SIZE);
+    std::vector<float>    ws(useDepth ? BATCH_SIZE : 0);
     std::vector<uint32_t> hist(static_cast<size_t>(W * H), 0u);
+    std::vector<float>    depthAccum(useDepth ? static_cast<size_t>(W * H) : 0, 0.f);
+    float wMin = FLT_MAX, wMax = -FLT_MAX;
 
     // ── Seed initial positions (deterministic LCG) ───────────────────────────
     uint32_t seed = 0xDEADBEEFu;
@@ -185,13 +218,22 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     for (int s = 0; s < BOUNDS_STEPS; s++) {
         attractorIterateN(rp.attractorType, rp.params,
                           xs.data(), ys.data(), zs.data(), BATCH_SIZE);
-        projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
-                     us.data(), vs.data());
+        if (useDepth) {
+            projectBatchDepth(R, rp.zoom, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
+                              us.data(), vs.data(), ws.data());
+        } else {
+            projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
+                         us.data(), vs.data());
+        }
         for (int i = 0; i < BATCH_SIZE; i++) {
             if (us[i] < uMin) uMin = us[i];
             if (us[i] > uMax) uMax = us[i];
             if (vs[i] < vMin) vMin = vs[i];
             if (vs[i] > vMax) vMax = vs[i];
+            if (useDepth) {
+                if (ws[i] < wMin) wMin = ws[i];
+                if (ws[i] > wMax) wMax = ws[i];
+            }
         }
     }
     // Add 5% base padding + optional extra (used on retry to catch wider orbits)
@@ -208,11 +250,27 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
                                    rp.iterations - accumulated);
         attractorIterateN(rp.attractorType, rp.params,
                           xs.data(), ys.data(), zs.data(), batchN);
-        projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), batchN,
-                     us.data(), vs.data());
-        accumulateBatch(us.data(), vs.data(), batchN, hist.data(), W, H,
-                        uMin, uMax, vMin, vMax);
+        if (useDepth) {
+            projectBatchDepth(R, rp.zoom, xs.data(), ys.data(), zs.data(), batchN,
+                              us.data(), vs.data(), ws.data());
+            accumulateBatchDepth(us.data(), vs.data(), ws.data(), batchN,
+                                 hist.data(), depthAccum.data(), W, H,
+                                 uMin, uMax, vMin, vMax);
+        } else {
+            projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), batchN,
+                         us.data(), vs.data());
+            accumulateBatch(us.data(), vs.data(), batchN, hist.data(), W, H,
+                            uMin, uMax, vMin, vMax);
+        }
         accumulated += batchN;
+    }
+
+    // Per-pixel mean depth, from raw counts (before any LIQUID blur).
+    std::vector<float> meanW;
+    if (useDepth) {
+        meanW.assign(static_cast<size_t>(W * H), 0.f);
+        for (int i = 0; i < W * H; i++)
+            if (hist[i] > 0) meanW[i] = depthAccum[i] / (float)hist[i];
     }
 
     // ── Tone-map: find log(1 + max) ──────────────────────────────────────────
@@ -291,6 +349,13 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         default: // STANDARD (0)
             if (gamma != 1.f) density = powf(density, gamma);
             break;
+        }
+
+        // Depth shading: dim points farther along the camera axis.
+        if (useDepth && wMax > wMin) {
+            float dn = (meanW[i] - wMin) / (wMax - wMin);
+            if (dn < 0.f) dn = 0.f; else if (dn > 1.f) dn = 1.f;
+            density *= 1.f - rp.depthCue * 0.5f * dn;
         }
 
         if (density < 0.f) density = 0.f;
