@@ -218,11 +218,13 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     for (int s = 0; s < BOUNDS_STEPS; s++) {
         attractorIterateN(rp.attractorType, rp.params,
                           xs.data(), ys.data(), zs.data(), BATCH_SIZE);
+        // Project at zoom = 1 so the auto-bounds are zoom-independent; zoom is
+        // applied below as a crop around the centre (otherwise it cancels out).
         if (useDepth) {
-            projectBatchDepth(R, rp.zoom, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
+            projectBatchDepth(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
                               us.data(), vs.data(), ws.data());
         } else {
-            projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
+            projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
                          us.data(), vs.data());
         }
         for (int i = 0; i < BATCH_SIZE; i++) {
@@ -243,6 +245,16 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     uMin -= padU; uMax += padU;
     vMin -= padV; vMax += padV;
 
+    // Apply zoom as a crop: shrink the world window by 1/zoom about its centre.
+    // zoom > 1 magnifies (narrower window); points outside the window clip.
+    float zoom = (rp.zoom > 0.f) ? rp.zoom : 1.f;
+    {
+        float cu = (uMin + uMax) * 0.5f, hu = (uMax - uMin) * 0.5f / zoom;
+        float cv = (vMin + vMax) * 0.5f, hv = (vMax - vMin) * 0.5f / zoom;
+        uMin = cu - hu; uMax = cu + hu;
+        vMin = cv - hv; vMax = cv + hv;
+    }
+
     // ── Main iteration loop ──────────────────────────────────────────────────
     long long accumulated = 0;
     while (accumulated < rp.iterations) {
@@ -251,13 +263,13 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         attractorIterateN(rp.attractorType, rp.params,
                           xs.data(), ys.data(), zs.data(), batchN);
         if (useDepth) {
-            projectBatchDepth(R, rp.zoom, xs.data(), ys.data(), zs.data(), batchN,
+            projectBatchDepth(R, 1.0f, xs.data(), ys.data(), zs.data(), batchN,
                               us.data(), vs.data(), ws.data());
             accumulateBatchDepth(us.data(), vs.data(), ws.data(), batchN,
                                  hist.data(), depthAccum.data(), W, H,
                                  uMin, uMax, vMin, vMax);
         } else {
-            projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), batchN,
+            projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), batchN,
                          us.data(), vs.data());
             accumulateBatch(us.data(), vs.data(), batchN, hist.data(), W, H,
                             uMin, uMax, vMin, vMax);
@@ -406,7 +418,7 @@ std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
     for (int s = 0; s < BOUNDS_DOT; s++) {
         attractorIterateN(rp.attractorType, rp.params,
                           xs.data(), ys.data(), zs.data(), BATCH_DOT);
-        projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), BATCH_DOT,
+        projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_DOT,
                      us.data(), vs.data());
         for (int i = 0; i < BATCH_DOT; i++) {
             if (us[i] < uMin) uMin = us[i];  if (us[i] > uMax) uMax = us[i];
@@ -419,6 +431,9 @@ std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
     vMin -= padV;  vMax += padV;
     float uRange = uMax - uMin;
     float vRange = vMax - vMin;
+    // Zoom scales the normalised output about the centre (bounds are zoom-free),
+    // so zoom > 1 spreads points past [-1, 1] and they draw off-canvas — magnified.
+    float zoom = (rp.zoom > 0.f) ? rp.zoom : 1.f;
 
     std::vector<float> result;
     result.reserve(n_pts * 2);
@@ -427,11 +442,11 @@ std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
         int bn = (int)std::min((long long)BATCH_DOT, (long long)n_pts - acc);
         attractorIterateN(rp.attractorType, rp.params,
                           xs.data(), ys.data(), zs.data(), bn);
-        projectBatch(R, rp.zoom, xs.data(), ys.data(), zs.data(), bn,
+        projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), bn,
                      us.data(), vs.data());
         for (int i = 0; i < bn; i++) {
-            result.push_back((us[i] - uMin) / uRange * 2.f - 1.f);
-            result.push_back((vs[i] - vMin) / vRange * 2.f - 1.f);
+            result.push_back(((us[i] - uMin) / uRange * 2.f - 1.f) * zoom);
+            result.push_back(((vs[i] - vMin) / vRange * 2.f - 1.f) * zoom);
         }
         acc += bn;
     }
