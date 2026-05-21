@@ -12,11 +12,14 @@ import com.chaoscope.AttractorType
 import com.chaoscope.BgColor
 import com.chaoscope.ColorStop
 import com.chaoscope.PaletteType
+import com.chaoscope.Preset
 import com.chaoscope.RenderStyle
 import com.chaoscope.UiState
 import com.chaoscope.colorStopsToString
 import com.chaoscope.defaultCustomStops
+import com.chaoscope.presetsToString
 import com.chaoscope.stringToColorStops
+import com.chaoscope.stringToPresets
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -131,8 +134,37 @@ class ChaoscopePreferences(private val context: Context) {
         }
     }
 
+    // ── User-saved presets (favourites) ──────────────────────────────────────
+
+    val userPresets: Flow<List<Preset>> = data.map { prefs ->
+        prefs[KEY_USER_PRESETS]?.let { stringToPresets(it) } ?: emptyList()
+    }
+
+    /** Save a preset, replacing any existing one with the same name. Newest first, capped. */
+    suspend fun saveUserPreset(preset: Preset) {
+        context.dataStore.edit { prefs ->
+            val existing = prefs[KEY_USER_PRESETS]
+                ?.let { stringToPresets(it) }
+                ?.filter { it.name != preset.name }
+                ?: emptyList()
+            val updated = (listOf(preset) + existing).take(MAX_USER_PRESETS)
+            prefs[KEY_USER_PRESETS] = presetsToString(updated)
+        }
+    }
+
+    suspend fun deleteUserPreset(name: String) {
+        context.dataStore.edit { prefs ->
+            val kept = prefs[KEY_USER_PRESETS]
+                ?.let { stringToPresets(it) }
+                ?.filter { it.name != name }
+                ?: return@edit
+            prefs[KEY_USER_PRESETS] = presetsToString(kept)
+        }
+    }
+
     companion object {
         private const val MAX_RECENTS = 8
+        private const val MAX_USER_PRESETS = 30
         private const val KEY_PARAM_PREFIX = "param_"
 
         private val KEY_SPLASH_DISMISSED   = booleanPreferencesKey("splash_dismissed")
@@ -148,5 +180,6 @@ class ChaoscopePreferences(private val context: Context) {
         private val KEY_GAMMA              = floatPreferencesKey("gamma")
         private val KEY_RECENTS            = stringPreferencesKey("recent_exports")
         private val KEY_CUSTOM_STOPS       = stringPreferencesKey("custom_stops")
+        private val KEY_USER_PRESETS       = stringPreferencesKey("user_presets")
     }
 }

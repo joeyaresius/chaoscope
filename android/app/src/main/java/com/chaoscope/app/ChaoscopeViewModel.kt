@@ -55,6 +55,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     val recentExports: StateFlow<List<String>> = prefs.recentExports
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val userPresets: StateFlow<List<Preset>> = prefs.userPresets
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     // ── Session-level splash (resets every cold start via ViewModel lifecycle) ─
     private val _sessionSplashDone = MutableStateFlow(false)
     val sessionSplashDone: StateFlow<Boolean> = _sessionSplashDone.asStateFlow()
@@ -123,6 +126,30 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         fetchDotPoints()
+    }
+
+    /** Snapshot the current state as a named user preset and persist it. */
+    fun saveCurrentAsPreset(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val s = _uiState.value
+        val preset = Preset(
+            name        = trimmed,
+            type        = s.attractorType,
+            params      = s.params,
+            yaw         = s.yaw,
+            pitch       = s.pitch,
+            roll        = s.roll,
+            zoom        = s.zoom,
+            palette     = s.palette,
+            renderStyle = s.renderStyle,
+            bgColor     = s.bgColor,
+        )
+        viewModelScope.launch { prefs.saveUserPreset(preset) }
+    }
+
+    fun deleteUserPreset(name: String) {
+        viewModelScope.launch { prefs.deleteUserPreset(name) }
     }
 
     /** Apply a curated preset: attractor + params + camera + look, then preview. */

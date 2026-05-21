@@ -87,8 +87,11 @@ fun AttractorScreen(
     val tutorialStep     by vm.tutorialStep.collectAsStateWithLifecycle()
     val tutorialAnchors  by vm.tutorialAnchors.collectAsStateWithLifecycle()
     val showPaletteEditor by vm.showPaletteEditor.collectAsStateWithLifecycle()
+    val userPresets       by vm.userPresets.collectAsStateWithLifecycle()
     val context           = LocalContext.current
     val haptics           = LocalHapticFeedback.current
+
+    var showSavePresetDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -292,6 +295,9 @@ fun AttractorScreen(
                     recentExports      = recentExports,
                     onAttractor        = vm::setAttractorType,
                     onApplyPreset      = vm::applyPreset,
+                    userPresets        = userPresets,
+                    onSavePreset       = { showSavePresetDialog = true },
+                    onDeletePreset     = vm::deleteUserPreset,
                     onParam            = vm::updateParam,
                     onPalette          = vm::setPalette,
                     onYaw              = { vm.setCamera(yaw   = it) },
@@ -375,6 +381,48 @@ fun AttractorScreen(
             onDismiss    = vm::closePaletteEditor,
         )
     }
+
+    // ── Save-preset dialog ────────────────────────────────────────────────────
+    if (showSavePresetDialog) {
+        SavePresetDialog(
+            defaultName = state.attractorType.displayName,
+            onSave      = { name ->
+                vm.saveCurrentAsPreset(name)
+                showSavePresetDialog = false
+            },
+            onDismiss   = { showSavePresetDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun SavePresetDialog(
+    defaultName: String,
+    onSave:      (String) -> Unit,
+    onDismiss:   () -> Unit,
+) {
+    var name by remember { mutableStateOf(defaultName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title   = { Text("Save preset") },
+        text    = {
+            OutlinedTextField(
+                value         = name,
+                onValueChange = { name = it },
+                singleLine    = true,
+                label         = { Text("Name") },
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(name) },
+                enabled = name.isNotBlank(),
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -407,6 +455,9 @@ private fun ControlPanel(
     recentExports:      List<String>,
     onAttractor:        (AttractorType) -> Unit,
     onApplyPreset:      (Preset)        -> Unit,
+    userPresets:        List<Preset>,
+    onSavePreset:       ()              -> Unit,
+    onDeletePreset:     (String)        -> Unit,
     onParam:            (Int, Float)    -> Unit,
     onPalette:          (PaletteType)   -> Unit,
     onYaw:              (Float)         -> Unit,
@@ -546,6 +597,48 @@ private fun ControlPanel(
                             Text(
                                 text  = preset.name,
                                 style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+
+        // ── My Presets (user-saved) ──────────────────────────────────────────
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            SectionLabel("My Presets")
+            TextButton(onClick = onSavePreset) {
+                Text("+ Save current", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        if (userPresets.isEmpty()) {
+            Text(
+                text  = "Save the current attractor, parameters, camera and look as a reusable preset.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            )
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(userPresets, key = { it.name }) { preset ->
+                    AssistChip(
+                        onClick      = { onApplyPreset(preset) },
+                        label        = {
+                            Text(
+                                text  = preset.name,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        trailingIcon = {
+                            Icon(
+                                imageVector        = Icons.Outlined.Close,
+                                contentDescription = "Delete preset ${preset.name}",
+                                modifier           = Modifier
+                                    .size(16.dp)
+                                    .clickable { onDeletePreset(preset.name) },
                             )
                         },
                     )
