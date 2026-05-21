@@ -125,6 +125,25 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         fetchDotPoints()
     }
 
+    /** Apply a curated preset: attractor + params + camera + look, then preview. */
+    fun applyPreset(preset: Preset) {
+        _uiState.update {
+            it.copy(
+                attractorType = preset.type,
+                params        = preset.params,
+                palette       = preset.palette,
+                renderStyle   = preset.renderStyle,
+                bgColor       = preset.bgColor,
+                yaw   = if (preset.type.is3D) preset.yaw   else 0f,
+                pitch = if (preset.type.is3D) preset.pitch else 0f,
+                roll  = if (preset.type.is3D) preset.roll  else 0f,
+                zoom  = preset.zoom,
+                bitmap = null,
+            )
+        }
+        fetchDotPoints()
+    }
+
     fun updateParam(index: Int, value: Float) {
         _uiState.update { state ->
             val p = state.params.toMutableList().also { it[index] = value }

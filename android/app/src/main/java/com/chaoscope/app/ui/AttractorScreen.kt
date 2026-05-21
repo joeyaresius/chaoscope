@@ -291,6 +291,7 @@ fun AttractorScreen(
                     state              = state,
                     recentExports      = recentExports,
                     onAttractor        = vm::setAttractorType,
+                    onApplyPreset      = vm::applyPreset,
                     onParam            = vm::updateParam,
                     onPalette          = vm::setPalette,
                     onYaw              = { vm.setCamera(yaw   = it) },
@@ -405,6 +406,7 @@ private fun ControlPanel(
     state:              UiState,
     recentExports:      List<String>,
     onAttractor:        (AttractorType) -> Unit,
+    onApplyPreset:      (Preset)        -> Unit,
     onParam:            (Int, Float)    -> Unit,
     onPalette:          (PaletteType)   -> Unit,
     onYaw:              (Float)         -> Unit,
@@ -524,6 +526,25 @@ private fun ControlPanel(
                         label    = {
                             Text(
                                 text  = type.displayName,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+
+        // ── Presets (for the current attractor) ──────────────────────────────
+        val presets = state.attractorType.presets
+        if (presets.isNotEmpty()) {
+            SectionLabel("Presets")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(presets) { preset ->
+                    AssistChip(
+                        onClick = { onApplyPreset(preset) },
+                        label   = {
+                            Text(
+                                text  = preset.name,
                                 style = MaterialTheme.typography.labelSmall,
                             )
                         },

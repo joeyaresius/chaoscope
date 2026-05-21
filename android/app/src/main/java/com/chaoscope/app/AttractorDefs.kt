@@ -240,6 +240,98 @@ enum class BgColor(val displayName: String, val argb: Int) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Curated presets
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A hand-picked starting point: attractor + parameters + camera + look.
+ * Camera fields are ignored for 2-D attractors (forced to 0 on apply).
+ */
+data class Preset(
+    val name: String,
+    val type: AttractorType,
+    val params: List<Float>,
+    val yaw: Float = 0f,
+    val pitch: Float = 0f,
+    val roll: Float = 0f,
+    val zoom: Float = 1f,
+    val palette: PaletteType = PaletteType.NEBULA,
+    val renderStyle: RenderStyle = RenderStyle.STANDARD,
+    val bgColor: BgColor = BgColor.BLACK,
+)
+
+/**
+ * Curated presets per attractor. Each list leads with a "signature" preset built
+ * on the attractor's known-good defaults, followed by appearance/parameter variants.
+ */
+val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
+    AttractorType.CLIFFORD to listOf(
+        Preset("Classic",  AttractorType.CLIFFORD, listOf(-1.4f, 1.6f, 1.0f, 0.7f, 1.5f, 0.5f), palette = PaletteType.NEBULA),
+        Preset("Filigree", AttractorType.CLIFFORD, listOf(-1.7f, 1.8f, 0.9f, 0.6f, 2.0f, 0.7f), yaw = 35f, pitch = -20f, palette = PaletteType.AURORA, renderStyle = RenderStyle.GAS),
+        Preset("Ember",    AttractorType.CLIFFORD, listOf(-1.2f, 1.4f, 1.1f, 0.8f, 1.0f, 0.4f), yaw = -25f, pitch = 15f, palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
+    ),
+    AttractorType.PETER_DE_JONG to listOf(
+        Preset("Shells",   AttractorType.PETER_DE_JONG, listOf(-2.0f, -2.0f, -1.2f, 2.0f, 1.8f, -1.5f), palette = PaletteType.ELECTRIC),
+        Preset("Storm",    AttractorType.PETER_DE_JONG, listOf(-2.4f, -1.6f, -1.0f, 2.2f, 2.0f, -1.8f), yaw = 40f, pitch = 25f, palette = PaletteType.NEBULA, renderStyle = RenderStyle.LIQUID),
+        Preset("Filament", AttractorType.PETER_DE_JONG, listOf(-1.8f, -2.2f, -1.4f, 1.7f, 1.5f, -1.2f), palette = PaletteType.MATRIX, renderStyle = RenderStyle.GAS),
+    ),
+    AttractorType.GUMOWSKI_MIRA to listOf(
+        Preset("Jellyfish", AttractorType.GUMOWSKI_MIRA, listOf(0.008f, -0.496f), palette = PaletteType.NEBULA),
+        Preset("Coral",     AttractorType.GUMOWSKI_MIRA, listOf(0.02f, -0.7f), palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
+        Preset("Bloom",     AttractorType.GUMOWSKI_MIRA, listOf(0.005f, -0.3f), palette = PaletteType.AURORA),
+    ),
+    AttractorType.LORENZ to listOf(
+        Preset("Butterfly", AttractorType.LORENZ, listOf(10f, 28f, 2.667f, 0.005f), yaw = 25f, pitch = 15f, palette = PaletteType.NEBULA),
+        Preset("Side Wing", AttractorType.LORENZ, listOf(10f, 28f, 2.667f, 0.005f), yaw = 90f, palette = PaletteType.FIRE),
+        Preset("Storm Cell", AttractorType.LORENZ, listOf(10f, 40f, 2.667f, 0.005f), yaw = 35f, pitch = 20f, palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.PLASMA),
+    ),
+    AttractorType.ROSSLER to listOf(
+        Preset("Spiral",  AttractorType.ROSSLER, listOf(0.2f, 0.2f, 5.7f, 0.02f), yaw = 20f, pitch = 30f, palette = PaletteType.AURORA),
+        Preset("Funnel",  AttractorType.ROSSLER, listOf(0.2f, 0.2f, 8.0f, 0.02f), yaw = 45f, pitch = 10f, palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
+        Preset("Pinball", AttractorType.ROSSLER, listOf(0.1f, 0.1f, 5.7f, 0.02f), pitch = 60f, palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.GAS),
+    ),
+    AttractorType.AIZAWA to listOf(
+        Preset("Torus",  AttractorType.AIZAWA, listOf(0.95f, 0.7f, 0.6f, 3.5f, 0.25f, 0.1f, 0.01f), yaw = 30f, pitch = 25f, palette = PaletteType.NEBULA),
+        Preset("Möbius", AttractorType.AIZAWA, listOf(0.95f, 0.7f, 0.6f, 3.5f, 0.4f, 0.1f, 0.01f), yaw = 60f, pitch = 10f, palette = PaletteType.AURORA, renderStyle = RenderStyle.LIQUID),
+        Preset("Coil",   AttractorType.AIZAWA, listOf(1.2f, 0.7f, 0.6f, 3.5f, 0.25f, 0.1f, 0.01f), yaw = 20f, pitch = 40f, palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
+    ),
+    AttractorType.THOMAS to listOf(
+        Preset("Yarn Ball",  AttractorType.THOMAS, listOf(0.208186f, 0.05f), yaw = 30f, pitch = 30f, palette = PaletteType.ELECTRIC),
+        Preset("Hyperchaos", AttractorType.THOMAS, listOf(0.15f, 0.05f), yaw = 45f, pitch = 20f, palette = PaletteType.NEBULA, renderStyle = RenderStyle.GAS),
+        Preset("Lattice",    AttractorType.THOMAS, listOf(0.32f, 0.05f), palette = PaletteType.MATRIX),
+    ),
+    AttractorType.CHAOTIC_FLOW to listOf(
+        Preset("Ribbon",  AttractorType.CHAOTIC_FLOW, listOf(3f, 2.7f, 1.7f, 2f, 9f, 0.01f), yaw = 25f, pitch = 20f, palette = PaletteType.AURORA),
+        Preset("Tempest", AttractorType.CHAOTIC_FLOW, listOf(3.5f, 3.0f, 1.7f, 2f, 11f, 0.01f), yaw = 40f, pitch = 15f, palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
+        Preset("Mist",    AttractorType.CHAOTIC_FLOW, listOf(2.5f, 2.4f, 1.5f, 2f, 7f, 0.01f), yaw = 10f, pitch = 35f, palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.GAS),
+    ),
+    AttractorType.ICON to listOf(
+        Preset("Mandala",   AttractorType.ICON, listOf(-2.5f, 5.0f, -1.8f, 1.0f), palette = PaletteType.NEBULA),
+        Preset("Sunwheel",  AttractorType.ICON, listOf(-2.0f, 6.0f, -1.5f, 1.2f), palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
+        Preset("Snowflake", AttractorType.ICON, listOf(-3.0f, 4.0f, -2.0f, 0.8f), palette = PaletteType.ELECTRIC),
+    ),
+    AttractorType.IFS to listOf(
+        Preset("Fern",      AttractorType.IFS, listOf(1.0f, 0.0f), palette = PaletteType.MATRIX),
+        Preset("Windblown", AttractorType.IFS, listOf(1.0f, 0.12f), palette = PaletteType.AURORA),
+        Preset("Broadleaf", AttractorType.IFS, listOf(1.25f, -0.05f), palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
+    ),
+    AttractorType.JULIA to listOf(
+        Preset("Dragon",   AttractorType.JULIA, listOf(-0.7f, 0.27f), palette = PaletteType.NEBULA),
+        Preset("Rabbit",   AttractorType.JULIA, listOf(-0.123f, 0.745f), palette = PaletteType.AURORA),
+        Preset("Dendrite", AttractorType.JULIA, listOf(0.0f, 1.0f), palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.GAS),
+    ),
+    AttractorType.PICKOVER to listOf(
+        Preset("Wings", AttractorType.PICKOVER, listOf(2.24f, 0.43f, -0.65f, -2.43f), yaw = 25f, pitch = 20f, palette = PaletteType.NEBULA),
+        Preset("Conch", AttractorType.PICKOVER, listOf(2.0f, 0.5f, -0.7f, -2.0f), yaw = 40f, pitch = 15f, palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
+        Preset("Veil",  AttractorType.PICKOVER, listOf(1.8f, 0.3f, -0.5f, -2.4f), yaw = 15f, pitch = 35f, palette = PaletteType.AURORA, renderStyle = RenderStyle.GAS),
+    ),
+)
+
+/** Curated presets for this attractor (empty if none defined). */
+val AttractorType.presets: List<Preset>
+    get() = CURATED_PRESETS[this].orEmpty()
+
+// ────────────────────────────────────────────────────────────────────────────
 // UI state
 // ────────────────────────────────────────────────────────────────────────────
 
