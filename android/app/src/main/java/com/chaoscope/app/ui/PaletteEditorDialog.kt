@@ -1,8 +1,11 @@
 package com.chaoscope.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -14,9 +17,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -230,7 +238,7 @@ private fun StopEditor(
         onChange(stop.copy(r = r, g = g, b = b))
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -242,22 +250,16 @@ private fun StopEditor(
                     .background(Color(stop.r, stop.g, stop.b)),
             )
             Text(
-                "H / S / V",
+                "Colour",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
         }
 
-        SliderRow("H  ${"%.0f".format(hue)}°", hue / 360f,
-            Brush.horizontalGradient(hueColors())) { hue = it * 360f; commit() }
-
-        val satLo = hsvColor(hue, 0f, bri); val satHi = hsvColor(hue, 1f, bri)
-        SliderRow("S  ${"%.0f".format(sat * 100)}%", sat,
-            Brush.horizontalGradient(listOf(satLo, satHi))) { sat = it; commit() }
-
-        val briHi = hsvColor(hue, sat, 1f)
-        SliderRow("V  ${"%.0f".format(bri * 100)}%", bri,
-            Brush.horizontalGradient(listOf(Color.Black, briHi))) { bri = it; commit() }
+        SaturationValueBox(hue = hue, sat = sat, value = bri) { s, v ->
+            sat = s; bri = v; commit()
+        }
+        HueBar(hue = hue) { h -> hue = h; commit() }
 
         // Position slider (only movable if there's room between neighbours)
         if (maxPos > minPos + 0.01f) {
@@ -265,6 +267,65 @@ private fun StopEditor(
             SliderRow("Pos  ${"%.2f".format(stop.pos)}", (stop.pos - minPos) / posRange,
                 null) { onChange(stop.copy(pos = minPos + it * posRange)) }
         }
+    }
+}
+
+// ── 2-D saturation / brightness picker ──────────────────────────────────────
+
+@Composable
+private fun SaturationValueBox(
+    hue:      Float,
+    sat:      Float,
+    value:    Float,
+    onChange: (Float, Float) -> Unit,
+) {
+    var box by remember { mutableStateOf(IntSize.Zero) }
+    fun handle(o: Offset) {
+        val w = box.width.coerceAtLeast(1)
+        val h = box.height.coerceAtLeast(1)
+        onChange((o.x / w).coerceIn(0f, 1f), (1f - o.y / h).coerceIn(0f, 1f))
+    }
+    val pureHue = hsvColor(hue, 1f, 1f)
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(170.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .onSizeChanged { box = it }
+            .pointerInput(Unit) { detectTapGestures { handle(it) } }
+            .pointerInput(Unit) { detectDragGestures { change, _ -> handle(change.position) } },
+    ) {
+        drawRect(brush = Brush.horizontalGradient(listOf(Color.White, pureHue)))
+        drawRect(brush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
+        val cx = sat * size.width
+        val cy = (1f - value) * size.height
+        drawCircle(Color.Black, radius = 9f, center = Offset(cx, cy), style = Stroke(width = 4f))
+        drawCircle(Color.White, radius = 9f, center = Offset(cx, cy), style = Stroke(width = 2f))
+    }
+}
+
+// ── Hue bar ──────────────────────────────────────────────────────────────────
+
+@Composable
+private fun HueBar(hue: Float, onChange: (Float) -> Unit) {
+    var box by remember { mutableStateOf(IntSize.Zero) }
+    fun handle(o: Offset) {
+        val w = box.width.coerceAtLeast(1)
+        onChange((o.x / w).coerceIn(0f, 1f) * 360f)
+    }
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(26.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .onSizeChanged { box = it }
+            .pointerInput(Unit) { detectTapGestures { handle(it) } }
+            .pointerInput(Unit) { detectDragGestures { change, _ -> handle(change.position) } },
+    ) {
+        drawRect(brush = Brush.horizontalGradient(hueColors()))
+        val cx = (hue / 360f) * size.width
+        drawLine(Color.Black, Offset(cx, 0f), Offset(cx, size.height), strokeWidth = 5f)
+        drawLine(Color.White, Offset(cx, 0f), Offset(cx, size.height), strokeWidth = 2f)
     }
 }
 
