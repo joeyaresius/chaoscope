@@ -90,6 +90,7 @@ class ChaoscopePreferences(private val context: Context) {
             zoom          = prefs[KEY_ZOOM]  ?: 1f,
             gamma         = prefs[KEY_GAMMA] ?: 1f,
             depthCue      = prefs[KEY_DEPTH_CUE] ?: 0.5f,
+            fullRange     = prefs[KEY_FULL_RANGE] ?: false,
             customStops   = savedCustomStops,
         )
     }
@@ -106,6 +107,7 @@ class ChaoscopePreferences(private val context: Context) {
             prefs[KEY_ZOOM]          = state.zoom
             prefs[KEY_GAMMA]         = state.gamma
             prefs[KEY_DEPTH_CUE]     = state.depthCue
+            prefs[KEY_FULL_RANGE]    = state.fullRange
 
             // Clear any stale param entries from a previous attractor with more params.
             val maxParams = AttractorType.entries.maxOf { it.paramNames.size }
@@ -181,6 +183,7 @@ class ChaoscopePreferences(private val context: Context) {
         private val KEY_ZOOM               = floatPreferencesKey("zoom")
         private val KEY_GAMMA              = floatPreferencesKey("gamma")
         private val KEY_DEPTH_CUE          = floatPreferencesKey("depth_cue")
+        private val KEY_FULL_RANGE         = booleanPreferencesKey("full_range")
         private val KEY_RECENTS            = stringPreferencesKey("recent_exports")
         private val KEY_CUSTOM_STOPS       = stringPreferencesKey("custom_stops")
         private val KEY_USER_PRESETS       = stringPreferencesKey("user_presets")

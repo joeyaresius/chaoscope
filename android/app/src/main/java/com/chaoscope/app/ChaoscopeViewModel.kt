@@ -181,6 +181,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setPalette(palette: PaletteType) {
         _uiState.update { it.copy(palette = palette) }
+        renderLookPreview()
     }
 
     fun setCamera(
@@ -202,19 +203,27 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setGamma(gamma: Float) {
         _uiState.update { it.copy(gamma = gamma) }
+        renderLookPreview()
     }
 
     fun setDepthCue(value: Float) {
         _uiState.update { it.copy(depthCue = value) }
+        renderLookPreview()
+    }
+
+    fun setFullRange(enabled: Boolean) {
+        _uiState.update { it.copy(fullRange = enabled) }
+        renderLookPreview()
     }
 
     fun setRenderStyle(style: RenderStyle) {
         _uiState.update { it.copy(renderStyle = style) }
+        renderLookPreview()
     }
 
     fun setBgColor(color: BgColor) {
-        _uiState.update { it.copy(bgColor = color, bitmap = null) }
-        fetchDotPoints()
+        _uiState.update { it.copy(bgColor = color) }
+        renderLookPreview()
     }
 
     fun clearRenderFailedMessage() = _uiState.update { it.copy(renderFailedMessage = null) }
@@ -267,7 +276,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     fun saveCustomStops(stops: List<ColorStop>) {
         _uiState.update { it.copy(palette = PaletteType.CUSTOM, customStops = stops) }
         viewModelScope.launch { prefs.saveCustomStops(stops) }
-        fetchDotPoints()
+        renderLookPreview()
     }
 
     // ── Real-time rotation (drag gesture) ────────────────────────────────────────
@@ -331,9 +340,14 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Explicit renders (user-initiated only) ───────────────────────────────
 
-    fun renderPreview() = scheduleRender(PREVIEW_ITERATIONS, PREVIEW_SIZE, debounce = false)
+    fun renderPreview() = scheduleRender(PREVIEW_ITERATIONS, PREVIEW_SIZE)
 
-    fun renderHD() = scheduleRender(HD_ITERATIONS, HD_SIZE, debounce = false)
+    fun renderHD() = scheduleRender(HD_ITERATIONS, HD_SIZE)
+
+    /** Debounced preview render used when a "look" parameter changes, so palette,
+     *  depth, gamma, style, background and full-range changes are visible live. */
+    private fun renderLookPreview() =
+        scheduleRender(PREVIEW_ITERATIONS, PREVIEW_SIZE, debounceMs = LOOK_DEBOUNCE_MS)
 
     /** Cancel an in-flight render. The native call can't be interrupted mid-flight,
      *  but the result is dropped so the UI returns immediately. */
@@ -451,6 +465,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             bgColor        = s.bgColor.argb,
             boundsExtraPad = boundsExtraPad,
             depthCue       = if (s.attractorType.is3D) s.depthCue else 0f,
+            fullRange      = if (s.fullRange) 1 else 0,
             customStops    = customStops,
         )
     }
@@ -458,11 +473,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private fun scheduleRender(
         iterations: Long,
         size: Int,
-        debounce: Boolean = true,
+        debounceMs: Long = 0L,
     ) {
         renderJob?.cancel()
         renderJob = viewModelScope.launch(Dispatchers.Default) {
-            if (debounce) delay(DEBOUNCE_MS)
+            if (debounceMs > 0L) delay(debounceMs)
             _uiState.update { it.copy(isRendering = true, isRetrying = false) }
             try {
                 val s = _uiState.value
@@ -496,6 +511,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val DEBOUNCE_MS         = 80L
+        private const val LOOK_DEBOUNCE_MS    = 300L
         private const val PERSIST_DEBOUNCE_MS = 500L
         private const val DOT_POINTS          = 60_000
 

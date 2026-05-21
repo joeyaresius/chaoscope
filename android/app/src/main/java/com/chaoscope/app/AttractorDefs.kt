@@ -137,7 +137,7 @@ enum class AttractorType(
         is3D          = false,
         defaultParams = floatArrayOf(-2.5f, 5.0f, -1.8f, 1.0f),
         paramNames    = listOf("λ", "α", "β", "ω"),
-        paramRanges   = listOf(-4f..-1f, 1f..8f, -3f..0.5f, 0.5f..2f),
+        paramRanges   = listOf(-4f..-1f, 1f..8f, -3f..0.5f, 0.1f..2f),
         description   = "Symmetric icons (Field & Golubitsky). Uses complex polynomials to produce mandala-like patterns with rotational symmetry.",
         paramHints    = listOf(
             "λ — overall contraction. More negative pulls orbits inward.",
@@ -308,7 +308,7 @@ val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
     AttractorType.ICON to listOf(
         Preset("Mandala",   AttractorType.ICON, listOf(-2.5f, 5.0f, -1.8f, 1.0f), palette = PaletteType.NEBULA),
         Preset("Sunwheel",  AttractorType.ICON, listOf(-2.0f, 6.0f, -1.5f, 1.2f), palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
-        Preset("Snowflake", AttractorType.ICON, listOf(-3.0f, 4.0f, -2.0f, 0.8f), palette = PaletteType.ELECTRIC),
+        Preset("Snowflake", AttractorType.ICON, listOf(-2.34f, 2.0f, 0.2f, 0.1f), palette = PaletteType.ELECTRIC),
     ),
     AttractorType.IFS to listOf(
         Preset("Fern",      AttractorType.IFS, listOf(1.0f, 0.0f), palette = PaletteType.MATRIX),
@@ -350,6 +350,7 @@ data class UiState(
     val zoom: Float                  = 1f,
     val gamma: Float                 = 1f,
     val depthCue: Float              = 0.5f,
+    val fullRange: Boolean           = false,
     val exportDone: Boolean          = false,
     val exportError: String?         = null,
     val lastExportUri: String?       = null,

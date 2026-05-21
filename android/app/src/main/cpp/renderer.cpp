@@ -331,12 +331,10 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
 
     const float gamma = (rp.gamma > 0.f) ? rp.gamma : 1.f;
 
-    // ── Colorize: render style + gamma → ARGB_8888 ───────────────────────────
+    // ── Pass 1: base density (style + gamma) per populated pixel ──────────────
+    std::vector<float> dens(static_cast<size_t>(W * H), 0.f);
     for (int i = 0; i < W * H; i++) {
-        if (hist[i] == 0) {
-            outPixels[i] = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
-            continue;
-        }
+        if (hist[i] == 0) continue;
         float density;
         // GAS: linear 4th-root gives a broad, diffuse cloud
         if (rp.renderStyle == 1) {
@@ -361,6 +359,45 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         default: // STANDARD (0)
             if (gamma != 1.f) density = powf(density, gamma);
             break;
+        }
+
+        dens[i] = density;
+    }
+
+    // Full-range: histogram-equalise populated densities so the whole palette is
+    // used (min..max stretch barely helps — density is skewed toward the dark end).
+    static constexpr int CDF_BINS = 1024;
+    const bool equalize = (rp.fullRange != 0);
+    std::vector<float> cdf;
+    if (equalize) {
+        std::vector<double> bins(CDF_BINS, 0.0);
+        double pop = 0.0;
+        for (int i = 0; i < W * H; i++) {
+            if (hist[i] == 0) continue;
+            float d = dens[i];
+            int b = (int)(d * (float)(CDF_BINS - 1));
+            if (b < 0) b = 0; else if (b >= CDF_BINS) b = CDF_BINS - 1;
+            bins[b] += 1.0; pop += 1.0;
+        }
+        cdf.assign(CDF_BINS, 0.f);
+        double acc = 0.0;
+        for (int b = 0; b < CDF_BINS; b++) {
+            acc += bins[b];
+            cdf[b] = (pop > 0.0) ? (float)(acc / pop) : 0.f;
+        }
+    }
+
+    // ── Pass 2: depth shade + colorize → ARGB_8888 ───────────────────────────
+    for (int i = 0; i < W * H; i++) {
+        if (hist[i] == 0) {
+            outPixels[i] = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
+            continue;
+        }
+        float density = dens[i];
+        if (equalize) {
+            int b = (int)(density * (float)(CDF_BINS - 1));
+            if (b < 0) b = 0; else if (b >= CDF_BINS) b = CDF_BINS - 1;
+            density = cdf[b];
         }
 
         // Depth shading: dim points farther along the camera axis.

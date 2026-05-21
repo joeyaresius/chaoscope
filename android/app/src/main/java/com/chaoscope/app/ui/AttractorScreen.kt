@@ -306,6 +306,7 @@ fun AttractorScreen(
                     onZoom             = { vm.setCamera(zoom  = it) },
                     onGamma            = vm::setGamma,
                     onDepthCue         = vm::setDepthCue,
+                    onFullRange        = vm::setFullRange,
                     onRenderStyle      = vm::setRenderStyle,
                     onRender           = vm::renderPreview,
                     onRenderHD         = vm::renderHD,
@@ -467,6 +468,7 @@ private fun ControlPanel(
     onZoom:             (Float)         -> Unit,
     onGamma:            (Float)         -> Unit,
     onDepthCue:         (Float)         -> Unit,
+    onFullRange:        (Boolean)       -> Unit,
     onRenderStyle:      (RenderStyle)   -> Unit,
     onRender:           ()              -> Unit,
     onRenderHD:         ()              -> Unit,
@@ -783,6 +785,25 @@ private fun ControlPanel(
             hint          = "Gamma flattens (lower) or boosts (higher) the brightest regions.",
             onValueChange = onGamma,
         )
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text  = "Full palette range",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text  = "Stretch density across the whole gradient so all palette colours show.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = state.fullRange, onCheckedChange = onFullRange)
+        }
 
         Spacer(Modifier.height(8.dp))
     }

@@ -27,6 +27,7 @@ Java_com_chaoscope_ChaoscopeEngine_nativeRender(
     jint        bgColor,
     jfloat      boundsExtraPad,
     jfloat      depthCue,
+    jint        fullRange,
     jfloatArray jCustomStops
 ) {
     RenderParams rp{};
@@ -44,6 +45,7 @@ Java_com_chaoscope_ChaoscopeEngine_nativeRender(
     rp.bgColor        = static_cast<int>(bgColor);
     rp.boundsExtraPad = boundsExtraPad;
     rp.depthCue       = depthCue;
+    rp.fullRange      = static_cast<int>(fullRange);
 
     // Copy attractor params (max 8 floats)
     memset(rp.params, 0, sizeof(rp.params));
