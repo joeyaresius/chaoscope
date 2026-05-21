@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.chaoscope.ColorStop
+import com.chaoscope.PaletteType
+import com.chaoscope.builtInPaletteStops
 import com.chaoscope.hsvToRgb
 import com.chaoscope.rgbToHsv
 
@@ -70,6 +73,24 @@ fun PaletteEditorDialog(
 
                 // ── Live gradient preview ────────────────────────────────────
                 GradientPreview(stops)
+
+                // ── Load a built-in palette as a starting point ──────────────
+                Text(
+                    "Start from",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(builtInPaletteStops.entries.toList()) { (palette, presetStops) ->
+                        AssistChip(
+                            onClick = {
+                                stops = presetStops.sortedBy { it.pos }
+                                selectedIdx = 0
+                            },
+                            label = { Text(palette.displayName) },
+                        )
+                    }
+                }
 
                 // ── Colour stop row ──────────────────────────────────────────
                 Text(

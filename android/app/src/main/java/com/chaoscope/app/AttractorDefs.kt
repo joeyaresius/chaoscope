@@ -212,6 +212,37 @@ val defaultCustomStops: List<ColorStop> = listOf(
     ColorStop(1.00f, 1f,         1f,         1f        ),
 )
 
+private fun stop(pos: Float, r: Int, g: Int, b: Int) =
+    ColorStop(pos, r / 255f, g / 255f, b / 255f)
+
+/** Colour stops for the built-in palettes (mirrors the LUTs in renderer.cpp), so
+ *  the custom editor can load one as a starting point. CUSTOM is excluded. */
+val builtInPaletteStops: Map<PaletteType, List<ColorStop>> = mapOf(
+    PaletteType.NEBULA to listOf(
+        stop(0.00f, 0, 0, 0), stop(0.25f, 0, 20, 80),
+        stop(0.50f, 20, 80, 200), stop(0.75f, 120, 180, 255), stop(1.00f, 255, 255, 255),
+    ),
+    PaletteType.FIRE to listOf(
+        stop(0.00f, 0, 0, 0), stop(0.30f, 80, 0, 0),
+        stop(0.60f, 200, 60, 0), stop(0.80f, 255, 160, 20), stop(1.00f, 255, 255, 200),
+    ),
+    PaletteType.ELECTRIC to listOf(
+        stop(0.00f, 0, 0, 0), stop(0.20f, 0, 40, 60),
+        stop(0.50f, 0, 180, 200), stop(0.80f, 80, 240, 255), stop(1.00f, 255, 255, 255),
+    ),
+    PaletteType.AURORA to listOf(
+        stop(0.00f, 0, 0, 0), stop(0.25f, 20, 0, 60),
+        stop(0.50f, 80, 0, 160), stop(0.75f, 180, 80, 240), stop(1.00f, 240, 200, 255),
+    ),
+    PaletteType.MATRIX to listOf(
+        stop(0.00f, 0, 0, 0), stop(0.30f, 0, 40, 0),
+        stop(0.60f, 0, 160, 20), stop(0.85f, 80, 240, 80), stop(1.00f, 200, 255, 200),
+    ),
+    PaletteType.GREYSCALE to listOf(
+        stop(0.00f, 0, 0, 0), stop(1.00f, 255, 255, 255),
+    ),
+)
+
 // ────────────────────────────────────────────────────────────────────────────
 // Render style
 // ────────────────────────────────────────────────────────────────────────────
