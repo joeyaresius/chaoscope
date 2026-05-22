@@ -6,6 +6,9 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- Needed to call WallpaperManager.setBitmap() -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+
     <application
         android:label="Chaoscope"
         android:icon="@drawable/ic_launcher"

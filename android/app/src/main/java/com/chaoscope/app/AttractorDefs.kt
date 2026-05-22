@@ -417,4 +417,7 @@ data class UiState(
     val renderQuality: RenderQuality = RenderQuality.STANDARD,
     val previewDensity: PreviewDensity = PreviewDensity.MEDIUM,
     val autoRotate: Boolean          = false,
+    val transparentBg: Boolean       = false,
+    val wallpaperDone: Boolean       = false,
+    val wallpaperError: String?      = null,
 )

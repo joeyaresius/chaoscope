@@ -45,6 +45,7 @@ object ChaoscopeEngine {
         depthCue: Float = 0f,
         fullRange: Int = 0,
         customStops: FloatArray? = null,
+        transparentBg: Int = 0,
     ): IntArray?
 
     /**

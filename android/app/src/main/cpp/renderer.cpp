@@ -390,7 +390,11 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     // ── Pass 2: depth shade + colorize → ARGB_8888 ───────────────────────────
     for (int i = 0; i < W * H; i++) {
         if (hist[i] == 0) {
-            outPixels[i] = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
+            if (rp.transparentBg) {
+                outPixels[i] = 0; // fully transparent
+            } else {
+                outPixels[i] = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
+            }
             continue;
         }
         float density = dens[i];

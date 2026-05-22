@@ -1,6 +1,7 @@
 package com.chaoscope
 
 import android.app.Application
+import android.app.WallpaperManager
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -113,6 +114,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         exportDone           = false,
         exportError          = null,
         lastExportUri        = null,
+        wallpaperDone        = false,
+        wallpaperError       = null,
     )
 
     // ── Parameter updates (state only – no auto render) ────────────────────
@@ -239,6 +242,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     fun setPreviewDensity(density: PreviewDensity) {
         _uiState.update { it.copy(previewDensity = density) }
         fetchDotPoints()
+    }
+
+    fun setTransparentBg(enabled: Boolean) {
+        _uiState.update { it.copy(transparentBg = enabled) }
+        renderLookPreview()
     }
 
     fun clearRenderFailedMessage() = _uiState.update { it.copy(renderFailedMessage = null) }
@@ -402,6 +410,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         scheduleRender(_uiState.value.renderQuality.hdIterations, HD_SIZE)
     }
 
+    fun renderHD4K() {
+        cancelAutoRotate()
+        scheduleRender(_uiState.value.renderQuality.hdIterations, HD_SIZE_4K)
+    }
+
     /** Debounced preview render used when a "look" parameter changes, so palette,
      *  depth, gamma, style, background and full-range changes are visible live.
      *  Suppressed while auto-rotating — the dot cloud is on screen then. */
@@ -459,6 +472,30 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearExportFlag() = _uiState.update {
         it.copy(exportDone = false, exportError = null)
+    }
+
+    // ── Set as Wallpaper ────────────────────────────────────────────────────
+
+    fun setWallpaper(context: Context) {
+        val bmp = _uiState.value.bitmap ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val wm = WallpaperManager.getInstance(context)
+                wm.setBitmap(bmp)
+                _uiState.update { it.copy(wallpaperDone = true, wallpaperError = null) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        wallpaperDone  = false,
+                        wallpaperError = e.localizedMessage ?: "Could not set wallpaper.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearWallpaperFlag() = _uiState.update {
+        it.copy(wallpaperDone = false, wallpaperError = null)
     }
 
     // ── Randomize ─────────────────────────────────────────────────────────────
@@ -530,6 +567,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             depthCue       = if (s.attractorType.is3D) s.depthCue else 0f,
             fullRange      = if (s.fullRange) 1 else 0,
             customStops    = customStops,
+            transparentBg  = if (s.transparentBg) 1 else 0,
         )
     }
 
@@ -582,6 +620,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         // Iteration counts now come from RenderQuality; only the canvas sizes are fixed.
         const val PREVIEW_SIZE       = 768
         const val HD_SIZE            = 2048
+        const val HD_SIZE_4K         = 3840
 
         const val TUTORIAL_STEPS     = 5 // Canvas, AttractorRow, ParamSlider, RenderHD, Palette
     }

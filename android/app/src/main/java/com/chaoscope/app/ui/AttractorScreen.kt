@@ -95,10 +95,12 @@ fun AttractorScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val savedMsg     = stringResource(R.string.export_saved)
-    val shareLabel   = stringResource(R.string.export_share)
-    val shareChooser = stringResource(R.string.share_render_chooser)
-    val failedMsg    = state.exportError?.let { stringResource(R.string.export_failed, it) }
+    val savedMsg        = stringResource(R.string.export_saved)
+    val shareLabel      = stringResource(R.string.export_share)
+    val shareChooser    = stringResource(R.string.share_render_chooser)
+    val failedMsg       = state.exportError?.let { stringResource(R.string.export_failed, it) }
+    val wallpaperOkMsg  = "Wallpaper set!"
+    val wallpaperErrMsg = state.wallpaperError?.let { "Wallpaper failed: $it" }
 
     // Surface export feedback as a Snackbar with View / Share actions.
     LaunchedEffect(state.exportDone, state.exportError) {
@@ -156,6 +158,28 @@ fun AttractorScreen(
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
         wasRendering = state.isRendering
+    }
+
+    // Surface wallpaper feedback as a Snackbar.
+    LaunchedEffect(state.wallpaperDone, state.wallpaperError) {
+        when {
+            wallpaperErrMsg != null -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                snackbarHostState.showSnackbar(
+                    message  = wallpaperErrMsg,
+                    duration = SnackbarDuration.Short,
+                )
+                vm.clearWallpaperFlag()
+            }
+            state.wallpaperDone -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                snackbarHostState.showSnackbar(
+                    message  = wallpaperOkMsg,
+                    duration = SnackbarDuration.Short,
+                )
+                vm.clearWallpaperFlag()
+            }
+        }
     }
 
     val density = LocalDensity.current
@@ -313,7 +337,10 @@ fun AttractorScreen(
                     onRenderStyle      = vm::setRenderStyle,
                     onRender           = vm::renderPreview,
                     onRenderHD         = vm::renderHD,
+                    onRenderHD4K       = vm::renderHD4K,
                     onExport           = { vm.exportPng(context) },
+                    onSetWallpaper     = { vm.setWallpaper(context) },
+                    onTransparentBg    = vm::setTransparentBg,
                     onRandomizeParams  = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         vm.randomizeParams()
@@ -478,7 +505,10 @@ private fun ControlPanel(
     onRenderStyle:      (RenderStyle)   -> Unit,
     onRender:           ()              -> Unit,
     onRenderHD:         ()              -> Unit,
+    onRenderHD4K:       ()              -> Unit,
     onExport:           ()              -> Unit,
+    onSetWallpaper:     ()              -> Unit,
+    onTransparentBg:    (Boolean)       -> Unit,
     onRandomizeParams:  ()              -> Unit,
     onRandomizeAll:     ()              -> Unit,
     onBgColor:          (BgColor)       -> Unit,
@@ -530,6 +560,30 @@ private fun ControlPanel(
                 Text("Export")
             }
         }
+        // ── 4K render + Wallpaper ─────────────────────────────────────────────
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick  = onRenderHD4K,
+                enabled  = !isRendering,
+                modifier = Modifier.weight(1f),
+                colors   = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                ),
+            ) {
+                Text("4K Render", color = MaterialTheme.colorScheme.onTertiary)
+            }
+            OutlinedButton(
+                onClick  = onSetWallpaper,
+                enabled  = state.bitmap != null && !isRendering,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("🖼  Wallpaper")
+            }
+        }
+
         // ── Randomize buttons ─────────────────────────────────────────────────
         Row(
             modifier              = Modifier.fillMaxWidth(),
@@ -821,6 +875,25 @@ private fun ControlPanel(
                 )
             }
             Switch(checked = state.fullRange, onCheckedChange = onFullRange)
+        }
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text  = "Transparent background",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text  = "Export PNG with transparent background — great for stickers and overlays.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = state.transparentBg, onCheckedChange = onTransparentBg)
         }
 
         // ── Performance ──────────────────────────────────────────────────────

@@ -27,6 +27,7 @@ struct RenderParams {
     float     boundsExtraPad; // extra fraction added to auto-bounds (0 = default 5%)
     float     depthCue;    // 0 = flat, 1 = full depth shading (3-D attractors)
     int       fullRange;   // 1 = stretch density across the full palette (min..max)
+    int       transparentBg; // 1 = emit 0x00000000 for empty pixels (PNG transparency)
     // Custom palette stops: flattened [pos, r, g, b, ...] with r/g/b in 0..1
     float     customStops[8 * 4];
     int       numCustomStops;
