@@ -3,7 +3,11 @@ package com.chaoscope.ui
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,10 +20,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Cameraswitch
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -374,6 +382,7 @@ fun AttractorScreen(
                     onExport           = { vm.exportPng(context) },
                     onSetWallpaper     = { vm.setWallpaper(context) },
                     onTransparentBg    = vm::setTransparentBg,
+                    onAnimMode         = vm::setAnimMode,
                     onSetKeyframeA     = vm::setKeyframeA,
                     onSetKeyframeB     = vm::setKeyframeB,
                     onAnimFrames       = vm::setAnimFrames,
@@ -548,6 +557,7 @@ private fun ControlPanel(
     onExport:           ()              -> Unit,
     onSetWallpaper:     ()              -> Unit,
     onTransparentBg:    (Boolean)       -> Unit,
+    onAnimMode:         (AnimMode)      -> Unit,
     onSetKeyframeA:     ()              -> Unit,
     onSetKeyframeB:     ()              -> Unit,
     onAnimFrames:       (Int)           -> Unit,
@@ -564,429 +574,476 @@ private fun ControlPanel(
     isRendering:        Boolean,
     panelContentHeight: Dp,
 ) {
+    // Tab selection — survives rotation via rememberSaveable, not persisted to UiState
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+
+    val tabTitles = listOf("Shape", "Look", "Camera", "Export")
+    val tabIcons  = listOf(
+        Icons.Outlined.AutoAwesome,
+        Icons.Outlined.Palette,
+        Icons.Outlined.Cameraswitch,
+        Icons.Outlined.Upload,
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(panelContentHeight)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .height(panelContentHeight),
     ) {
-
-        // ── Action buttons ───────────────────────────────────────────────────
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick  = onRender,
-                enabled  = !isRendering,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("▶  Render")
-            }
-            Button(
-                onClick  = onRenderHD,
-                enabled  = !isRendering,
-                modifier = Modifier
-                    .weight(1f)
-                    .onGloballyPositioned { c -> onTutorialAnchor(TutorialTarget.RenderHdButton, c.boundsInWindow()) },
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                ),
-            ) {
-                Text("HD Render", color = MaterialTheme.colorScheme.onTertiary)
-            }
-            OutlinedButton(
-                onClick  = onExport,
-                enabled  = state.bitmap != null && !isRendering,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Export")
-            }
-        }
-        // ── 4K render + Wallpaper ─────────────────────────────────────────────
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick  = onRenderHD4K,
-                enabled  = !isRendering,
-                modifier = Modifier.weight(1f),
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                ),
-            ) {
-                Text("4K Render", color = MaterialTheme.colorScheme.onTertiary)
-            }
-            OutlinedButton(
-                onClick  = onSetWallpaper,
-                enabled  = state.bitmap != null && !isRendering,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("🖼  Wallpaper")
-            }
-        }
-
-        // ── Randomize buttons ─────────────────────────────────────────────────
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick  = onRandomizeParams,
-                modifier = Modifier.weight(1f),
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                ),
-            ) {
-                Text("🎲 Params", color = MaterialTheme.colorScheme.onSecondary)
-            }
-            Button(
-                onClick  = onRandomizeAll,
-                modifier = Modifier.weight(1f),
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                ),
-            ) {
-                Text("🎲 Attractor", color = MaterialTheme.colorScheme.onSecondary)
-            }
-        }
-
-        // ── Recents ──────────────────────────────────────────────────────────
-        if (recentExports.isNotEmpty()) {
-            SectionLabel("Recent Renders")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(recentExports) { uri ->
-                    RecentThumb(
-                        uri      = uri,
-                        onOpen   = { onOpenRecent(uri) },
-                        onShare  = { onShareRecent(uri) },
-                    )
-                }
-            }
-        }
-
-        // ── Attractor selection ──────────────────────────────────────────────
-        InfoSection(
-            title       = "Attractor",
-            description = state.attractorType.description,
-        ) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier              = Modifier.onGloballyPositioned { c ->
-                    onTutorialAnchor(TutorialTarget.AttractorRow, c.boundsInWindow())
-                },
-            ) {
-                items(AttractorType.entries) { type ->
-                    FilterChip(
-                        selected = state.attractorType == type,
-                        onClick  = { onAttractor(type) },
-                        label    = {
-                            Text(
-                                text  = type.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                    )
-                }
-            }
-        }
-
-        // ── Presets (for the current attractor) ──────────────────────────────
-        val presets = state.attractorType.presets
-        if (presets.isNotEmpty()) {
-            SectionLabel("Presets")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(presets) { preset ->
-                    AssistChip(
-                        onClick = { onApplyPreset(preset) },
-                        label   = {
-                            Text(
-                                text  = preset.name,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                    )
-                }
-            }
-        }
-
-        // ── My Presets (user-saved) ──────────────────────────────────────────
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            SectionLabel("My Presets")
-            TextButton(onClick = onSavePreset) {
-                Text("+ Save current", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-        if (userPresets.isEmpty()) {
-            Text(
-                text  = "Save the current attractor, parameters, camera and look as a reusable preset.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            )
-        } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(userPresets, key = { it.name }) { preset ->
-                    AssistChip(
-                        onClick      = { onApplyPreset(preset) },
-                        label        = {
-                            Text(
-                                text  = preset.name,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                imageVector        = Icons.Outlined.Close,
-                                contentDescription = "Delete preset ${preset.name}",
-                                modifier           = Modifier
-                                    .size(16.dp)
-                                    .clickable { onDeletePreset(preset.name) },
-                            )
-                        },
-                    )
-                }
-            }
-        }
-
-        // ── Palette selection ────────────────────────────────────────────────
-        InfoSection(
-            title       = "Palette",
-            description = state.palette.description,
-            extraAction = {
-                Icon(
-                    imageVector        = Icons.Outlined.Edit,
-                    contentDescription = "Edit custom palette",
-                    tint               = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                    modifier           = Modifier
-                        .size(16.dp)
-                        .clickable(onClick = onEditPalette),
-                )
-            },
-        ) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier              = Modifier.onGloballyPositioned { c ->
-                    onTutorialAnchor(TutorialTarget.PaletteRow, c.boundsInWindow())
-                },
-            ) {
-                items(PaletteType.entries) { palette ->
-                    FilterChip(
-                        selected = state.palette == palette,
-                        onClick  = { onPalette(palette) },
-                        label    = {
-                            Text(
-                                text  = palette.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                    )
-                }
-            }
-        }
-
-        // ── Render style ─────────────────────────────────────────────────────
-        InfoSection(
-            title       = "Render Style",
-            description = state.renderStyle.description,
-        ) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(RenderStyle.entries) { style ->
-                    FilterChip(
-                        selected = state.renderStyle == style,
-                        onClick  = { onRenderStyle(style) },
-                        label    = {
-                            Text(
-                                text  = style.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                    )
-                }
-            }
-        }
-
-        // ── Background colour ────────────────────────────────────────────────
-        SectionLabel("Background")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(BgColor.entries) { bg ->
-                val bgCompose = Color(bg.argb.toLong() and 0xFFFFFFFFL)
-                FilterChip(
-                    selected = state.bgColor == bg,
-                    onClick  = { onBgColor(bg) },
-                    label    = {
-                        Row(
-                            verticalAlignment      = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .background(
-                                        color = bgCompose,
-                                        shape = MaterialTheme.shapes.extraSmall,
-                                    )
-                            )
-                            Text(
-                                text  = bg.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
+        // ── Tab row ──────────────────────────────────────────────────────────
+        TabRow(selectedTabIndex = selectedTab) {
+            tabTitles.forEachIndexed { i, title ->
+                Tab(
+                    selected = selectedTab == i,
+                    onClick  = { selectedTab = i },
+                    text     = { Text(title, style = MaterialTheme.typography.labelSmall) },
+                    icon     = {
+                        Icon(tabIcons[i], contentDescription = title, modifier = Modifier.size(18.dp))
                     },
                 )
             }
         }
 
-        // ── Attractor parameters ─────────────────────────────────────────────
-        SectionLabel("Parameters")
-        state.attractorType.paramNames.forEachIndexed { idx, name ->
-            val range = state.attractorType.paramRanges[idx]
-            val value = state.params.getOrElse(idx) { 0f }
-            val hint  = state.attractorType.paramHints.getOrNull(idx)
-            LabelledSlider(
-                label         = "$name = ${"%.3f".format(value)}",
-                value         = value,
-                valueRange    = range,
-                hint          = hint,
-                onValueChange = { onParam(idx, it) },
-                modifier      = if (idx == 0) Modifier.onGloballyPositioned { c ->
-                    onTutorialAnchor(TutorialTarget.ParamSlider, c.boundsInWindow())
-                } else Modifier,
-            )
-        }
-
-        // ── Camera (3-D attractors only) ─────────────────────────────────────
-        if (state.attractorType.is3D) {
-            SectionLabel("Camera")
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+        // ── Tab content ──────────────────────────────────────────────────────
+        AnimatedContent(
+            targetState    = selectedTab,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            modifier       = Modifier.weight(1f),
+            label          = "tab_content",
+        ) { tab ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text  = "Auto-rotate",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Switch(checked = state.autoRotate, onCheckedChange = onAutoRotate)
-            }
-            LabelledSlider("Yaw = ${"%.0f".format(state.yaw)}°",
-                state.yaw,   -180f..180f, onValueChange = onYaw)
-            LabelledSlider("Pitch = ${"%.0f".format(state.pitch)}°",
-                state.pitch, -90f..90f,   onValueChange = onPitch)
-            LabelledSlider("Roll = ${"%.0f".format(state.roll)}°",
-                state.roll,  -180f..180f, onValueChange = onRoll)
-            LabelledSlider("Zoom = ${"%.2f".format(state.zoom)}",
-                state.zoom,  0.1f..5f,    onValueChange = onZoom)
-            LabelledSlider(
-                label         = "Depth = ${"%.0f".format(state.depthCue * 100)}%",
-                value         = state.depthCue,
-                valueRange    = 0f..1f,
-                hint          = "Dims points farther from the camera to bring out 3-D form. 0% is flat.",
-                onValueChange = onDepthCue,
-            )
-        }
+                when (tab) {
 
-        // ── Tone mapping ─────────────────────────────────────────────────────
-        SectionLabel("Tone Mapping")
-        LabelledSlider(
-            label         = "Gamma = ${"%.2f".format(state.gamma)}",
-            value         = state.gamma,
-            valueRange    = 0.3f..2.0f,
-            hint          = "Gamma flattens (lower) or boosts (higher) the brightest regions.",
-            onValueChange = onGamma,
-        )
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text  = "Full palette range",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text  = "Stretch density across the whole gradient so all palette colours show.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                )
-            }
-            Switch(checked = state.fullRange, onCheckedChange = onFullRange)
-        }
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text  = "Transparent background",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text  = "Export PNG with transparent background — great for stickers and overlays.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                )
-            }
-            Switch(checked = state.transparentBg, onCheckedChange = onTransparentBg)
-        }
+                    // ── SHAPE ─────────────────────────────────────────────────
+                    0 -> {
+                        // Attractor selector
+                        InfoSection(
+                            title       = "Attractor",
+                            description = state.attractorType.description,
+                        ) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.onGloballyPositioned { c ->
+                                    onTutorialAnchor(TutorialTarget.AttractorRow, c.boundsInWindow())
+                                },
+                            ) {
+                                items(AttractorType.entries) { type ->
+                                    FilterChip(
+                                        selected = state.attractorType == type,
+                                        onClick  = { onAttractor(type) },
+                                        label    = {
+                                            Text(type.displayName,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        },
+                                    )
+                                }
+                            }
+                        }
 
-        // ── Animation export ─────────────────────────────────────────────────
-        AnimationSection(
-            state               = state,
-            onSetKeyframeA      = onSetKeyframeA,
-            onSetKeyframeB      = onSetKeyframeB,
-            onAnimFrames        = onAnimFrames,
-            onAnimPingPong      = onAnimPingPong,
-            onExportVideo       = onExportVideo,
-            onCancelVideoExport = onCancelVideoExport,
-        )
+                        // Curated presets
+                        val presets = state.attractorType.presets
+                        if (presets.isNotEmpty()) {
+                            SectionLabel("Presets")
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(presets) { preset ->
+                                    AssistChip(
+                                        onClick = { onApplyPreset(preset) },
+                                        label   = {
+                                            Text(preset.name,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        },
+                                    )
+                                }
+                            }
+                        }
 
-        // ── Performance ──────────────────────────────────────────────────────
-        InfoSection(
-            title       = "Render Detail",
-            description = state.renderQuality.description,
-        ) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(RenderQuality.entries) { q ->
-                    FilterChip(
-                        selected = state.renderQuality == q,
-                        onClick  = { onRenderQuality(q) },
-                        label    = {
-                            Text(q.displayName, style = MaterialTheme.typography.labelSmall)
-                        },
-                    )
+                        // User presets
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            SectionLabel("My Presets")
+                            TextButton(onClick = onSavePreset) {
+                                Text("+ Save current",
+                                     style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        if (userPresets.isEmpty()) {
+                            Text(
+                                text  = "Save the current attractor, parameters, camera and look as a reusable preset.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            )
+                        } else {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(userPresets, key = { it.name }) { preset ->
+                                    AssistChip(
+                                        onClick      = { onApplyPreset(preset) },
+                                        label        = {
+                                            Text(preset.name,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        },
+                                        trailingIcon = {
+                                            Icon(
+                                                imageVector        = Icons.Outlined.Close,
+                                                contentDescription = "Delete preset ${preset.name}",
+                                                modifier           = Modifier
+                                                    .size(16.dp)
+                                                    .clickable { onDeletePreset(preset.name) },
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Parameters
+                        SectionLabel("Parameters")
+                        state.attractorType.paramNames.forEachIndexed { idx, name ->
+                            val range = state.attractorType.paramRanges[idx]
+                            val value = state.params.getOrElse(idx) { 0f }
+                            val hint  = state.attractorType.paramHints.getOrNull(idx)
+                            LabelledSlider(
+                                label         = "$name = ${"%.3f".format(value)}",
+                                value         = value,
+                                valueRange    = range,
+                                hint          = hint,
+                                onValueChange = { onParam(idx, it) },
+                                modifier      = if (idx == 0) Modifier.onGloballyPositioned { c ->
+                                    onTutorialAnchor(TutorialTarget.ParamSlider, c.boundsInWindow())
+                                } else Modifier,
+                            )
+                        }
+
+                        // Randomize
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick  = onRandomizeParams,
+                                modifier = Modifier.weight(1f),
+                                colors   = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondary,
+                                ),
+                            ) {
+                                Text("🎲 Params",
+                                     color = MaterialTheme.colorScheme.onSecondary)
+                            }
+                            Button(
+                                onClick  = onRandomizeAll,
+                                modifier = Modifier.weight(1f),
+                                colors   = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondary,
+                                ),
+                            ) {
+                                Text("🎲 Attractor",
+                                     color = MaterialTheme.colorScheme.onSecondary)
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    // ── LOOK ──────────────────────────────────────────────────
+                    1 -> {
+                        // Palette
+                        InfoSection(
+                            title       = "Palette",
+                            description = state.palette.description,
+                            extraAction = {
+                                Icon(
+                                    imageVector        = Icons.Outlined.Edit,
+                                    contentDescription = "Edit custom palette",
+                                    tint               = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                    modifier           = Modifier
+                                        .size(16.dp)
+                                        .clickable(onClick = onEditPalette),
+                                )
+                            },
+                        ) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.onGloballyPositioned { c ->
+                                    onTutorialAnchor(TutorialTarget.PaletteRow, c.boundsInWindow())
+                                },
+                            ) {
+                                items(PaletteType.entries) { palette ->
+                                    FilterChip(
+                                        selected = state.palette == palette,
+                                        onClick  = { onPalette(palette) },
+                                        label    = {
+                                            Text(palette.displayName,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Render style
+                        InfoSection(
+                            title       = "Render Style",
+                            description = state.renderStyle.description,
+                        ) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(RenderStyle.entries) { style ->
+                                    FilterChip(
+                                        selected = state.renderStyle == style,
+                                        onClick  = { onRenderStyle(style) },
+                                        label    = {
+                                            Text(style.displayName,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Background colour
+                        SectionLabel("Background")
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(BgColor.entries) { bg ->
+                                val bgCompose = Color(bg.argb.toLong() and 0xFFFFFFFFL)
+                                FilterChip(
+                                    selected = state.bgColor == bg,
+                                    onClick  = { onBgColor(bg) },
+                                    label    = {
+                                        Row(
+                                            verticalAlignment     = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(10.dp)
+                                                    .background(
+                                                        color = bgCompose,
+                                                        shape = MaterialTheme.shapes.extraSmall,
+                                                    )
+                                            )
+                                            Text(bg.displayName,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    },
+                                )
+                            }
+                        }
+
+                        // Tone mapping
+                        SectionLabel("Tone Mapping")
+                        LabelledSlider(
+                            label         = "Gamma = ${"%.2f".format(state.gamma)}",
+                            value         = state.gamma,
+                            valueRange    = 0.3f..2.0f,
+                            hint          = "Gamma flattens (lower) or boosts (higher) the brightest regions.",
+                            onValueChange = onGamma,
+                        )
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Full palette range",
+                                     style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    text  = "Stretch density so all palette colours show.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                )
+                            }
+                            Switch(checked = state.fullRange, onCheckedChange = onFullRange)
+                        }
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Transparent background",
+                                     style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    text  = "Export PNG with transparent BG — great for stickers.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                )
+                            }
+                            Switch(checked = state.transparentBg, onCheckedChange = onTransparentBg)
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    // ── CAMERA ────────────────────────────────────────────────
+                    2 -> {
+                        if (state.attractorType.is3D) {
+                            SectionLabel("Camera")
+                            Row(
+                                modifier              = Modifier.fillMaxWidth(),
+                                verticalAlignment     = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text("Auto-rotate",
+                                     style = MaterialTheme.typography.bodySmall)
+                                Switch(checked = state.autoRotate, onCheckedChange = onAutoRotate)
+                            }
+                            LabelledSlider("Yaw = ${"%.0f".format(state.yaw)}°",
+                                state.yaw,   -180f..180f, onValueChange = onYaw)
+                            LabelledSlider("Pitch = ${"%.0f".format(state.pitch)}°",
+                                state.pitch, -90f..90f,   onValueChange = onPitch)
+                            LabelledSlider("Roll = ${"%.0f".format(state.roll)}°",
+                                state.roll,  -180f..180f, onValueChange = onRoll)
+                            LabelledSlider("Zoom = ${"%.2f".format(state.zoom)}",
+                                state.zoom,  0.1f..5f,    onValueChange = onZoom)
+                            LabelledSlider(
+                                label         = "Depth = ${"%.0f".format(state.depthCue * 100)}%",
+                                value         = state.depthCue,
+                                valueRange    = 0f..1f,
+                                hint          = "Dims points farther from the camera to bring out 3-D form. 0% is flat.",
+                                onValueChange = onDepthCue,
+                            )
+                        } else {
+                            Spacer(Modifier.height(24.dp))
+                            Text(
+                                text  = "Camera controls are only available for 3D attractors.\n\nSwitch to a 3D attractor on the Shape tab to use yaw, pitch, roll, and depth controls.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    // ── EXPORT ────────────────────────────────────────────────
+                    3 -> {
+                        // Render buttons
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick  = onRender,
+                                enabled  = !isRendering,
+                                modifier = Modifier.weight(1f),
+                            ) { Text("▶  Render") }
+                            Button(
+                                onClick  = onRenderHD,
+                                enabled  = !isRendering,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .onGloballyPositioned { c ->
+                                        onTutorialAnchor(TutorialTarget.RenderHdButton,
+                                                         c.boundsInWindow())
+                                    },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiary,
+                                ),
+                            ) {
+                                Text("HD Render",
+                                     color = MaterialTheme.colorScheme.onTertiary)
+                            }
+                        }
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick  = onRenderHD4K,
+                                enabled  = !isRendering,
+                                modifier = Modifier.weight(1f),
+                                colors   = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiary,
+                                ),
+                            ) {
+                                Text("4K Render",
+                                     color = MaterialTheme.colorScheme.onTertiary)
+                            }
+                            OutlinedButton(
+                                onClick  = onExport,
+                                enabled  = state.bitmap != null && !isRendering,
+                                modifier = Modifier.weight(1f),
+                            ) { Text("Export PNG") }
+                        }
+                        OutlinedButton(
+                            onClick  = onSetWallpaper,
+                            enabled  = state.bitmap != null && !isRendering,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("🖼  Set as Wallpaper") }
+
+                        // Recent renders
+                        if (recentExports.isNotEmpty()) {
+                            SectionLabel("Recent Renders")
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(recentExports) { uri ->
+                                    RecentThumb(
+                                        uri    = uri,
+                                        onOpen  = { onOpenRecent(uri) },
+                                        onShare = { onShareRecent(uri) },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Animation export
+                        AnimationSection(
+                            state               = state,
+                            onAnimMode          = onAnimMode,
+                            onSetKeyframeA      = onSetKeyframeA,
+                            onSetKeyframeB      = onSetKeyframeB,
+                            onAnimFrames        = onAnimFrames,
+                            onAnimPingPong      = onAnimPingPong,
+                            onExportVideo       = onExportVideo,
+                            onCancelVideoExport = onCancelVideoExport,
+                        )
+
+                        // Performance
+                        InfoSection(
+                            title       = "Render Detail",
+                            description = state.renderQuality.description,
+                        ) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(RenderQuality.entries) { q ->
+                                    FilterChip(
+                                        selected = state.renderQuality == q,
+                                        onClick  = { onRenderQuality(q) },
+                                        label    = {
+                                            Text(q.displayName,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        InfoSection(
+                            title       = "Preview Density",
+                            description = state.previewDensity.description,
+                        ) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(PreviewDensity.entries) { d ->
+                                    FilterChip(
+                                        selected = state.previewDensity == d,
+                                        onClick  = { onPreviewDensity(d) },
+                                        label    = {
+                                            Text(d.displayName,
+                                                 style = MaterialTheme.typography.labelSmall)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
         }
-        InfoSection(
-            title       = "Preview Density",
-            description = state.previewDensity.description,
-        ) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(PreviewDensity.entries) { d ->
-                    FilterChip(
-                        selected = state.previewDensity == d,
-                        onClick  = { onPreviewDensity(d) },
-                        label    = {
-                            Text(d.displayName, style = MaterialTheme.typography.labelSmall)
-                        },
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -1110,6 +1167,7 @@ private fun LabelledSlider(
 @Composable
 private fun AnimationSection(
     state:               UiState,
+    onAnimMode:          (AnimMode) -> Unit,
     onSetKeyframeA:      () -> Unit,
     onSetKeyframeB:      () -> Unit,
     onAnimFrames:        (Int)     -> Unit,
@@ -1118,44 +1176,86 @@ private fun AnimationSection(
     onCancelVideoExport: () -> Unit,
 ) {
     val frameOptions = listOf(15, 30, 60)
-    val canExport    = state.keyframeA != null && state.keyframeB != null &&
-                       !state.isExportingVideo
+    val canExport = when (state.animMode) {
+        AnimMode.MORPH  -> state.keyframeA != null && state.keyframeB != null && !state.isExportingVideo
+        AnimMode.EMERGE -> state.animFrames >= 2 && !state.isExportingVideo
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionLabel("Animation Export")
 
-        // Keyframe A / B buttons
+        // ── Mode selector ─────────────────────────────────────────────────
         Row(
             modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            OutlinedButton(
-                onClick  = onSetKeyframeA,
+            FilterChip(
+                selected = state.animMode == AnimMode.MORPH,
+                onClick  = { onAnimMode(AnimMode.MORPH) },
                 enabled  = !state.isExportingVideo,
                 modifier = Modifier.weight(1f),
-                colors   = if (state.keyframeA != null)
-                    ButtonDefaults.outlinedButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-                else ButtonDefaults.outlinedButtonColors(),
-            ) {
-                Text(if (state.keyframeA != null) "✓ Frame A" else "Set Frame A",
-                     style = MaterialTheme.typography.labelSmall)
+                label    = { Text("Morph A→B", style = MaterialTheme.typography.labelSmall) },
+            )
+            FilterChip(
+                selected = state.animMode == AnimMode.EMERGE,
+                onClick  = { onAnimMode(AnimMode.EMERGE) },
+                enabled  = !state.isExportingVideo,
+                modifier = Modifier.weight(1f),
+                label    = { Text("Emerge", style = MaterialTheme.typography.labelSmall) },
+            )
+        }
+
+        // ── Mode-specific controls ────────────────────────────────────────
+        when (state.animMode) {
+            AnimMode.MORPH -> {
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick  = onSetKeyframeA,
+                        enabled  = !state.isExportingVideo,
+                        modifier = Modifier.weight(1f),
+                        colors   = if (state.keyframeA != null)
+                            ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                        else ButtonDefaults.outlinedButtonColors(),
+                    ) {
+                        Text(if (state.keyframeA != null) "✓ Frame A" else "Set Frame A",
+                             style = MaterialTheme.typography.labelSmall)
+                    }
+                    OutlinedButton(
+                        onClick  = onSetKeyframeB,
+                        enabled  = !state.isExportingVideo,
+                        modifier = Modifier.weight(1f),
+                        colors   = if (state.keyframeB != null)
+                            ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                        else ButtonDefaults.outlinedButtonColors(),
+                    ) {
+                        Text(if (state.keyframeB != null) "✓ Frame B" else "Set Frame B",
+                             style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                if (!canExport && !state.isExportingVideo) {
+                    Text(
+                        text  = "Set Frame A and Frame B to enable export.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    )
+                }
             }
-            OutlinedButton(
-                onClick  = onSetKeyframeB,
-                enabled  = !state.isExportingVideo,
-                modifier = Modifier.weight(1f),
-                colors   = if (state.keyframeB != null)
-                    ButtonDefaults.outlinedButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-                else ButtonDefaults.outlinedButtonColors(),
-            ) {
-                Text(if (state.keyframeB != null) "✓ Frame B" else "Set Frame B",
-                     style = MaterialTheme.typography.labelSmall)
+            AnimMode.EMERGE -> {
+                Text(
+                    text  = "Builds the attractor from scattered points to full density. " +
+                            "No keyframes needed — uses the current view.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
             }
         }
 
-        // Frame count chips
+        // Frame count chips (both modes)
         Row(
             modifier              = Modifier.fillMaxWidth(),
             verticalAlignment     = Alignment.CenterVertically,
@@ -1176,7 +1276,7 @@ private fun AnimationSection(
             }
         }
 
-        // Ping-pong toggle
+        // Ping-pong toggle (both modes; for Emerge: build-up → dissolve)
         Row(
             modifier              = Modifier.fillMaxWidth(),
             verticalAlignment     = Alignment.CenterVertically,
@@ -1189,7 +1289,10 @@ private fun AnimationSection(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text  = "Plays A→B→A for a seamless looping video.",
+                    text  = if (state.animMode == AnimMode.MORPH)
+                        "Plays A→B→A for a seamless looping video."
+                    else
+                        "Build up, then dissolve back to sparse points.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
@@ -1233,17 +1336,7 @@ private fun AnimationSection(
                     containerColor = MaterialTheme.colorScheme.secondary,
                 ),
             ) {
-                Text(
-                    "🎬  Export Video",
-                    color = MaterialTheme.colorScheme.onSecondary,
-                )
-            }
-            if (state.keyframeA == null || state.keyframeB == null) {
-                Text(
-                    text  = "Set Frame A and Frame B to enable export.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                )
+                Text("🎬  Export Video", color = MaterialTheme.colorScheme.onSecondary)
             }
         }
     }

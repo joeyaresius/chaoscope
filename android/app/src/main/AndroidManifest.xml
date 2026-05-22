@@ -9,7 +9,13 @@
     <!-- Needed to call WallpaperManager.setBitmap() -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
+    <!-- Required to start a ForegroundService (API 28+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Required for foregroundServiceType="dataSync" on API 34+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
+        android:name=".ChaoscopeApplication"
         android:label="Chaoscope"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher_round"
@@ -25,6 +31,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".VideoExportService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
 
     </application>
 </manifest>

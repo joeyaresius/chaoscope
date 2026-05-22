@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 // Tutorial target keys
@@ -118,7 +120,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         lastExportUri        = null,
         wallpaperDone        = false,
         wallpaperError       = null,
-        // Animation state is session-only; don't persist keyframes or export status
+        // Animation state is session-only; don't persist mode, keyframes or export status
+        animMode             = AnimMode.MORPH,
         keyframeA            = null,
         keyframeB            = null,
         isExportingVideo     = false,
@@ -373,9 +376,15 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             renderJob?.cancel()
             renderJob = null
             autoRotateJob = viewModelScope.launch(Dispatchers.Default) {
+                var lastFrameMs = System.currentTimeMillis()
                 while (isActive) {
-                    _uiState.update { it.copy(yaw = (it.yaw + AUTO_ROTATE_STEP) % 360f) }
-                    _dotPoints.value = computeDots(_uiState.value)
+                    val now     = System.currentTimeMillis()
+                    val elapsed = (now - lastFrameMs).coerceIn(1L, 100L)
+                    lastFrameMs = now
+                    val stepDeg = AUTO_ROTATE_DEG_PER_SEC * elapsed / 1000f
+                    // updateAndGet ensures computeDots uses exactly the state we just set
+                    val s = _uiState.updateAndGet { it.copy(yaw = (it.yaw + stepDeg) % 360f) }
+                    _dotPoints.value = computeDots(s)
                     delay(AUTO_ROTATE_FRAME_MS)
                 }
             }
@@ -536,6 +545,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun setAnimMode(mode: AnimMode) { _uiState.update { it.copy(animMode = mode) } }
+
     fun setAnimFrames(n: Int) { _uiState.update { it.copy(animFrames = n) } }
 
     fun setAnimPingPong(enabled: Boolean) { _uiState.update { it.copy(animPingPong = enabled) } }
@@ -544,12 +555,20 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun exportVideo(context: Context) {
         val s = _uiState.value
-        val kfA = s.keyframeA ?: return
-        val kfB = s.keyframeB ?: return
 
         // Ping-pong appends the reverse (minus the duplicated last frame)
         val baseFrames  = s.animFrames.coerceAtLeast(2)
         val totalFrames = if (s.animPingPong) baseFrames * 2 - 1 else baseFrames
+
+        // MORPH requires both keyframes; EMERGE works on the current state
+        val kfA: AnimKeyframe?
+        val kfB: AnimKeyframe?
+        if (s.animMode == AnimMode.MORPH) {
+            kfA = s.keyframeA ?: return
+            kfB = s.keyframeB ?: return
+        } else {
+            kfA = null; kfB = null
+        }
 
         _uiState.update {
             it.copy(
@@ -560,6 +579,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 videoExportUri      = null,
             )
         }
+
+        // Start the ForegroundService to protect the process from being killed
+        // while encoding runs in the background.
+        VideoExportState.status.value = ExportStatus.Running(0, totalFrames)
+        VideoExportService.start(getApplication())
 
         videoExportJob = viewModelScope.launch(Dispatchers.Default) {
             try {
@@ -572,47 +596,56 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         renderFrame = { frameIdx ->
                             if (!isActive) return@export null
 
-                            // Map frame index to interpolation t ∈ [0,1]
+                            // Map frame index → t ∈ [0,1], mirrored for ping-pong
                             val t = if (frameIdx < baseFrames) {
                                 frameIdx.toFloat() / (baseFrames - 1).coerceAtLeast(1)
                             } else {
-                                // Ping-pong reverse: mirror around baseFrames-1
                                 (totalFrames - 1 - frameIdx).toFloat() /
                                     (baseFrames - 1).coerceAtLeast(1)
                             }
 
-                            // Interpolate params + camera
-                            val params = kfA.params.mapIndexed { i, av ->
-                                av + (kfB.params.getOrElse(i) { av } - av) * t
+                            val (frameState, iters) = when (s.animMode) {
+                                AnimMode.MORPH -> {
+                                    // Lerp params + camera between keyframe A and B
+                                    val params = kfA!!.params.mapIndexed { i, av ->
+                                        av + (kfB!!.params.getOrElse(i) { av } - av) * t
+                                    }
+                                    val yaw   = kfA.yaw   + (kfB!!.yaw   - kfA.yaw)   * t
+                                    val pitch = kfA.pitch + (kfB.pitch - kfA.pitch) * t
+                                    val roll  = kfA.roll  + (kfB.roll  - kfA.roll)  * t
+                                    val zoom  = kfA.zoom  + (kfB.zoom  - kfA.zoom)  * t
+                                    s.copy(params = params, yaw = yaw, pitch = pitch,
+                                           roll = roll, zoom = zoom) to
+                                        s.renderQuality.previewIterations
+                                }
+                                AnimMode.EMERGE -> {
+                                    // Logarithmic ramp: sparse points → full density
+                                    val minIter = (s.renderQuality.previewIterations / 100L)
+                                        .coerceAtLeast(500L)
+                                    val maxIter = s.renderQuality.previewIterations
+                                    val iters = (minIter *
+                                        (maxIter.toFloat() / minIter).pow(t)).roundToInt().toLong()
+                                    s to iters
+                                }
                             }
-                            val yaw   = kfA.yaw   + (kfB.yaw   - kfA.yaw)   * t
-                            val pitch = kfA.pitch + (kfB.pitch - kfA.pitch) * t
-                            val roll  = kfA.roll  + (kfB.roll  - kfA.roll)  * t
-                            val zoom  = kfA.zoom  + (kfB.zoom  - kfA.zoom)  * t
 
-                            val frameState = s.copy(
-                                params = params,
-                                yaw    = yaw,
-                                pitch  = pitch,
-                                roll   = roll,
-                                zoom   = zoom,
-                            )
-                            val pixels = nativeRenderCall(
-                                frameState, s.renderQuality.previewIterations, PREVIEW_SIZE,
-                            ) ?: nativeRenderCall(
-                                frameState, s.renderQuality.previewIterations * 4, PREVIEW_SIZE,
-                                boundsExtraPad = 0.15f,
-                            ) ?: return@export null // skip blank frames
+                            val pixels = nativeRenderCall(frameState, iters, PREVIEW_SIZE)
+                                ?: nativeRenderCall(frameState, iters * 4, PREVIEW_SIZE,
+                                                    boundsExtraPad = 0.15f)
+                                ?: return@export null // skip blank frames
 
                             Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
                                                 Bitmap.Config.ARGB_8888)
                         },
                         onProgress = { done, _ ->
                             _uiState.update { it.copy(videoExportProgress = done) }
+                            VideoExportState.status.value =
+                                ExportStatus.Running(done, totalFrames)
                         },
                     )
                 }
 
+                VideoExportState.status.value = ExportStatus.Done(uri)
                 _uiState.update {
                     it.copy(
                         isExportingVideo    = false,
@@ -621,10 +654,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             } catch (e: Exception) {
+                val msg = e.localizedMessage ?: "Video export failed."
+                VideoExportState.status.value = ExportStatus.Error(msg)
                 _uiState.update {
                     it.copy(
                         isExportingVideo = false,
-                        videoExportError = e.localizedMessage ?: "Video export failed.",
+                        videoExportError = msg,
                     )
                 }
             }
@@ -634,6 +669,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelVideoExport() {
         videoExportJob?.cancel()
         videoExportJob = null
+        VideoExportState.status.value = ExportStatus.Idle  // signals service to stop
         _uiState.update {
             it.copy(isExportingVideo = false, videoExportProgress = 0)
         }
@@ -742,12 +778,18 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         return@launch
                     }
                     val bitmap = Bitmap.createBitmap(retryPixels, size, size, Bitmap.Config.ARGB_8888)
-                    _dotPoints.value = null
-                    _uiState.update { it.copy(bitmap = bitmap) }
+                    // Discard if auto-rotate started while the render was in flight
+                    if (!_uiState.value.autoRotate) {
+                        _dotPoints.value = null
+                        _uiState.update { it.copy(bitmap = bitmap) }
+                    }
                 } else {
                     val bitmap = Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
-                    _dotPoints.value = null
-                    _uiState.update { it.copy(bitmap = bitmap) }
+                    // Discard if auto-rotate started while the render was in flight
+                    if (!_uiState.value.autoRotate) {
+                        _dotPoints.value = null
+                        _uiState.update { it.copy(bitmap = bitmap) }
+                    }
                 }
             } finally {
                 _uiState.update { it.copy(isRendering = false, isRetrying = false) }
@@ -759,8 +801,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         private const val DEBOUNCE_MS         = 80L
         private const val LOOK_DEBOUNCE_MS    = 300L
         private const val PERSIST_DEBOUNCE_MS = 500L
-        private const val AUTO_ROTATE_STEP    = 1.5f  // degrees of yaw per frame
-        private const val AUTO_ROTATE_FRAME_MS = 40L  // ~25 fps
+        private const val AUTO_ROTATE_DEG_PER_SEC = 37.5f // degrees per second (≈1.5° at 25 fps)
+        private const val AUTO_ROTATE_FRAME_MS    = 40L   // target frame interval (~25 fps)
 
         // Iteration counts now come from RenderQuality; only the canvas sizes are fixed.
         const val PREVIEW_SIZE       = 768

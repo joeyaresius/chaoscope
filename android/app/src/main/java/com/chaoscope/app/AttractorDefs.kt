@@ -433,6 +433,19 @@ val AttractorType.presets: List<Preset>
     get() = CURATED_PRESETS[this].orEmpty()
 
 // ────────────────────────────────────────────────────────────────────────────
+// Animation mode
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Controls which video-export algorithm is used.
+ *
+ * MORPH  — interpolate between keyframe A and keyframe B (params + camera).
+ * EMERGE — sweep iteration count from sparse (low) to dense (high) for the
+ *          current attractor; produces a "building up from noise" effect.
+ */
+enum class AnimMode { MORPH, EMERGE }
+
+// ────────────────────────────────────────────────────────────────────────────
 // UI state
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -464,6 +477,7 @@ data class UiState(
     val wallpaperDone: Boolean       = false,
     val wallpaperError: String?      = null,
     // ── Animation export ──────────────────────────────────────────────────
+    val animMode: AnimMode           = AnimMode.MORPH,
     val keyframeA: AnimKeyframe?     = null,
     val keyframeB: AnimKeyframe?     = null,
     val animFrames: Int              = 30,
