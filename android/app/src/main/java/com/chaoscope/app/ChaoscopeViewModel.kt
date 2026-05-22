@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -78,10 +79,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private val _showPaletteEditor = MutableStateFlow(false)
     val showPaletteEditor: StateFlow<Boolean> = _showPaletteEditor.asStateFlow()
 
-    private var renderJob:     Job? = null
-    private var finishJob:     Job? = null
-    private var dotJob:        Job? = null
-    private var autoRotateJob: Job? = null
+    private var renderJob:       Job? = null
+    private var finishJob:       Job? = null
+    private var dotJob:          Job? = null
+    private var autoRotateJob:   Job? = null
+    private var videoExportJob:  Job? = null
 
     init {
         viewModelScope.launch {
@@ -116,6 +118,14 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         lastExportUri        = null,
         wallpaperDone        = false,
         wallpaperError       = null,
+        // Animation state is session-only; don't persist keyframes or export status
+        keyframeA            = null,
+        keyframeB            = null,
+        isExportingVideo     = false,
+        videoExportProgress  = 0,
+        videoExportTotal     = 0,
+        videoExportError     = null,
+        videoExportUri       = null,
     )
 
     // ── Parameter updates (state only – no auto render) ────────────────────
@@ -496,6 +506,141 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearWallpaperFlag() = _uiState.update {
         it.copy(wallpaperDone = false, wallpaperError = null)
+    }
+
+    // ── Animation keyframes ──────────────────────────────────────────────────
+
+    fun setKeyframeA() {
+        val s = _uiState.value
+        _uiState.update {
+            it.copy(keyframeA = AnimKeyframe(
+                params = s.params,
+                yaw    = s.yaw,
+                pitch  = s.pitch,
+                roll   = s.roll,
+                zoom   = s.zoom,
+            ))
+        }
+    }
+
+    fun setKeyframeB() {
+        val s = _uiState.value
+        _uiState.update {
+            it.copy(keyframeB = AnimKeyframe(
+                params = s.params,
+                yaw    = s.yaw,
+                pitch  = s.pitch,
+                roll   = s.roll,
+                zoom   = s.zoom,
+            ))
+        }
+    }
+
+    fun setAnimFrames(n: Int) { _uiState.update { it.copy(animFrames = n) } }
+
+    fun setAnimPingPong(enabled: Boolean) { _uiState.update { it.copy(animPingPong = enabled) } }
+
+    // ── Video export ─────────────────────────────────────────────────────────
+
+    fun exportVideo(context: Context) {
+        val s = _uiState.value
+        val kfA = s.keyframeA ?: return
+        val kfB = s.keyframeB ?: return
+
+        // Ping-pong appends the reverse (minus the duplicated last frame)
+        val baseFrames  = s.animFrames.coerceAtLeast(2)
+        val totalFrames = if (s.animPingPong) baseFrames * 2 - 1 else baseFrames
+
+        _uiState.update {
+            it.copy(
+                isExportingVideo    = true,
+                videoExportProgress = 0,
+                videoExportTotal    = totalFrames,
+                videoExportError    = null,
+                videoExportUri      = null,
+            )
+        }
+
+        videoExportJob = viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val uri = withContext(Dispatchers.IO) {
+                    VideoExporter.export(
+                        context    = context,
+                        frameCount = totalFrames,
+                        fps        = 30,
+                        frameSize  = PREVIEW_SIZE,
+                        renderFrame = { frameIdx ->
+                            if (!isActive) return@export null
+
+                            // Map frame index to interpolation t ∈ [0,1]
+                            val t = if (frameIdx < baseFrames) {
+                                frameIdx.toFloat() / (baseFrames - 1).coerceAtLeast(1)
+                            } else {
+                                // Ping-pong reverse: mirror around baseFrames-1
+                                (totalFrames - 1 - frameIdx).toFloat() /
+                                    (baseFrames - 1).coerceAtLeast(1)
+                            }
+
+                            // Interpolate params + camera
+                            val params = kfA.params.mapIndexed { i, av ->
+                                av + (kfB.params.getOrElse(i) { av } - av) * t
+                            }
+                            val yaw   = kfA.yaw   + (kfB.yaw   - kfA.yaw)   * t
+                            val pitch = kfA.pitch + (kfB.pitch - kfA.pitch) * t
+                            val roll  = kfA.roll  + (kfB.roll  - kfA.roll)  * t
+                            val zoom  = kfA.zoom  + (kfB.zoom  - kfA.zoom)  * t
+
+                            val frameState = s.copy(
+                                params = params,
+                                yaw    = yaw,
+                                pitch  = pitch,
+                                roll   = roll,
+                                zoom   = zoom,
+                            )
+                            val pixels = nativeRenderCall(
+                                frameState, s.renderQuality.previewIterations, PREVIEW_SIZE,
+                            ) ?: nativeRenderCall(
+                                frameState, s.renderQuality.previewIterations * 4, PREVIEW_SIZE,
+                                boundsExtraPad = 0.15f,
+                            ) ?: return@export null // skip blank frames
+
+                            Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
+                                                Bitmap.Config.ARGB_8888)
+                        },
+                        onProgress = { done, _ ->
+                            _uiState.update { it.copy(videoExportProgress = done) }
+                        },
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        isExportingVideo    = false,
+                        videoExportProgress = totalFrames,
+                        videoExportUri      = uri,
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isExportingVideo = false,
+                        videoExportError = e.localizedMessage ?: "Video export failed.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun cancelVideoExport() {
+        videoExportJob?.cancel()
+        videoExportJob = null
+        _uiState.update {
+            it.copy(isExportingVideo = false, videoExportProgress = 0)
+        }
+    }
+
+    fun clearVideoExportFlag() = _uiState.update {
+        it.copy(videoExportError = null, videoExportUri = null)
     }
 
     // ── Randomize ─────────────────────────────────────────────────────────────

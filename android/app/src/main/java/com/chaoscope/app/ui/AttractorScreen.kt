@@ -160,6 +160,39 @@ fun AttractorScreen(
         wasRendering = state.isRendering
     }
 
+    // Surface video-export feedback as a Snackbar.
+    LaunchedEffect(state.videoExportUri, state.videoExportError) {
+        when {
+            state.videoExportError != null -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                snackbarHostState.showSnackbar(
+                    message  = "Video export failed: ${state.videoExportError}",
+                    duration = SnackbarDuration.Short,
+                )
+                vm.clearVideoExportFlag()
+            }
+            state.videoExportUri != null -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                val result = snackbarHostState.showSnackbar(
+                    message     = "Video saved!",
+                    actionLabel = "Share",
+                    duration    = SnackbarDuration.Short,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "video/mp4"
+                        putExtra(android.content.Intent.EXTRA_STREAM,
+                                 android.net.Uri.parse(state.videoExportUri))
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(
+                        android.content.Intent.createChooser(intent, "Share video"))
+                }
+                vm.clearVideoExportFlag()
+            }
+        }
+    }
+
     // Surface wallpaper feedback as a Snackbar.
     LaunchedEffect(state.wallpaperDone, state.wallpaperError) {
         when {
@@ -341,6 +374,12 @@ fun AttractorScreen(
                     onExport           = { vm.exportPng(context) },
                     onSetWallpaper     = { vm.setWallpaper(context) },
                     onTransparentBg    = vm::setTransparentBg,
+                    onSetKeyframeA     = vm::setKeyframeA,
+                    onSetKeyframeB     = vm::setKeyframeB,
+                    onAnimFrames       = vm::setAnimFrames,
+                    onAnimPingPong     = vm::setAnimPingPong,
+                    onExportVideo      = { vm.exportVideo(context) },
+                    onCancelVideoExport = vm::cancelVideoExport,
                     onRandomizeParams  = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         vm.randomizeParams()
@@ -509,6 +548,12 @@ private fun ControlPanel(
     onExport:           ()              -> Unit,
     onSetWallpaper:     ()              -> Unit,
     onTransparentBg:    (Boolean)       -> Unit,
+    onSetKeyframeA:     ()              -> Unit,
+    onSetKeyframeB:     ()              -> Unit,
+    onAnimFrames:       (Int)           -> Unit,
+    onAnimPingPong:     (Boolean)       -> Unit,
+    onExportVideo:      ()              -> Unit,
+    onCancelVideoExport:()              -> Unit,
     onRandomizeParams:  ()              -> Unit,
     onRandomizeAll:     ()              -> Unit,
     onBgColor:          (BgColor)       -> Unit,
@@ -896,6 +941,17 @@ private fun ControlPanel(
             Switch(checked = state.transparentBg, onCheckedChange = onTransparentBg)
         }
 
+        // ── Animation export ─────────────────────────────────────────────────
+        AnimationSection(
+            state               = state,
+            onSetKeyframeA      = onSetKeyframeA,
+            onSetKeyframeB      = onSetKeyframeB,
+            onAnimFrames        = onAnimFrames,
+            onAnimPingPong      = onAnimPingPong,
+            onExportVideo       = onExportVideo,
+            onCancelVideoExport = onCancelVideoExport,
+        )
+
         // ── Performance ──────────────────────────────────────────────────────
         InfoSection(
             title       = "Render Detail",
@@ -1046,6 +1102,152 @@ private fun LabelledSlider(
 // ────────────────────────────────────────────────────────────────────────────
 // Recents thumbnail
 // ────────────────────────────────────────────────────────────────────────────
+
+// ────────────────────────────────────────────────────────────────────────────
+// Animation export panel
+// ────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AnimationSection(
+    state:               UiState,
+    onSetKeyframeA:      () -> Unit,
+    onSetKeyframeB:      () -> Unit,
+    onAnimFrames:        (Int)     -> Unit,
+    onAnimPingPong:      (Boolean) -> Unit,
+    onExportVideo:       () -> Unit,
+    onCancelVideoExport: () -> Unit,
+) {
+    val frameOptions = listOf(15, 30, 60)
+    val canExport    = state.keyframeA != null && state.keyframeB != null &&
+                       !state.isExportingVideo
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionLabel("Animation Export")
+
+        // Keyframe A / B buttons
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick  = onSetKeyframeA,
+                enabled  = !state.isExportingVideo,
+                modifier = Modifier.weight(1f),
+                colors   = if (state.keyframeA != null)
+                    ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                else ButtonDefaults.outlinedButtonColors(),
+            ) {
+                Text(if (state.keyframeA != null) "✓ Frame A" else "Set Frame A",
+                     style = MaterialTheme.typography.labelSmall)
+            }
+            OutlinedButton(
+                onClick  = onSetKeyframeB,
+                enabled  = !state.isExportingVideo,
+                modifier = Modifier.weight(1f),
+                colors   = if (state.keyframeB != null)
+                    ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                else ButtonDefaults.outlinedButtonColors(),
+            ) {
+                Text(if (state.keyframeB != null) "✓ Frame B" else "Set Frame B",
+                     style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        // Frame count chips
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text  = "Frames:",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            frameOptions.forEach { n ->
+                FilterChip(
+                    selected = state.animFrames == n,
+                    onClick  = { onAnimFrames(n) },
+                    enabled  = !state.isExportingVideo,
+                    label    = { Text("$n", style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+
+        // Ping-pong toggle
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text  = "Ping-pong loop",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text  = "Plays A→B→A for a seamless looping video.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+            }
+            Switch(
+                checked         = state.animPingPong,
+                onCheckedChange = onAnimPingPong,
+                enabled         = !state.isExportingVideo,
+            )
+        }
+
+        // Export button or progress
+        if (state.isExportingVideo) {
+            val progress = if (state.videoExportTotal > 0)
+                state.videoExportProgress.toFloat() / state.videoExportTotal else 0f
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text  = "Exporting frame ${state.videoExportProgress} / ${state.videoExportTotal}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+                LinearProgressIndicator(
+                    progress     = { progress },
+                    modifier     = Modifier.fillMaxWidth(),
+                    strokeCap    = androidx.compose.ui.graphics.StrokeCap.Round,
+                )
+                OutlinedButton(
+                    onClick  = onCancelVideoExport,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors   = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) { Text("Cancel export") }
+            }
+        } else {
+            Button(
+                onClick  = onExportVideo,
+                enabled  = canExport,
+                modifier = Modifier.fillMaxWidth(),
+                colors   = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                ),
+            ) {
+                Text(
+                    "🎬  Export Video",
+                    color = MaterialTheme.colorScheme.onSecondary,
+                )
+            }
+            if (state.keyframeA == null || state.keyframeB == null) {
+                Text(
+                    text  = "Set Frame A and Frame B to enable export.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun RecentThumb(

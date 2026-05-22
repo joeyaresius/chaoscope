@@ -301,6 +301,24 @@ enum class BgColor(val displayName: String, val argb: Int) {
 // Curated presets
 // ────────────────────────────────────────────────────────────────────────────
 
+// ────────────────────────────────────────────────────────────────────────────
+// Animation keyframe
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lightweight snapshot of the params + camera that get linearly interpolated
+ * between two keyframes for the video-export animation.  Palette, style,
+ * bg and other "look" settings are taken from the current UI state at export
+ * time and stay constant across the animation.
+ */
+data class AnimKeyframe(
+    val params: List<Float>,
+    val yaw:    Float,
+    val pitch:  Float,
+    val roll:   Float,
+    val zoom:   Float,
+)
+
 /**
  * A hand-picked starting point: attractor + parameters + camera + look.
  * Camera fields are ignored for 2-D attractors (forced to 0 on apply).
@@ -420,4 +438,14 @@ data class UiState(
     val transparentBg: Boolean       = false,
     val wallpaperDone: Boolean       = false,
     val wallpaperError: String?      = null,
+    // ── Animation export ──────────────────────────────────────────────────
+    val keyframeA: AnimKeyframe?     = null,
+    val keyframeB: AnimKeyframe?     = null,
+    val animFrames: Int              = 30,
+    val animPingPong: Boolean        = false,
+    val isExportingVideo: Boolean    = false,
+    val videoExportProgress: Int     = 0,
+    val videoExportTotal: Int        = 0,
+    val videoExportError: String?    = null,
+    val videoExportUri: String?      = null,
 )
