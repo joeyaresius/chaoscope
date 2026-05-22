@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import kotlinx.coroutines.isActive
+import java.io.File
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -64,16 +65,24 @@ object VideoExporter {
             .insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
             ?: throw IllegalStateException("MediaStore refused to create the MP4 entry.")
 
+        // MediaMuxer requires a seekable file to write the moov atom.
+        // ContentResolver FDs from openFileDescriptor() are NOT seekable on many
+        // devices, producing a corrupt/empty container.  Write to a local temp file
+        // first, then copy the completed MP4 to the MediaStore URI.
+        val tempFile = File(context.cacheDir, "chaoscope_export_${System.currentTimeMillis()}.mp4")
         try {
-            context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
-                encode(
-                    fd          = pfd.fileDescriptor,
-                    frameCount  = frameCount,
-                    fps         = fps,
-                    frameSize   = frameSize,
-                    renderFrame = renderFrame,
-                    onProgress  = onProgress,
-                )
+            encode(
+                filePath    = tempFile.absolutePath,
+                frameCount  = frameCount,
+                fps         = fps,
+                frameSize   = frameSize,
+                renderFrame = renderFrame,
+                onProgress  = onProgress,
+            )
+
+            // Copy the finished temp file to the MediaStore URI
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                tempFile.inputStream().use { it.copyTo(out) }
             } ?: throw IllegalStateException("Could not open output stream for MP4.")
 
             // Publish completed file (API 29+ pending flag)
@@ -87,6 +96,8 @@ object VideoExporter {
         } catch (e: Exception) {
             runCatching { context.contentResolver.delete(uri, null, null) }
             throw e
+        } finally {
+            tempFile.delete()
         }
 
         return uri.toString()
@@ -95,7 +106,7 @@ object VideoExporter {
     // ── Core encoder/muxer pipeline ───────────────────────────────────────────
 
     private suspend fun encode(
-        fd:          java.io.FileDescriptor,
+        filePath:    String,
         frameCount:  Int,
         fps:         Int,
         frameSize:   Int,
@@ -116,7 +127,7 @@ object VideoExporter {
         encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         encoder.start()
 
-        val muxer  = MediaMuxer(fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val muxer  = MediaMuxer(filePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         val info   = MediaCodec.BufferInfo()
         var trackIdx    = -1
         var muxerActive = false
