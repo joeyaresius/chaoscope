@@ -382,9 +382,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     val elapsed = (now - lastFrameMs).coerceIn(1L, 100L)
                     lastFrameMs = now
                     val stepDeg = AUTO_ROTATE_DEG_PER_SEC * elapsed / 1000f
-                    // updateAndGet ensures computeDots uses exactly the state we just set
-                    val s = _uiState.updateAndGet { it.copy(yaw = (it.yaw + stepDeg) % 360f) }
-                    _dotPoints.value = computeDots(s)
+                    _uiState.update { it.copy(yaw = (it.yaw + stepDeg) % 360f) }
+                    _dotPoints.value = computeDots(_uiState.value)
                     delay(AUTO_ROTATE_FRAME_MS)
                 }
             }

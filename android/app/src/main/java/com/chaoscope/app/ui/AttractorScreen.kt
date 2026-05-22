@@ -64,6 +64,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaoscope.*
@@ -610,7 +611,7 @@ private fun ControlPanel(
             transitionSpec = { fadeIn() togetherWith fadeOut() },
             modifier       = Modifier.weight(1f),
             label          = "tab_content",
-        ) { tab ->
+        ) { tab: Int ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()

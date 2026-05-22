@@ -15,7 +15,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import com.chaoscope.app.R
+import com.chaoscope.R
 
 // ────────────────────────────────────────────────────────────────────────────
 // Shared export status — observed by the ViewModel (updates) and the Service
