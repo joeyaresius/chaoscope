@@ -78,14 +78,37 @@ static const ColorStop MATRIX_STOPS[] = {
 static const ColorStop GREY_STOPS[] = {
     {0.00f,   0,   0,   0}, {1.00f, 255, 255, 255},
 };
+static const ColorStop SPECTRUM_STOPS[] = {
+    {0.00f,   0,   0,   0}, {0.15f,  80,   0, 160},
+    {0.35f,   0,  40, 220}, {0.50f,   0, 200, 200},
+    {0.65f,   0, 200,  60}, {0.80f, 220, 220,   0},
+    {0.90f, 255, 130,   0}, {1.00f, 255, 240, 220},
+};
+static const ColorStop SUNSET_STOPS[] = {
+    {0.00f,   0,   0,   0}, {0.20f,  60,   0,  80},
+    {0.40f, 180,   0, 120}, {0.65f, 255,  80,  20},
+    {0.85f, 255, 200,  50}, {1.00f, 255, 240, 200},
+};
+static const ColorStop ICE_STOPS[] = {
+    {0.00f,   0,   0,   0}, {0.20f,   0,  20,  60},
+    {0.45f,   0,  80, 140}, {0.70f,  80, 200, 240},
+    {0.90f, 200, 240, 255}, {1.00f, 255, 255, 255},
+};
+static const ColorStop NEON_STOPS[] = {
+    {0.00f,   0,   0,   0}, {0.25f,  60,   0,  60},
+    {0.45f, 255,   0, 180}, {0.65f,   0, 255, 120},
+    {0.85f, 200, 255,  80}, {1.00f, 255, 255, 255},
+};
 
 struct PaletteDesc { const ColorStop* stops; int n; };
 static const PaletteDesc PALETTES[] = {
-    {NEBULA_STOPS,    5}, {FIRE_STOPS,      5}, {ELECTRIC_STOPS, 5},
-    {AURORA_STOPS,    5}, {MATRIX_STOPS,    5}, {GREY_STOPS,     2},
+    {NEBULA_STOPS,    5}, {FIRE_STOPS,      5}, {ELECTRIC_STOPS,  5},
+    {AURORA_STOPS,    5}, {MATRIX_STOPS,    5}, {GREY_STOPS,      2},
+    {SPECTRUM_STOPS,  8}, {SUNSET_STOPS,    6}, {ICE_STOPS,       6},
+    {NEON_STOPS,      6},
 };
-static constexpr int PALETTE_COUNT  = 6;
-static constexpr int PALETTE_CUSTOM = 6;
+static constexpr int PALETTE_COUNT  = 10;
+static constexpr int PALETTE_CUSTOM = 10;
 
 static uint8_t interpChan(const ColorStop* s, int n, float t, int ch) {
     for (int i = 0; i < n - 1; i++) {

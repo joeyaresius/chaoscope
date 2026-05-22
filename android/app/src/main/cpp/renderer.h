@@ -9,6 +9,10 @@ static constexpr int PALETTE_ELECTRIC  = 2;
 static constexpr int PALETTE_AURORA    = 3;
 static constexpr int PALETTE_MATRIX    = 4;
 static constexpr int PALETTE_GREYSCALE = 5;
+static constexpr int PALETTE_SPECTRUM  = 6;
+static constexpr int PALETTE_SUNSET    = 7;
+static constexpr int PALETTE_ICE       = 8;
+static constexpr int PALETTE_NEON      = 9;
 
 struct RenderParams {
     int       attractorType;

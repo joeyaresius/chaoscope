@@ -199,6 +199,10 @@ enum class PaletteType(val displayName: String, val description: String) {
     AURORA   ("Aurora",    "Greens, teals and violets — northern lights."),
     MATRIX   ("Matrix",    "Mono-green on black — terminal nostalgia."),
     GREYSCALE("Grey",      "Pure luminance — focus on form, not colour."),
+    SPECTRUM ("Spectrum",  "Full hue wheel — violet through cyan, green, yellow to orange, dark-to-bright."),
+    SUNSET   ("Sunset",    "Deep purple to magenta, orange and golden cream — warm and dramatic."),
+    ICE      ("Ice",       "Navy to steel blue, ice blue and white — cold and crystalline."),
+    NEON     ("Neon",      "Hot pink to electric green — high-contrast, vibrant."),
     CUSTOM   ("Custom",    "Your own colour stops — tap Edit to customise."),
 }
 
@@ -242,6 +246,27 @@ val builtInPaletteStops: Map<PaletteType, List<ColorStop>> = mapOf(
     ),
     PaletteType.GREYSCALE to listOf(
         stop(0.00f, 0, 0, 0), stop(1.00f, 255, 255, 255),
+    ),
+    PaletteType.SPECTRUM to listOf(
+        stop(0.00f,   0,   0,   0), stop(0.15f,  80,   0, 160),
+        stop(0.35f,   0,  40, 220), stop(0.50f,   0, 200, 200),
+        stop(0.65f,   0, 200,  60), stop(0.80f, 220, 220,   0),
+        stop(0.90f, 255, 130,   0), stop(1.00f, 255, 240, 220),
+    ),
+    PaletteType.SUNSET to listOf(
+        stop(0.00f,   0,   0,   0), stop(0.20f,  60,   0,  80),
+        stop(0.40f, 180,   0, 120), stop(0.65f, 255,  80,  20),
+        stop(0.85f, 255, 200,  50), stop(1.00f, 255, 240, 200),
+    ),
+    PaletteType.ICE to listOf(
+        stop(0.00f,   0,   0,   0), stop(0.20f,   0,  20,  60),
+        stop(0.45f,   0,  80, 140), stop(0.70f,  80, 200, 240),
+        stop(0.90f, 200, 240, 255), stop(1.00f, 255, 255, 255),
+    ),
+    PaletteType.NEON to listOf(
+        stop(0.00f,   0,   0,   0), stop(0.25f,  60,   0,  60),
+        stop(0.45f, 255,   0, 180), stop(0.65f,   0, 255, 120),
+        stop(0.85f, 200, 255,  80), stop(1.00f, 255, 255, 255),
     ),
 )
 

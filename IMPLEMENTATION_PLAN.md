@@ -227,5 +227,49 @@ The marquee features that need new infrastructure. Ordered by likely value.
   (ideally a GLSL compute/fragment shader), separate from the histogram pipeline.
 - **Risk:** High — essentially a second renderer (GPU). Only worth it if E1/E2 land first.
 
-**Suggested order:** E2 (contained, high user value) → E1 (marquee, big effort) → E3 (only
-if there's appetite for a GPU path).
+**Status (2026-05-22):** E1 ✅ DONE (video export, ping-pong, MediaCodec pipeline).
+E2 ✅ DONE (4K, transparent PNG, set-as-wallpaper). E3 deferred — see below.
+
+### E3. True quaternion-Julia ray-marcher — DEFERRED / SHOWCASE
+- The current Julia (Track C2) is an inverse-iteration point cloud — a glowing fog cloud.
+  A true ray-marched Julia is a sharp solid surface (glass-like, crystalline) — a completely
+  different visual style that would feel inconsistent with the histogram-glow aesthetic of
+  all other attractors.
+- **Architecture:** GLSL ES 3.0 fragment shader + offscreen FBO → `glReadPixels` → `Bitmap`.
+  Replaces the Julia render path only; all other attractors unchanged.
+- **Math:** quaternion DE `0.5·r·log(r)/|dz|` + sphere tracing + normal estimation via
+  central differences + Phong+AO shading.
+- **Effort:** ~4 days. **Risk:** High (shader precision on mobile, GLSurfaceView threading).
+- **Decision:** Shelved in favour of Track F (more attractors + UX polish) which delivers
+  broader value with lower risk. Revisit when the attractor set is complete.
+
+---
+
+## Track F — Attractor expansion + UX polish (current focus)
+
+Consistent-pipeline improvements that benefit all users immediately.
+
+### F1. More attractors
+Add 4–6 new strange attractors using the same C++ histogram pipeline.
+Candidates (all have canonical 3D forms):
+- **Dadras** — 5 params, produces a smooth torus-knot surface
+- **Halvorsen** — 1 param (cyclic symmetry like Thomas but more dramatic)
+- **Burke-Shaw** — 2 params, produces tangled ribbons
+- **Chen-Lee** — 3 params, wing-like chaos
+- **Sprott B/C** — minimal 1–2 param systems, great for beginners
+Each needs: C++ iterate function, Kotlin enum entry + paramRanges/hints, 3 curated presets.
+
+### F2. Preset thumbnail previews
+Pre-render small PNG thumbnails for each curated preset and bundle in `assets/`.
+Show as a 64×64 image on each preset chip. Dramatically improves discoverability.
+Alternative: generate on first run and cache to disk (no bundle size cost).
+
+### F3. Palette additions
+- **Spectrum** palette — full hue wheel (rainbow). 30-min addition to the LUT table.
+- **Sunset**, **Ice**, **Neon** — 3 more tasteful presets to round out the palette row.
+
+### F4. Social / sharing polish
+- Auto-generate a caption "Lorenz attractor · Nebula palette · σ=10 ρ=28" in the share intent.
+- "Copy to clipboard" action alongside Share in the export Snackbar.
+
+**Suggested order:** F3 (palette additions, 30 min) → F1 (attractors, ~2 days) → F2 (thumbnails, 1 day) → F4 (sharing, 1 hr).
