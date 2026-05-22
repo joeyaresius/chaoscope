@@ -45,6 +45,9 @@ fun PaletteEditorDialog(
 ) {
     var stops       by remember { mutableStateOf(initialStops.sortedBy { it.pos }) }
     var selectedIdx by remember { mutableIntStateOf(0) }
+    // Bumped when a built-in palette is loaded, so the colour editor re-seeds its
+    // H/S/V even if the selected index didn't change.
+    var paletteGen  by remember { mutableIntStateOf(0) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -86,6 +89,7 @@ fun PaletteEditorDialog(
                             onClick = {
                                 stops = presetStops.sortedBy { it.pos }
                                 selectedIdx = 0
+                                paletteGen++
                             },
                             label = { Text(palette.displayName) },
                         )
@@ -134,10 +138,11 @@ fun PaletteEditorDialog(
                     val minPos = if (selectedIdx > 0) stops[selectedIdx - 1].pos + 0.01f else 0f
                     val maxPos = if (selectedIdx < stops.size - 1) stops[selectedIdx + 1].pos - 0.01f else 1f
                     StopEditor(
-                        stop     = sel,
-                        minPos   = minPos,
-                        maxPos   = maxPos,
-                        onChange = { updated ->
+                        stop      = sel,
+                        editorKey = selectedIdx * 1000 + paletteGen,
+                        minPos    = minPos,
+                        maxPos    = maxPos,
+                        onChange  = { updated ->
                             stops = stops.toMutableList().also { it[selectedIdx] = updated }
                         },
                     )
@@ -244,15 +249,19 @@ private fun AddStopButton(onClick: () -> Unit) {
 
 @Composable
 private fun StopEditor(
-    stop:     ColorStop,
-    minPos:   Float,
-    maxPos:   Float,
-    onChange: (ColorStop) -> Unit,
+    stop:      ColorStop,
+    editorKey: Int,
+    minPos:    Float,
+    maxPos:    Float,
+    onChange:  (ColorStop) -> Unit,
 ) {
-    val hsv = remember(stop.r, stop.g, stop.b) { rgbToHsv(stop.r, stop.g, stop.b) }
-    var hue by remember(stop) { mutableFloatStateOf(hsv[0]) }
-    var sat by remember(stop) { mutableFloatStateOf(hsv[1]) }
-    var bri by remember(stop) { mutableFloatStateOf(hsv[2]) }
+    // Seed H/S/V from the stop's RGB only when a *different* stop is selected
+    // (editorKey changes) — not on our own edits. Round-tripping RGB→HSV loses the
+    // hue at low saturation/brightness, which would otherwise reset the hue mid-edit.
+    val initial = remember(editorKey) { rgbToHsv(stop.r, stop.g, stop.b) }
+    var hue by remember(editorKey) { mutableFloatStateOf(initial[0]) }
+    var sat by remember(editorKey) { mutableFloatStateOf(initial[1]) }
+    var bri by remember(editorKey) { mutableFloatStateOf(initial[2]) }
 
     fun commit() {
         val (r, g, b) = hsvToRgb(hue, sat, bri)
