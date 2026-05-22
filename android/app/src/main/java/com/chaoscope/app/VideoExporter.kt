@@ -3,7 +3,6 @@ package com.chaoscope
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
-import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -21,12 +20,21 @@ import kotlin.coroutines.coroutineContext
  *
  * Frames are rendered one-by-one via [renderFrame] and fed straight to
  * MediaCodec, so only one decoded bitmap lives in memory at a time.
+ *
+ * Implementation notes:
+ *  - Uses COLOR_FormatYUV420SemiPlanar (NV12) + getInputBuffer() for
+ *    maximum hardware-encoder compatibility.  The flexible Image API
+ *    (getInputImage) returns null on many hardware codecs.
+ *  - MediaMuxer is given a local cacheDir temp path so it can seek back
+ *    to write the moov atom on stop().  ContentResolver FDs are not
+ *    seekable on many devices, producing a corrupt/empty container.
+ *    The finished file is copied to MediaStore via openOutputStream().
  */
 object VideoExporter {
 
-    private const val MIME_TYPE         = "video/avc"
-    private const val BIT_RATE          = 8_000_000   // 8 Mbps
-    private const val I_FRAME_INTERVAL  = 1            // keyframe every second
+    private const val MIME_TYPE        = "video/avc"
+    private const val BIT_RATE         = 8_000_000   // 8 Mbps
+    private const val I_FRAME_INTERVAL = 1            // keyframe every second
 
     /**
      * Export an animation to MP4.
@@ -65,11 +73,13 @@ object VideoExporter {
             .insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
             ?: throw IllegalStateException("MediaStore refused to create the MP4 entry.")
 
-        // MediaMuxer requires a seekable file to write the moov atom.
-        // ContentResolver FDs from openFileDescriptor() are NOT seekable on many
-        // devices, producing a corrupt/empty container.  Write to a local temp file
-        // first, then copy the completed MP4 to the MediaStore URI.
-        val tempFile = File(context.cacheDir, "chaoscope_export_${System.currentTimeMillis()}.mp4")
+        // MediaMuxer needs a seekable file to write the moov atom at stop().
+        // ContentResolver FDs are NOT seekable on many devices → use a cacheDir
+        // temp file, then copy the completed MP4 to the MediaStore URI.
+        val tempFile = File(
+            context.cacheDir,
+            "chaoscope_export_${System.currentTimeMillis()}.mp4",
+        )
         try {
             encode(
                 filePath    = tempFile.absolutePath,
@@ -113,34 +123,38 @@ object VideoExporter {
         renderFrame: suspend (frameIndex: Int) -> Bitmap?,
         onProgress:  (Int, Int) -> Unit,
     ) {
+        // NV12 (COLOR_FormatYUV420SemiPlanar) is supported by every Android
+        // hardware encoder since API 16.  The flexible format + getInputImage()
+        // approach silently returns null on many hardware codecs, so we write
+        // directly to the input ByteBuffer in NV12 layout instead.
         val format = MediaFormat.createVideoFormat(MIME_TYPE, frameSize, frameSize).apply {
             setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar,
             )
-            setInteger(MediaFormat.KEY_BIT_RATE,         BIT_RATE)
-            setInteger(MediaFormat.KEY_FRAME_RATE,        fps)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,  I_FRAME_INTERVAL)
+            setInteger(MediaFormat.KEY_BIT_RATE,        BIT_RATE)
+            setInteger(MediaFormat.KEY_FRAME_RATE,       fps)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL)
         }
 
         val encoder = MediaCodec.createEncoderByType(MIME_TYPE)
         encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         encoder.start()
 
-        val muxer  = MediaMuxer(filePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-        val info   = MediaCodec.BufferInfo()
+        val muxer       = MediaMuxer(filePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val info        = MediaCodec.BufferInfo()
         var trackIdx    = -1
         var muxerActive = false
         val usPerFrame  = 1_000_000L / fps
+        val yuvSize     = frameSize * frameSize * 3 / 2   // NV12 byte count
 
         // Local drain helper — captures mutable encoder/muxer state by closure.
         fun drain(endOfStream: Boolean) {
-            var retries = if (endOfStream) 200 else 0
+            var retries = if (endOfStream) 300 else 1
             while (true) {
                 val outIdx = encoder.dequeueOutputBuffer(info, 10_000L)
                 when {
                     outIdx == MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                        if (!endOfStream) return
                         if (--retries <= 0) return
                     }
                     outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
@@ -179,30 +193,31 @@ object VideoExporter {
                 // Render this frame; skip if null (attractor diverged etc.)
                 val bitmap = renderFrame(frameIdx) ?: continue
 
-                // Feed to encoder input
+                // Obtain an input buffer, write NV12 pixel data, submit it
                 val inputIdx = encoder.dequeueInputBuffer(10_000L)
                 if (inputIdx >= 0) {
-                    encoder.getInputImage(inputIdx)?.let { image ->
-                        writeBitmapToYuv(bitmap, image)
-                    }
+                    val buf = encoder.getInputBuffer(inputIdx)
+                        ?: throw IllegalStateException("getInputBuffer returned null")
+                    writeBitmapToNV12(bitmap, buf, frameSize)
                     encoder.queueInputBuffer(
-                        inputIdx, 0, 0,
+                        inputIdx, 0, yuvSize,
                         frameIdx * usPerFrame,
                         0,
                     )
                 }
                 bitmap.recycle()
 
-                // Drain whatever output is ready without blocking
+                // Drain whatever output is ready (≤1 retry — non-blocking)
                 drain(endOfStream = false)
 
                 encoded++
                 onProgress(encoded, frameCount)
             }
 
-            // Signal end-of-stream and drain remaining output
+            // Signal end-of-stream and drain all remaining output
             val eosIdx = encoder.dequeueInputBuffer(10_000L)
             if (eosIdx >= 0) {
+                encoder.getInputBuffer(eosIdx)?.clear()
                 encoder.queueInputBuffer(
                     eosIdx, 0, 0,
                     frameCount * usPerFrame,
@@ -211,55 +226,54 @@ object VideoExporter {
             }
             drain(endOfStream = true)
         } finally {
-            encoder.stop()
-            encoder.release()
-            if (muxerActive) muxer.stop()
-            muxer.release()
+            runCatching { encoder.stop() }
+            runCatching { encoder.release() }
+            if (muxerActive) runCatching { muxer.stop() }
+            runCatching { muxer.release() }
         }
     }
 
-    // ── Bitmap → YUV420Flexible (handles NV12, I420, etc. via plane strides) ──
+    // ── Bitmap → NV12 (YUV420SemiPlanar) ByteBuffer ───────────────────────────
+    //
+    // NV12 layout:
+    //   Offset 0          : Y plane  — one byte per pixel, row-major
+    //   Offset W*H        : UV plane — interleaved (U, V) pairs for each 2×2 block
+    //   Total size        : W * H * 3 / 2 bytes
 
-    private fun writeBitmapToYuv(src: Bitmap, image: Image) {
-        val w = image.width
-        val h = image.height
+    private fun writeBitmapToNV12(src: Bitmap, buf: java.nio.ByteBuffer, frameSize: Int) {
+        val w = frameSize
+        val h = frameSize
 
-        // Scale source if the sizes differ (shouldn't normally happen)
+        // Scale if the bitmap doesn't exactly match the encode dimensions
         val bmp = if (src.width == w && src.height == h) src
                   else Bitmap.createScaledBitmap(src, w, h, true)
         val argb = IntArray(w * h)
         bmp.getPixels(argb, 0, w, 0, 0, w, h)
         if (bmp !== src) bmp.recycle()
 
-        val yPlane  = image.planes[0]
-        val uPlane  = image.planes[1]
-        val vPlane  = image.planes[2]
-        val yBuf    = yPlane.buffer
-        val uBuf    = uPlane.buffer
-        val vBuf    = vPlane.buffer
-        val yRow    = yPlane.rowStride
-        val uvRow   = uPlane.rowStride
-        val uvPixel = uPlane.pixelStride  // 1 for I420, 2 for NV12
+        buf.clear()
 
-        for (row in 0 until h) {
-            for (col in 0 until w) {
-                val p = argb[row * w + col]
+        // Y plane ── BT.601 studio-swing luma
+        for (i in 0 until w * h) {
+            val p = argb[i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8)  and 0xFF
+            val b =  p         and 0xFF
+            val y = ((66 * r + 129 * g + 25 * b + 128) shr 8) + 16
+            buf.put(y.coerceIn(16, 235).toByte())
+        }
+
+        // UV plane ── BT.601 studio-swing chroma, 4:2:0 subsampled, interleaved U,V
+        for (row in 0 until h / 2) {
+            for (col in 0 until w / 2) {
+                val p = argb[row * 2 * w + col * 2]
                 val r = (p shr 16) and 0xFF
                 val g = (p shr 8)  and 0xFF
                 val b =  p         and 0xFF
-
-                // BT.601 full-range → studio-swing Y
-                val y = ((66 * r + 129 * g + 25 * b + 128) shr 8) + 16
-                yBuf.put(row * yRow + col, y.coerceIn(16, 235).toByte())
-
-                // Subsample UV 4:2:0
-                if (row % 2 == 0 && col % 2 == 0) {
-                    val u  = ((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128
-                    val v  = ((112 * r - 94 * g -  18 * b + 128) shr 8) + 128
-                    val pos = (row / 2) * uvRow + (col / 2) * uvPixel
-                    uBuf.put(pos, u.coerceIn(16, 240).toByte())
-                    vBuf.put(pos, v.coerceIn(16, 240).toByte())
-                }
+                val u = ((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128
+                val v = ((112 * r -  94 * g -  18 * b + 128) shr 8) + 128
+                buf.put(u.coerceIn(16, 240).toByte())
+                buf.put(v.coerceIn(16, 240).toByte())
             }
         }
     }
