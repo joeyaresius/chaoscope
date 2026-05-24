@@ -5,6 +5,7 @@ import android.app.WallpaperManager
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Paint
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.ui.geometry.Rect
@@ -16,9 +17,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -67,6 +71,10 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private val _sessionSplashDone = MutableStateFlow(false)
     val sessionSplashDone: StateFlow<Boolean> = _sessionSplashDone.asStateFlow()
 
+    // ── In-app review trigger (emits once when the counter crosses 20) ────────
+    private val _reviewTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val reviewTrigger: SharedFlow<Unit> = _reviewTrigger.asSharedFlow()
+
     // ── Tutorial state ───────────────────────────────────────────────────────
     private val _showTutorial   = MutableStateFlow(false)
     val showTutorial: StateFlow<Boolean> = _showTutorial.asStateFlow()
@@ -84,7 +92,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private var renderJob:       Job? = null
     private var finishJob:       Job? = null
     private var dotJob:          Job? = null
-    private var autoRotateJob:   Job? = null
     private var videoExportJob:  Job? = null
 
     init {
@@ -134,7 +141,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Parameter updates (state only – no auto render) ────────────────────
 
     fun setAttractorType(type: AttractorType) {
-        cancelAutoRotate()
         _uiState.update {
             it.copy(
                 attractorType = type,
@@ -173,7 +179,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Apply a curated preset: attractor + params + camera + look, then preview. */
     fun applyPreset(preset: Preset) {
-        cancelAutoRotate()
         _uiState.update {
             it.copy(
                 attractorType = preset.type,
@@ -210,7 +215,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         roll:  Float? = null,
         zoom:  Float? = null,
     ) {
-        cancelAutoRotate()
         _uiState.update { s ->
             s.copy(
                 yaw   = yaw   ?: s.yaw,
@@ -319,7 +323,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called on every drag frame – shows dot cloud, no histogram render. */
     fun rotateBy(deltaYaw: Float, deltaPitch: Float) {
-        cancelAutoRotate()
         _uiState.update { s ->
             s.copy(
                 yaw   = (s.yaw   + deltaYaw)   % 360f,
@@ -331,7 +334,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pinch-to-zoom on every gesture frame – shows dot cloud. */
     fun zoomBy(factor: Float) {
-        cancelAutoRotate()
         _uiState.update { s ->
             s.copy(zoom = (s.zoom * factor).coerceIn(0.1f, 20f))
         }
@@ -363,43 +365,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             zoom          = s.zoom,
         )
 
-    // ── Auto-rotate ──────────────────────────────────────────────────────────
-
-    /** Toggle continuous yaw spin (3-D attractors only). Shows the dot cloud while
-     *  spinning; settles to a full preview render when turned off. */
-    fun setAutoRotate(enabled: Boolean) {
-        if (enabled && !_uiState.value.attractorType.is3D) return // no-op for 2-D
-        autoRotateJob?.cancel()
-        autoRotateJob = null
-        _uiState.update { it.copy(autoRotate = enabled) }
-        if (enabled) {
-            renderJob?.cancel()
-            renderJob = null
-            autoRotateJob = viewModelScope.launch(Dispatchers.Default) {
-                var lastFrameMs = System.currentTimeMillis()
-                while (isActive) {
-                    val now     = System.currentTimeMillis()
-                    val elapsed = (now - lastFrameMs).coerceIn(1L, 100L)
-                    lastFrameMs = now
-                    val stepDeg = AUTO_ROTATE_DEG_PER_SEC * elapsed / 1000f
-                    _uiState.update { it.copy(yaw = (it.yaw + stepDeg) % 360f) }
-                    _dotPoints.value = computeDots(_uiState.value)
-                    delay(AUTO_ROTATE_FRAME_MS)
-                }
-            }
-        } else {
-            renderPreview() // settle to a full render at the stopped angle
-        }
-    }
-
-    /** Stop spinning without rendering — used when a manual interaction takes over. */
-    private fun cancelAutoRotate() {
-        if (autoRotateJob == null && !_uiState.value.autoRotate) return
-        autoRotateJob?.cancel()
-        autoRotateJob = null
-        _uiState.update { it.copy(autoRotate = false) }
-    }
-
     /** Called when the finger lifts – just clears dot state, no render. */
     fun finishRotation() {
         finishJob?.cancel()
@@ -409,7 +374,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Reset camera to default orientation and zoom — no render. */
     fun resetCamera() {
-        cancelAutoRotate()
         finishJob?.cancel()
         _isDragging.value = false
         _dotPoints.value  = null
@@ -419,25 +383,20 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Explicit renders (user-initiated only) ───────────────────────────────
 
     fun renderPreview() {
-        cancelAutoRotate()
         scheduleRender(_uiState.value.renderQuality.previewIterations, PREVIEW_SIZE)
     }
 
     fun renderHD() {
-        cancelAutoRotate()
         scheduleRender(_uiState.value.renderQuality.hdIterations, HD_SIZE)
     }
 
     fun renderHD4K() {
-        cancelAutoRotate()
         scheduleRender(_uiState.value.renderQuality.hdIterations, HD_SIZE_4K)
     }
 
     /** Debounced preview render used when a "look" parameter changes, so palette,
-     *  depth, gamma, style, background and full-range changes are visible live.
-     *  Suppressed while auto-rotating — the dot cloud is on screen then. */
+     *  depth, gamma, style, background and full-range changes are visible live. */
     private fun renderLookPreview() {
-        if (_uiState.value.autoRotate) return
         scheduleRender(_uiState.value.renderQuality.previewIterations, PREVIEW_SIZE,
                        debounceMs = LOOK_DEBOUNCE_MS)
     }
@@ -559,14 +518,20 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         val baseFrames  = s.animFrames.coerceAtLeast(2)
         val totalFrames = if (s.animPingPong) baseFrames * 2 - 1 else baseFrames
 
-        // MORPH requires both keyframes; EMERGE works on the current state
+        // Resolve keyframes for modes that need them
         val kfA: AnimKeyframe?
         val kfB: AnimKeyframe?
-        if (s.animMode == AnimMode.MORPH) {
-            kfA = s.keyframeA ?: return
-            kfB = s.keyframeB ?: return
-        } else {
-            kfA = null; kfB = null
+        when (s.animMode) {
+            AnimMode.MORPH -> {
+                kfA = s.keyframeA ?: return
+                kfB = s.keyframeB ?: return
+            }
+            AnimMode.PARAM_SWEEP -> {
+                // Snapshot current state as A; auto-generate B with random param variation
+                kfA = AnimKeyframe(s.params, s.yaw, s.pitch, s.roll, s.zoom)
+                kfB = generateSweepTarget(s)
+            }
+            AnimMode.ORBIT_TRACE -> { kfA = null; kfB = null }
         }
 
         _uiState.update {
@@ -579,12 +544,34 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
 
-        // Start the ForegroundService to protect the process from being killed
-        // while encoding runs in the background.
+        // Register the notification-cancel callback BEFORE starting the service so
+        // it is always in place by the time the notification's Cancel button is live.
+        VideoExportState.onCancelRequested = { cancelVideoExport() }
         VideoExportState.status.value = ExportStatus.Running(0, totalFrames)
         VideoExportService.start(getApplication())
 
         videoExportJob = viewModelScope.launch(Dispatchers.Default) {
+            // Pre-compute the full orbit point cloud once for ORBIT_TRACE so that
+            // every frame is a prefix of the same orbit (true cumulative trace).
+            // maxPts scales with render quality so the final frame is noticeably dense.
+            val orbitPts: FloatArray? = if (s.animMode == AnimMode.ORBIT_TRACE) {
+                val maxPts = when (s.renderQuality) {
+                    RenderQuality.DRAFT    -> 100_000
+                    RenderQuality.STANDARD -> 200_000
+                    RenderQuality.HIGH     -> 350_000
+                    RenderQuality.ULTRA    -> 500_000
+                }
+                ChaoscopeEngine.nativeGetPoints(
+                    attractorType = s.attractorType.ordinal,
+                    params        = s.params.toFloatArray(),
+                    nPts          = maxPts,
+                    yaw           = s.yaw,
+                    pitch         = s.pitch,
+                    roll          = s.roll,
+                    zoom          = s.zoom,
+                )
+            } else null
+
             try {
                 val uri = withContext(Dispatchers.IO) {
                     VideoExporter.export(
@@ -595,7 +582,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         renderFrame = { frameIdx ->
                             if (!isActive) return@export null
 
-                            // Map frame index → t ∈ [0,1], mirrored for ping-pong
+                            // t ∈ [0,1], mirrored in the second half for ping-pong
                             val t = if (frameIdx < baseFrames) {
                                 frameIdx.toFloat() / (baseFrames - 1).coerceAtLeast(1)
                             } else {
@@ -603,9 +590,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                     (baseFrames - 1).coerceAtLeast(1)
                             }
 
-                            val (frameState, iters) = when (s.animMode) {
-                                AnimMode.MORPH -> {
-                                    // Lerp params + camera between keyframe A and B
+                            when (s.animMode) {
+                                // ── Morph: lerp params + camera A → B ───────────────
+                                AnimMode.MORPH, AnimMode.PARAM_SWEEP -> {
                                     val params = kfA!!.params.mapIndexed { i, av ->
                                         av + (kfB!!.params.getOrElse(i) { av } - av) * t
                                     }
@@ -613,28 +600,27 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                     val pitch = kfA.pitch + (kfB.pitch - kfA.pitch) * t
                                     val roll  = kfA.roll  + (kfB.roll  - kfA.roll)  * t
                                     val zoom  = kfA.zoom  + (kfB.zoom  - kfA.zoom)  * t
-                                    s.copy(params = params, yaw = yaw, pitch = pitch,
-                                           roll = roll, zoom = zoom) to
-                                        s.renderQuality.previewIterations
+                                    val fs    = s.copy(params = params, yaw = yaw,
+                                                       pitch = pitch, roll = roll, zoom = zoom)
+                                    val pixels = nativeRenderCall(fs,
+                                                     s.renderQuality.previewIterations, PREVIEW_SIZE)
+                                        ?: nativeRenderCall(fs,
+                                               s.renderQuality.previewIterations * 4, PREVIEW_SIZE,
+                                               boundsExtraPad = 0.15f)
+                                        ?: return@export null
+                                    Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
+                                                        Bitmap.Config.ARGB_8888)
                                 }
-                                AnimMode.EMERGE -> {
-                                    // Logarithmic ramp: sparse points → full density
-                                    val minIter = (s.renderQuality.previewIterations / 100L)
-                                        .coerceAtLeast(500L)
-                                    val maxIter = s.renderQuality.previewIterations
-                                    val iters = (minIter *
-                                        (maxIter.toFloat() / minIter).pow(t)).roundToInt().toLong()
-                                    s to iters
+
+                                // ── Orbit Trace: cumulative coloured dot cloud ────────
+                                AnimMode.ORBIT_TRACE -> {
+                                    val allPts = orbitPts!!
+                                    val maxPts = allPts.size / 2
+                                    val nPts   = (maxPts * t).roundToInt()
+                                                     .coerceIn(1, maxPts)
+                                    renderOrbitTraceBitmap(allPts, nPts, s, PREVIEW_SIZE)
                                 }
                             }
-
-                            val pixels = nativeRenderCall(frameState, iters, PREVIEW_SIZE)
-                                ?: nativeRenderCall(frameState, iters * 4, PREVIEW_SIZE,
-                                                    boundsExtraPad = 0.15f)
-                                ?: return@export null // skip blank frames
-
-                            Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
-                                                Bitmap.Config.ARGB_8888)
                         },
                         onProgress = { done, _ ->
                             _uiState.update { it.copy(videoExportProgress = done) }
@@ -644,7 +630,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
 
-                VideoExportState.status.value = ExportStatus.Done(uri)
+                VideoExportState.status.value   = ExportStatus.Done(uri)
+                VideoExportState.onCancelRequested = null   // no longer needed
+                onActionCompleted()
                 _uiState.update {
                     it.copy(
                         isExportingVideo    = false,
@@ -652,8 +640,17 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         videoExportUri      = uri,
                     )
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Normal user-initiated cancellation — state already cleaned up by
+                // cancelVideoExport(); just ensure service + callback are cleared.
+                VideoExportState.onCancelRequested = null
+                VideoExportState.status.value = ExportStatus.Idle
+                // Don't re-throw: the Job is already cancelled, and re-throwing
+                // would try to propagate through viewModelScope (SupervisorJob —
+                // safe, but unnecessary noise).
             } catch (e: Exception) {
                 val msg = e.localizedMessage ?: "Video export failed."
+                VideoExportState.onCancelRequested = null
                 VideoExportState.status.value = ExportStatus.Error(msg)
                 _uiState.update {
                     it.copy(
@@ -665,7 +662,99 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ── Video export helpers ──────────────────────────────────────────────────
+
+    /**
+     * Generate an [AnimKeyframe] that varies every parameter by up to ±40 % of
+     * its slider range, plus a ±30° yaw nudge. Used by [AnimMode.PARAM_SWEEP].
+     */
+    private fun generateSweepTarget(s: UiState): AnimKeyframe {
+        val newParams = s.attractorType.paramRanges.mapIndexed { i, range ->
+            val current   = s.params.getOrElse(i) { 0f }
+            val variation = (range.endInclusive - range.start) * 0.4f
+            (current + kotlin.random.Random.nextFloat() * variation * 2f - variation)
+                .coerceIn(range.start, range.endInclusive)
+        }
+        val yawNudge   = kotlin.random.Random.nextFloat() * 60f - 30f
+        val pitchNudge = kotlin.random.Random.nextFloat() * 30f - 15f
+        return AnimKeyframe(
+            params = newParams,
+            yaw    = s.yaw + if (s.attractorType.is3D) yawNudge else 0f,
+            pitch  = (s.pitch + if (s.attractorType.is3D) pitchNudge else 0f)
+                         .coerceIn(-90f, 90f),
+            roll   = s.roll,
+            zoom   = s.zoom,
+        )
+    }
+
+    /**
+     * Render [nPts] points from [pts] (a prefix of the full orbit) to a [Bitmap]
+     * with each dot coloured by its position in the current palette.
+     */
+    private fun renderOrbitTraceBitmap(
+        pts:   FloatArray,
+        nPts:  Int,
+        s:     UiState,
+        size:  Int,
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawColor(s.bgColor.argb)
+
+        val paint = Paint().apply {
+            strokeWidth = 3f
+            strokeCap   = Paint.Cap.ROUND
+            isAntiAlias = true
+        }
+
+        val stops = if (s.palette == PaletteType.CUSTOM) s.customStops
+                    else builtInPaletteStops[s.palette] ?: builtInPaletteStops[PaletteType.NEBULA]!!
+        val sortedStops = stops.sortedBy { it.pos }
+
+        val halfW = size * 0.5f
+        val halfH = size * 0.5f
+
+        var i     = 0
+        var ptIdx = 0
+        while (i + 1 < pts.size && ptIdx < nPts) {
+            val x = halfW + pts[i]     * halfW
+            val y = halfH + pts[i + 1] * halfH
+            val t = ptIdx.toFloat() / nPts.coerceAtLeast(1)
+            val (r, g, b) = samplePaletteRgb(sortedStops, t)
+            paint.color = android.graphics.Color.argb(
+                230,
+                (r * 255f).toInt().coerceIn(0, 255),
+                (g * 255f).toInt().coerceIn(0, 255),
+                (b * 255f).toInt().coerceIn(0, 255),
+            )
+            canvas.drawPoint(x, y, paint)
+            i     += 2
+            ptIdx += 1
+        }
+        return bitmap
+    }
+
+    /** Linearly interpolate between palette colour stops. [stops] must be sorted by pos. */
+    private fun samplePaletteRgb(
+        stops: List<ColorStop>,
+        t:     Float,
+    ): Triple<Float, Float, Float> {
+        if (stops.isEmpty()) return Triple(1f, 1f, 1f)
+        val t01   = t.coerceIn(0f, 1f)
+        val hiIdx = stops.indexOfFirst { it.pos >= t01 }.takeIf { it >= 0 } ?: stops.lastIndex
+        val loIdx = (hiIdx - 1).coerceAtLeast(0)
+        if (hiIdx == loIdx) {
+            val c = stops[loIdx]; return Triple(c.r, c.g, c.b)
+        }
+        val lo    = stops[loIdx]
+        val hi    = stops[hiIdx]
+        val range = hi.pos - lo.pos
+        val f     = if (range < 1e-6f) 0f else (t01 - lo.pos) / range
+        return Triple(lo.r + f * (hi.r - lo.r), lo.g + f * (hi.g - lo.g), lo.b + f * (hi.b - lo.b))
+    }
+
     fun cancelVideoExport() {
+        VideoExportState.onCancelRequested = null  // prevent double-invoke
         videoExportJob?.cancel()
         videoExportJob = null
         VideoExportState.status.value = ExportStatus.Idle  // signals service to stop
@@ -681,7 +770,6 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Randomize ─────────────────────────────────────────────────────────────
 
     fun randomize() {
-        cancelAutoRotate()
         val type    = AttractorType.entries.random()
         val palette = PaletteType.entries.filter { it != PaletteType.CUSTOM }.random()
         val params  = type.paramRanges.map { range ->
@@ -751,6 +839,23 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    /**
+     * Call after every successful render or completed video export.
+     * Increments the persistent counter; fires [reviewTrigger] exactly once
+     * when the count first reaches [REVIEW_TRIGGER_COUNT].
+     * The Play API applies its own quota, so it won't show the dialog every time.
+     */
+    private fun onActionCompleted() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (prefs.isReviewTriggered()) return@launch
+            val count = prefs.incrementRenderExportCount()
+            if (count >= REVIEW_TRIGGER_COUNT) {
+                prefs.setReviewTriggered()
+                _reviewTrigger.tryEmit(Unit)
+            }
+        }
+    }
+
     private fun scheduleRender(
         iterations: Long,
         size: Int,
@@ -777,18 +882,14 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         return@launch
                     }
                     val bitmap = Bitmap.createBitmap(retryPixels, size, size, Bitmap.Config.ARGB_8888)
-                    // Discard if auto-rotate started while the render was in flight
-                    if (!_uiState.value.autoRotate) {
-                        _dotPoints.value = null
-                        _uiState.update { it.copy(bitmap = bitmap) }
-                    }
+                    _dotPoints.value = null
+                    _uiState.update { it.copy(bitmap = bitmap) }
+                    onActionCompleted()
                 } else {
                     val bitmap = Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
-                    // Discard if auto-rotate started while the render was in flight
-                    if (!_uiState.value.autoRotate) {
-                        _dotPoints.value = null
-                        _uiState.update { it.copy(bitmap = bitmap) }
-                    }
+                    _dotPoints.value = null
+                    _uiState.update { it.copy(bitmap = bitmap) }
+                    onActionCompleted()
                 }
             } finally {
                 _uiState.update { it.copy(isRendering = false, isRetrying = false) }
@@ -800,14 +901,13 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         private const val DEBOUNCE_MS         = 80L
         private const val LOOK_DEBOUNCE_MS    = 300L
         private const val PERSIST_DEBOUNCE_MS = 500L
-        private const val AUTO_ROTATE_DEG_PER_SEC = 37.5f // degrees per second (≈1.5° at 25 fps)
-        private const val AUTO_ROTATE_FRAME_MS    = 40L   // target frame interval (~25 fps)
 
         // Iteration counts now come from RenderQuality; only the canvas sizes are fixed.
         const val PREVIEW_SIZE       = 768
         const val HD_SIZE            = 2048
         const val HD_SIZE_4K         = 3840
 
-        const val TUTORIAL_STEPS     = 5 // Canvas, AttractorRow, ParamSlider, RenderHD, Palette
+        const val TUTORIAL_STEPS          = 5 // Canvas, AttractorRow, ParamSlider, RenderHD, Palette
+        private const val REVIEW_TRIGGER_COUNT = 20
     }
 }

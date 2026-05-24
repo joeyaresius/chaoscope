@@ -31,6 +31,15 @@ sealed class ExportStatus {
 
 object VideoExportState {
     val status: MutableStateFlow<ExportStatus> = MutableStateFlow(ExportStatus.Idle)
+
+    /**
+     * Set by [ChaoscopeViewModel] before each export; invoked by the service when
+     * the user taps Cancel on the notification.  Cleared after use.
+     *
+     * @Volatile guarantees the latest write is visible across threads (the service
+     * runs on the main thread; the ViewModel coroutine on Dispatchers.Default).
+     */
+    @Volatile var onCancelRequested: (() -> Unit)? = null
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -48,6 +57,10 @@ class VideoExportService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            // Invoke the ViewModel's cancel function (cancels the encode coroutine),
+            // then clear the callback to avoid leaking the ViewModel reference.
+            VideoExportState.onCancelRequested?.invoke()
+            VideoExportState.onCancelRequested = null
             VideoExportState.status.value = ExportStatus.Idle
             stopSelf()
             return START_NOT_STICKY

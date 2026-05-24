@@ -128,6 +128,25 @@ class ChaoscopePreferences(private val context: Context) {
         }
     }
 
+    // ── In-app review counter ────────────────────────────────────────────────
+
+    /** Increment the render/export counter and return the new value. */
+    suspend fun incrementRenderExportCount(): Int {
+        var newCount = 0
+        context.dataStore.edit { prefs ->
+            newCount = (prefs[KEY_RENDER_EXPORT_COUNT] ?: 0) + 1
+            prefs[KEY_RENDER_EXPORT_COUNT] = newCount
+        }
+        return newCount
+    }
+
+    suspend fun isReviewTriggered(): Boolean =
+        data.first()[KEY_REVIEW_TRIGGERED] ?: false
+
+    suspend fun setReviewTriggered() {
+        context.dataStore.edit { it[KEY_REVIEW_TRIGGERED] = true }
+    }
+
     // ── Recent exports (Uri strings, newest first, capped) ───────────────────
 
     val recentExports: Flow<List<String>> = data.map { prefs ->
@@ -197,6 +216,8 @@ class ChaoscopePreferences(private val context: Context) {
         private val KEY_RENDER_QUALITY     = intPreferencesKey("render_quality")
         private val KEY_PREVIEW_DENSITY    = intPreferencesKey("preview_density")
         private val KEY_TRANSPARENT_BG     = booleanPreferencesKey("transparent_bg")
+        private val KEY_RENDER_EXPORT_COUNT = intPreferencesKey("render_export_count")
+        private val KEY_REVIEW_TRIGGERED    = booleanPreferencesKey("review_triggered")
         private val KEY_RECENTS            = stringPreferencesKey("recent_exports")
         private val KEY_CUSTOM_STOPS       = stringPreferencesKey("custom_stops")
         private val KEY_USER_PRESETS       = stringPreferencesKey("user_presets")

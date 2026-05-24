@@ -90,6 +90,12 @@ object VideoExporter {
                 onProgress  = onProgress,
             )
 
+            // If the coroutine was cancelled mid-encode, abort before saving
+            // so no partial video ends up in the user's Movies folder.
+            if (!coroutineContext.isActive) {
+                throw kotlinx.coroutines.CancellationException("Export cancelled")
+            }
+
             // Copy the finished temp file to the MediaStore URI
             context.contentResolver.openOutputStream(uri)?.use { out ->
                 tempFile.inputStream().use { it.copyTo(out) }
@@ -214,17 +220,20 @@ object VideoExporter {
                 onProgress(encoded, frameCount)
             }
 
-            // Signal end-of-stream and drain all remaining output
-            val eosIdx = encoder.dequeueInputBuffer(10_000L)
-            if (eosIdx >= 0) {
-                encoder.getInputBuffer(eosIdx)?.clear()
-                encoder.queueInputBuffer(
-                    eosIdx, 0, 0,
-                    frameCount * usPerFrame,
-                    MediaCodec.BUFFER_FLAG_END_OF_STREAM,
-                )
+            // Only send EOS + drain if we encoded all frames normally.
+            // Skipping this on cancellation avoids blocking in the drain loop.
+            if (coroutineContext.isActive) {
+                val eosIdx = encoder.dequeueInputBuffer(10_000L)
+                if (eosIdx >= 0) {
+                    encoder.getInputBuffer(eosIdx)?.clear()
+                    encoder.queueInputBuffer(
+                        eosIdx, 0, 0,
+                        frameCount * usPerFrame,
+                        MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                    )
+                }
+                drain(endOfStream = true)
             }
-            drain(endOfStream = true)
         } finally {
             runCatching { encoder.stop() }
             runCatching { encoder.release() }

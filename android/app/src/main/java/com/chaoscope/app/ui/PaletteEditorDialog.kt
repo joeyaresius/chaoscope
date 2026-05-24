@@ -310,10 +310,13 @@ private fun SaturationValueBox(
     onChange: (Float, Float) -> Unit,
 ) {
     var box by remember { mutableStateOf(IntSize.Zero) }
+    // rememberUpdatedState ensures the pointerInput(Unit) coroutine (which is never
+    // restarted) always calls the *latest* onChange even after the selected stop changes.
+    val currentOnChange = rememberUpdatedState(onChange)
     fun handle(o: Offset) {
         val w = box.width.coerceAtLeast(1)
         val h = box.height.coerceAtLeast(1)
-        onChange((o.x / w).coerceIn(0f, 1f), (1f - o.y / h).coerceIn(0f, 1f))
+        currentOnChange.value((o.x / w).coerceIn(0f, 1f), (1f - o.y / h).coerceIn(0f, 1f))
     }
     val pureHue = hsvColor(hue, 1f, 1f)
     Canvas(
@@ -339,9 +342,10 @@ private fun SaturationValueBox(
 @Composable
 private fun HueBar(hue: Float, onChange: (Float) -> Unit) {
     var box by remember { mutableStateOf(IntSize.Zero) }
+    val currentOnChange = rememberUpdatedState(onChange)
     fun handle(o: Offset) {
         val w = box.width.coerceAtLeast(1)
-        onChange((o.x / w).coerceIn(0f, 1f) * 360f)
+        currentOnChange.value((o.x / w).coerceIn(0f, 1f) * 360f)
     }
     Canvas(
         modifier = Modifier

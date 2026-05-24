@@ -1,9 +1,11 @@
 package com.chaoscope.ui
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,13 +18,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaoscope.AttractorType
+import com.chaoscope.ChaoscopeEngine
+import com.chaoscope.PaletteType
 import com.chaoscope.R
+import com.chaoscope.RenderStyle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -38,6 +49,40 @@ fun SplashScreen(
 ) {
     val context = LocalContext.current
 
+    // ── Render the Lorenz butterfly in the background ─────────────────────────
+    // Runs once on composition; fades in when complete.
+    var bgBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(Unit) {
+        bgBitmap = withContext(Dispatchers.Default) {
+            runCatching {
+                val pixels = ChaoscopeEngine.nativeRender(
+                    attractorType = AttractorType.LORENZ.ordinal,
+                    params        = floatArrayOf(10f, 28f, 2.667f, 0.005f),
+                    width         = 768,
+                    height        = 768,
+                    iterations    = 2_000_000L,
+                    yaw           = 25f,
+                    pitch         = 15f,
+                    roll          = 0f,
+                    zoom          = 1f,
+                    paletteIndex  = PaletteType.NEBULA.ordinal,
+                    gamma         = 1.0f,
+                    renderStyle   = RenderStyle.STANDARD.ordinal,
+                    bgColor       = 0x00000000,          // transparent — we draw over the splash bg
+                    transparentBg = 1,
+                ) ?: return@runCatching null
+                Bitmap.createBitmap(pixels, 768, 768, Bitmap.Config.ARGB_8888)
+            }.getOrNull()
+        }
+    }
+
+    val bgAlpha by animateFloatAsState(
+        targetValue   = if (bgBitmap != null) 0.65f else 0f,
+        animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+        label         = "bgFade",
+    )
+
+    // ── Animated ring overlay ─────────────────────────────────────────────────
     val infiniteTransition = rememberInfiniteTransition(label = "rings")
     val angle by infiniteTransition.animateFloat(
         initialValue   = 0f,
@@ -48,7 +93,6 @@ fun SplashScreen(
         ),
         label = "ringAngle",
     )
-
     val pulse by infiniteTransition.animateFloat(
         initialValue  = 0.5f,
         targetValue   = 1.0f,
@@ -66,54 +110,73 @@ fun SplashScreen(
         contentAlignment = Alignment.Center,
     ) {
 
-        // ── Animated attractor rings (canvas) ─────────────────────────────
+        // ── Rendered attractor background ─────────────────────────────────
+        bgBitmap?.let { bmp ->
+            Image(
+                bitmap             = bmp.asImageBitmap(),
+                contentDescription = null,
+                contentScale       = ContentScale.Crop,
+                modifier           = Modifier
+                    .fillMaxSize()
+                    .alpha(bgAlpha),
+            )
+        }
+
+        // ── Bottom-up dark gradient so text stays readable ────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color.Transparent,
+                            0.30f to Color(0x22060610),
+                            0.55f to Color(0xCC060610),
+                            1.00f to Color(0xFF060610),
+                        ),
+                    ),
+                ),
+        )
+
+        // ── Animated rings (subtle over the rendered background) ──────────
         Canvas(modifier = Modifier.size(300.dp)) {
-            val cx = size.width / 2f
+            val cx = size.width  / 2f
             val cy = size.height / 2f
 
             for (i in 0 until 120) {
-                val t  = i / 120f * 2f * Math.PI.toFloat()
-                val r  = size.minDimension * 0.44f
-                val x  = cx + r * cos(t)
-                val y  = cy + r * sin(t)
-                val alpha = (0.2f + 0.6f * ((sin(t * 3f + angle * 0.05f) + 1f) / 2f)) * pulse
-                drawCircle(
-                    color  = Primary.copy(alpha = alpha),
-                    radius = 1.5f,
-                    center = Offset(x, y),
-                )
+                val t     = i / 120f * 2f * Math.PI.toFloat()
+                val r     = size.minDimension * 0.44f
+                val x     = cx + r * cos(t)
+                val y     = cy + r * sin(t)
+                val alpha = (0.08f + 0.22f * ((sin(t * 3f + angle * 0.05f) + 1f) / 2f)) * pulse
+                drawCircle(color = Primary.copy(alpha = alpha), radius = 1.5f,
+                           center = Offset(x, y))
             }
 
             for (i in 0 until 80) {
-                val t  = i / 80f * 2f * Math.PI.toFloat()
-                val r  = size.minDimension * 0.28f
-                val x  = cx + r * cos(t - Math.toRadians(angle.toDouble()).toFloat())
-                val y  = cy + r * sin(t - Math.toRadians(angle.toDouble()).toFloat())
-                val alpha = (0.3f + 0.5f * ((sin(t * 5f - angle * 0.08f) + 1f) / 2f)) * pulse
-                drawCircle(
-                    color  = Secondary.copy(alpha = alpha),
-                    radius = 1.2f,
-                    center = Offset(x, y),
-                )
+                val t     = i / 80f * 2f * Math.PI.toFloat()
+                val r     = size.minDimension * 0.28f
+                val x     = cx + r * cos(t - Math.toRadians(angle.toDouble()).toFloat())
+                val y     = cy + r * sin(t - Math.toRadians(angle.toDouble()).toFloat())
+                val alpha = (0.10f + 0.18f * ((sin(t * 5f - angle * 0.08f) + 1f) / 2f)) * pulse
+                drawCircle(color = Secondary.copy(alpha = alpha), radius = 1.2f,
+                           center = Offset(x, y))
             }
 
             drawCircle(
                 brush  = Brush.radialGradient(
-                    colors  = listOf(
-                        Primary.copy(alpha = 0.6f * pulse),
-                        Color.Transparent,
-                    ),
-                    center  = Offset(cx, cy),
-                    radius  = size.minDimension * 0.15f,
+                    colors = listOf(Primary.copy(alpha = 0.25f * pulse), Color.Transparent),
+                    center = Offset(cx, cy),
+                    radius = size.minDimension * 0.15f,
                 ),
                 radius = size.minDimension * 0.15f,
                 center = Offset(cx, cy),
             )
         }
 
-        // ── Top-right Skip / Close button ─────────────────────────────────
+        // ── Skip / Close button ───────────────────────────────────────────
         IconButton(
-            onClick = onDismiss,
+            onClick  = onDismiss,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
@@ -122,7 +185,7 @@ fun SplashScreen(
             Icon(
                 imageVector        = Icons.Outlined.Close,
                 contentDescription = stringResource(
-                    if (isFirstLaunch) R.string.cd_skip_welcome else R.string.cd_close
+                    if (isFirstLaunch) R.string.cd_skip_welcome else R.string.cd_close,
                 ),
                 tint               = Color(0xFF8899BB),
             )
@@ -139,53 +202,53 @@ fun SplashScreen(
             Spacer(Modifier.height(220.dp))
 
             Text(
-                text       = "Chaoscope",
-                fontSize   = 42.sp,
-                fontWeight = FontWeight.Bold,
-                color      = Primary,
+                text          = "Chaoscope",
+                fontSize      = 42.sp,
+                fontWeight    = FontWeight.Bold,
+                color         = Primary,
                 letterSpacing = 2.sp,
             )
             Text(
-                text      = "Strange Attractor Explorer",
-                fontSize  = 14.sp,
-                color     = Secondary,
+                text          = "Strange Attractor Explorer",
+                fontSize      = 14.sp,
+                color         = Secondary,
                 letterSpacing = 1.sp,
             )
             Text(
-                text      = "v0.1.0",
-                fontSize  = 11.sp,
-                color     = Color(0xFF6677AA),
+                text          = "v0.1.4",
+                fontSize      = 11.sp,
+                color         = Color(0xFF6677AA),
                 letterSpacing = 1.sp,
             )
 
             Spacer(Modifier.height(24.dp))
 
             Text(
-                text      = "Visualise the hidden order inside chaos.\n" +
-                            "Millions of iterations. Twelve attractors.\n" +
-                            "Infinite shapes waiting to be discovered.",
-                fontSize  = 14.sp,
-                color     = Color(0xFFBBBBCC),
-                textAlign = TextAlign.Center,
+                text       = "Visualise the hidden order inside chaos.\n" +
+                             "Millions of iterations. Twelve attractors.\n" +
+                             "Infinite shapes waiting to be discovered.",
+                fontSize   = 14.sp,
+                color      = Color(0xFFBBBBCC),
+                textAlign  = TextAlign.Center,
                 lineHeight = 22.sp,
             )
 
             Spacer(Modifier.height(24.dp))
 
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color.White.copy(alpha = 0.05f),
+                shape    = RoundedCornerShape(10.dp),
+                color    = Color.White.copy(alpha = 0.05f),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text      = "✦  A tribute to the original Chaoscope\n" +
-                                "by Nicolas Desprez (2000s) — the Windows app\n" +
-                                "that first made strange attractors beautiful.",
-                    fontSize  = 12.sp,
-                    color     = Color(0xFF8899BB),
-                    textAlign = TextAlign.Center,
+                    text       = "✦  A tribute to the original Chaoscope\n" +
+                                 "by Nicolas Desprez (2000s) — the Windows app\n" +
+                                 "that first made strange attractors beautiful.",
+                    fontSize   = 12.sp,
+                    color      = Color(0xFF8899BB),
+                    textAlign  = TextAlign.Center,
                     lineHeight = 18.sp,
-                    modifier  = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    modifier   = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
 
@@ -232,7 +295,7 @@ fun SplashScreen(
                 onClick  = {
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW,
-                            Uri.parse("https://buymeacoffee.com/balancin"))
+                               Uri.parse("https://buymeacoffee.com/balancin"))
                     )
                 },
                 modifier = Modifier
@@ -279,9 +342,9 @@ fun SplashScreen(
             Spacer(Modifier.height(20.dp))
 
             Text(
-                text      = "Open source · Apache 2.0 License",
-                fontSize  = 11.sp,
-                color     = Color(0xFF445566),
+                text          = "Open source · Apache 2.0 License",
+                fontSize      = 11.sp,
+                color         = Color(0xFF445566),
                 letterSpacing = 0.5.sp,
             )
 

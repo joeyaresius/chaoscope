@@ -1,8 +1,10 @@
 package com.chaoscope.ui
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
+import com.google.android.play.core.review.ReviewManagerFactory
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -47,6 +49,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
@@ -99,6 +104,20 @@ fun AttractorScreen(
     val userPresets       by vm.userPresets.collectAsStateWithLifecycle()
     val context           = LocalContext.current
     val haptics           = LocalHapticFeedback.current
+
+    // ── In-app review (fires once after 20 renders/exports) ──────────────────
+    LaunchedEffect(Unit) {
+        vm.reviewTrigger.collect {
+            val activity = context as? Activity ?: return@collect
+            val manager  = ReviewManagerFactory.create(context)
+            manager.requestReviewFlow().addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    manager.launchReviewFlow(activity, task.result)
+                        .addOnCompleteListener { /* review flow finished — nothing to do */ }
+                }
+            }
+        }
+    }
 
     var showSavePresetDialog by remember { mutableStateOf(false) }
 
@@ -370,7 +389,6 @@ fun AttractorScreen(
                     onPitch            = { vm.setCamera(pitch = it) },
                     onRoll             = { vm.setCamera(roll  = it) },
                     onZoom             = { vm.setCamera(zoom  = it) },
-                    onAutoRotate       = vm::setAutoRotate,
                     onGamma            = vm::setGamma,
                     onDepthCue         = vm::setDepthCue,
                     onFullRange        = vm::setFullRange,
@@ -545,7 +563,6 @@ private fun ControlPanel(
     onPitch:            (Float)         -> Unit,
     onRoll:             (Float)         -> Unit,
     onZoom:             (Float)         -> Unit,
-    onAutoRotate:       (Boolean)       -> Unit,
     onGamma:            (Float)         -> Unit,
     onDepthCue:         (Float)         -> Unit,
     onFullRange:        (Boolean)       -> Unit,
@@ -886,15 +903,6 @@ private fun ControlPanel(
                     2 -> {
                         if (state.attractorType.is3D) {
                             SectionLabel("Camera")
-                            Row(
-                                modifier              = Modifier.fillMaxWidth(),
-                                verticalAlignment     = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text("Auto-rotate",
-                                     style = MaterialTheme.typography.bodySmall)
-                                Switch(checked = state.autoRotate, onCheckedChange = onAutoRotate)
-                            }
                             LabelledSlider("Yaw = ${"%.0f".format(state.yaw)}°",
                                 state.yaw,   -180f..180f, onValueChange = onYaw)
                             LabelledSlider("Pitch = ${"%.0f".format(state.pitch)}°",
@@ -1178,14 +1186,20 @@ private fun AnimationSection(
 ) {
     val frameOptions = listOf(15, 30, 60)
     val canExport = when (state.animMode) {
-        AnimMode.MORPH  -> state.keyframeA != null && state.keyframeB != null && !state.isExportingVideo
-        AnimMode.EMERGE -> state.animFrames >= 2 && !state.isExportingVideo
+        AnimMode.MORPH        -> state.keyframeA != null && state.keyframeB != null && !state.isExportingVideo
+        AnimMode.ORBIT_TRACE,
+        AnimMode.PARAM_SWEEP  -> state.animFrames >= 2 && !state.isExportingVideo
+    }
+    val pingPongDesc = when (state.animMode) {
+        AnimMode.MORPH       -> "Plays A→B→A for a seamless looping video."
+        AnimMode.ORBIT_TRACE -> "Trace the orbit up, then erase back to the start."
+        AnimMode.PARAM_SWEEP -> "Morph to the random target and back — seamless loop."
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionLabel("Animation Export")
 
-        // ── Mode selector ─────────────────────────────────────────────────
+        // ── Mode selector (3 chips) ───────────────────────────────────────
         Row(
             modifier              = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1195,14 +1209,21 @@ private fun AnimationSection(
                 onClick  = { onAnimMode(AnimMode.MORPH) },
                 enabled  = !state.isExportingVideo,
                 modifier = Modifier.weight(1f),
-                label    = { Text("Morph A→B", style = MaterialTheme.typography.labelSmall) },
+                label    = { Text("Morph", style = MaterialTheme.typography.labelSmall) },
             )
             FilterChip(
-                selected = state.animMode == AnimMode.EMERGE,
-                onClick  = { onAnimMode(AnimMode.EMERGE) },
+                selected = state.animMode == AnimMode.ORBIT_TRACE,
+                onClick  = { onAnimMode(AnimMode.ORBIT_TRACE) },
                 enabled  = !state.isExportingVideo,
                 modifier = Modifier.weight(1f),
-                label    = { Text("Emerge", style = MaterialTheme.typography.labelSmall) },
+                label    = { Text("Orbit Trace", style = MaterialTheme.typography.labelSmall) },
+            )
+            FilterChip(
+                selected = state.animMode == AnimMode.PARAM_SWEEP,
+                onClick  = { onAnimMode(AnimMode.PARAM_SWEEP) },
+                enabled  = !state.isExportingVideo,
+                modifier = Modifier.weight(1f),
+                label    = { Text("Sweep", style = MaterialTheme.typography.labelSmall) },
             )
         }
 
@@ -1246,17 +1267,31 @@ private fun AnimationSection(
                     )
                 }
             }
-            AnimMode.EMERGE -> {
+
+            AnimMode.ORBIT_TRACE -> {
                 Text(
-                    text  = "Builds the attractor from scattered points to full density. " +
-                            "No keyframes needed — uses the current view.",
+                    text  = "Renders the attractor as growing coloured dots — each frame " +
+                            "reveals more of the orbit path. No keyframes needed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+            }
+
+            AnimMode.PARAM_SWEEP -> {
+                Text(
+                    text  = "Auto-varies all parameters from the current state to a random " +
+                            "target — a fresh result every export. No keyframes needed.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
             }
         }
 
-        // Frame count chips (both modes)
+        // ── Frame count chips + custom input ──────────────────────────────
+        var frameText by rememberSaveable { mutableStateOf(state.animFrames.toString()) }
+        // Keep the text field in sync when a chip is tapped or state changes externally
+        LaunchedEffect(state.animFrames) { frameText = state.animFrames.toString() }
+
         Row(
             modifier              = Modifier.fillMaxWidth(),
             verticalAlignment     = Alignment.CenterVertically,
@@ -1275,9 +1310,22 @@ private fun AnimationSection(
                     label    = { Text("$n", style = MaterialTheme.typography.labelSmall) },
                 )
             }
+            OutlinedTextField(
+                value         = frameText,
+                onValueChange = { raw ->
+                    frameText = raw.filter { it.isDigit() }.take(4)
+                    val n = frameText.toIntOrNull() ?: return@OutlinedTextField
+                    if (n in 2..600) onAnimFrames(n)
+                },
+                enabled        = !state.isExportingVideo,
+                singleLine     = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                textStyle      = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center),
+                modifier       = Modifier.width(72.dp),
+            )
         }
 
-        // Ping-pong toggle (both modes; for Emerge: build-up → dissolve)
+        // ── Ping-pong toggle ──────────────────────────────────────────────
         Row(
             modifier              = Modifier.fillMaxWidth(),
             verticalAlignment     = Alignment.CenterVertically,
@@ -1290,10 +1338,7 @@ private fun AnimationSection(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text  = if (state.animMode == AnimMode.MORPH)
-                        "Plays A→B→A for a seamless looping video."
-                    else
-                        "Build up, then dissolve back to sparse points.",
+                    text  = pingPongDesc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
@@ -1305,7 +1350,7 @@ private fun AnimationSection(
             )
         }
 
-        // Export button or progress
+        // ── Export button / progress ──────────────────────────────────────
         if (state.isExportingVideo) {
             val progress = if (state.videoExportTotal > 0)
                 state.videoExportProgress.toFloat() / state.videoExportTotal else 0f
@@ -1316,9 +1361,9 @@ private fun AnimationSection(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
                 LinearProgressIndicator(
-                    progress     = { progress },
-                    modifier     = Modifier.fillMaxWidth(),
-                    strokeCap    = androidx.compose.ui.graphics.StrokeCap.Round,
+                    progress  = { progress },
+                    modifier  = Modifier.fillMaxWidth(),
+                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
                 )
                 OutlinedButton(
                     onClick  = onCancelVideoExport,

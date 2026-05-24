@@ -11,8 +11,8 @@ android {
         applicationId = "com.chaoscope"
         minSdk        = 26
         targetSdk     = 35
-        versionCode   = 4
-        versionName   = "0.1.3"
+        versionCode   = 5
+        versionName   = "0.1.4"
 
         externalNativeBuild {
             cmake {
@@ -101,6 +101,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
+    implementation("com.google.android.play:review-ktx:2.0.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")

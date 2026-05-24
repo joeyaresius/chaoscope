@@ -439,11 +439,13 @@ val AttractorType.presets: List<Preset>
 /**
  * Controls which video-export algorithm is used.
  *
- * MORPH  — interpolate between keyframe A and keyframe B (params + camera).
- * EMERGE — sweep iteration count from sparse (low) to dense (high) for the
- *          current attractor; produces a "building up from noise" effect.
+ * MORPH       — interpolate between two manually set keyframes (params + camera).
+ * ORBIT_TRACE — render the attractor orbit as cumulative coloured dots; each
+ *               frame shows more of the path, producing a spirograph-like trace.
+ * PARAM_SWEEP — auto-varies all parameters from the current state to a randomly
+ *               generated target and morphs between them; no keyframes needed.
  */
-enum class AnimMode { MORPH, EMERGE }
+enum class AnimMode { MORPH, ORBIT_TRACE, PARAM_SWEEP }
 
 // ────────────────────────────────────────────────────────────────────────────
 // UI state
@@ -464,7 +466,7 @@ data class UiState(
     val zoom: Float                  = 1f,
     val gamma: Float                 = 1f,
     val depthCue: Float              = 0.5f,
-    val fullRange: Boolean           = false,
+    val fullRange: Boolean           = true,
     val exportDone: Boolean          = false,
     val exportError: String?         = null,
     val lastExportUri: String?       = null,
@@ -472,7 +474,6 @@ data class UiState(
     val bgColor: BgColor             = BgColor.BLACK,
     val renderQuality: RenderQuality = RenderQuality.STANDARD,
     val previewDensity: PreviewDensity = PreviewDensity.MEDIUM,
-    val autoRotate: Boolean          = false,
     val transparentBg: Boolean       = false,
     val wallpaperDone: Boolean       = false,
     val wallpaperError: String?      = null,

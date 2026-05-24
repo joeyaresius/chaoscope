@@ -14,15 +14,40 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 
 ## Features
 
+### Attractors & exploration
 - **12 attractors** — 2D and 3D systems, each with editable parameters and camera control
-- **Logarithmic density rendering** — the same histogram tone-mapping technique that made the original Chaoscope images distinctive
-- **7 colour palettes** — Nebula, Fire, Electric, Aurora, Matrix, Greyscale, and a fully **custom palette editor** (HSV stop editor with live gradient preview)
-- **5 render styles** — Standard, Gas, Liquid, Plasma, Solid
+- **36 curated presets** (3 per attractor) — one tap to load a stunning starting point
+- **User-saved presets** — bookmark your favourite configurations and reload them any time
 - **Full 3D camera control** — yaw, pitch, roll, zoom sliders update the preview in real time
 - **Blank-render auto-retry** — if the orbit doesn't converge, the engine retries at 4× iterations with wider bounds before surfacing an error
+
+### Visuals
+- **Logarithmic density rendering** — the same histogram tone-mapping technique that made the original Chaoscope images distinctive
+- **11 colour palettes** — Nebula, Fire, Electric, Aurora, Matrix, Greyscale, Spectrum, Sunset, Ice, Neon, plus a fully **custom palette editor** (HSV stop editor with 2D board + hue bar and live gradient preview)
+- **5 render styles** — Standard, Gas, Liquid, Plasma, Solid
+- **4 render quality tiers** — Draft → Standard → High → Ultra (scales iteration count and performance)
+- **Depth-cue shading** — adds a subtle near/far luminance gradient to 3D attractors
+- **Full palette range toggle** — stretches the palette across the actual orbit density instead of the theoretical maximum
+- **Background colour** — Black, White, or Transparent
+
+### Export
+- **PNG export** — Preview (768 px), HD (2048 px), or 4K (3840 px), saved to `Pictures/Chaoscope/`
+- **Transparent PNG** — renders with a transparent background for compositing
+- **Set as wallpaper** — one-tap wallpaper from any render
+- **MP4 video animation** — three modes:
+  - **Morph** — smoothly interpolates between two saved keyframes (A → B)
+  - **Orbit Trace** — incrementally reveals the attractor orbit, each dot coloured by its palette position (cumulative trace build-up)
+  - **Param Sweep** — automatically varies all parameters toward a random target for an organic, unpredictable morph
+  - Ping-pong loop option doubles any export into a seamless forward-reverse loop
+  - 15 / 30 / 60 frame quick-picks or any custom frame count (2–600)
+  - Runs as a **foreground service** so the export continues and shows a progress notification when the app is backgrounded; Cancel button in the notification stops the job cleanly
+
+### UX
+- **Splash screen** — renders a live Lorenz butterfly in the background on startup
 - **First-run tutorial** — 5-step coach-mark overlay highlights every major feature
-- **PNG export** — saved to `Pictures/Chaoscope/` on-device
-- **No internet, no tracking, no ads** — fully offline
+- **No ads, no tracking** — fully offline (Google Play in-app review API is the sole network call, made once after 20 renders/exports)
+
+---
 
 ### Attractors included
 
@@ -37,8 +62,8 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 | Thomas | 3D |
 | Chaotic Flow | 3D |
 | Icon | 2D |
-| Barnsley Fern | 2D |
-| Julia | 2D |
+| Barnsley Fern | 3D |
+| Julia | 3D |
 | Pickover | 3D |
 
 ---
@@ -49,7 +74,11 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 Kotlin / Jetpack Compose  (UI layer)
          │
          ▼
-  ChaoscopeViewModel      (render state, tutorial, palette editor)
+  ChaoscopeViewModel      (render state, export, tutorial, palette editor)
+         │
+         ├── VideoExporter.kt      (H.264/MP4 encoding — MediaCodec + MediaMuxer)
+         │
+         ├── VideoExportService.kt (ForegroundService — keeps process alive during export)
          │
          ▼
   ChaoscopeEngine.kt      (JNI bridge)
@@ -69,6 +98,8 @@ The rendering pipeline follows the classic Chaoscope approach:
 5. Map through a colour palette LUT (preset or user-defined) → final RGBA bitmap
 
 If the histogram is empty (orbit diverged), the native layer returns `null` and the ViewModel retries once at 4× iterations with 15% extra bounds padding. A snackbar is shown if both attempts fail.
+
+The video encoder writes NV12 (YUV420SemiPlanar) directly into MediaCodec input buffers for maximum hardware-encoder compatibility. The muxer writes to a local temp file (seekable) and copies the finished MP4 to MediaStore to avoid the moov-atom issue with non-seekable ContentResolver file descriptors.
 
 ---
 
@@ -148,12 +179,15 @@ android/              ← Android app
         ui/           ← Compose screens (SplashScreen, AttractorScreen,
         │               Tutorial, PaletteEditorDialog)
         data/         ← Preferences (DataStore)
-        AttractorDefs.kt      ← attractor/palette/UiState definitions
-        ColorMath.kt          ← pure HSV↔RGB helpers (shared with tests)
-        ColorStopSerializer.kt← pure palette stop serialization helpers
-        ChaoscopeEngine.kt    ← JNI bridge
-        ChaoscopeViewModel.kt ← render state, export, tutorial, palette
+        AttractorDefs.kt       ← attractor/palette/UiState definitions
+        ChaoscopeApplication.kt← Application class (notification channel setup)
+        ChaoscopeEngine.kt     ← JNI bridge
+        ChaoscopeViewModel.kt  ← render state, export, tutorial, palette
+        ColorMath.kt           ← pure HSV↔RGB helpers (shared with tests)
+        ColorStopSerializer.kt ← pure palette stop serialization helpers
         MainActivity.kt
+        VideoExporter.kt       ← H.264/MP4 encoding pipeline
+        VideoExportService.kt  ← ForegroundService + export status state
       res/            ← resources, icons, themes
     test/             ← JUnit 4 unit tests (no emulator needed)
 prototype/            ← Python proof-of-concept
@@ -182,6 +216,8 @@ Feedback and suggestions can also be sent to **chaoscope@duck.com**.
 ## Privacy
 
 This app collects no user data. All processing is performed locally on the device. No third-party analytics, crash reporting, or advertising SDKs are included.
+
+The only outbound network call is the **Google Play in-app review API**, triggered once after approximately 20 renders or video exports. This call is made entirely by the Play Store library; no personal data or usage statistics are sent by the app itself.
 
 See the full [Privacy Policy](PRIVACY.md) for details.
 
