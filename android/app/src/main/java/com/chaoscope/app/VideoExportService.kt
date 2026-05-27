@@ -104,12 +104,15 @@ class VideoExportService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle("Exporting video…")
-            .setContentText(if (total > 0) "Frame $done / $total" else "Preparing…")
+            .setContentTitle(getString(R.string.notif_export_title))
+            .setContentText(
+                if (total > 0) getString(R.string.notif_export_progress, done, total)
+                else getString(R.string.notif_export_preparing)
+            )
             .setProgress(total, done, total == 0)
             .setOngoing(true)
             .setSilent(true)
-            .addAction(android.R.drawable.ic_delete, "Cancel", cancelPi)
+            .addAction(android.R.drawable.ic_delete, getString(R.string.notif_export_cancel), cancelPi)
             .build()
     }
 

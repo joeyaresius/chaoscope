@@ -20,4 +20,144 @@
 
     <!-- Live preview -->
     <string name="cd_live_preview">Live preview of %1$s attractor</string>
+
+    <!-- ====================================================================
+         Splash screen
+         ==================================================================== -->
+    <string name="splash_tagline">Strange Attractor Explorer</string>
+    <string name="splash_description">Visualise the hidden order inside chaos.\nMillions of iterations. Twelve attractors.\nInfinite shapes waiting to be discovered.</string>
+    <string name="splash_tribute">✦  A tribute to the original Chaoscope\nby Nicolas Desprez (2000s) — the Windows app\nthat first made strange attractors beautiful.</string>
+    <string name="splash_btn_explore">Explore Attractors</string>
+    <string name="splash_btn_close">Close</string>
+    <string name="splash_btn_tutorial">🎓  Show tutorial</string>
+    <string name="splash_btn_coffee">Buy me a coffee</string>
+    <string name="splash_btn_feedback">Suggest or Criticize</string>
+    <string name="splash_footer">Open source · Apache 2.0 License</string>
+    <string name="splash_feedback_subject">Chaoscope — Suggestion / Feedback</string>
+
+    <!-- ====================================================================
+         Tabs
+         ==================================================================== -->
+    <string name="tab_shape">Shape</string>
+    <string name="tab_look">Look</string>
+    <string name="tab_camera">Camera</string>
+    <string name="tab_export">Export</string>
+
+    <!-- ====================================================================
+         Section headers
+         ==================================================================== -->
+    <string name="section_attractor">Attractor</string>
+    <string name="section_presets">Presets</string>
+    <string name="section_my_presets">My Presets</string>
+    <string name="section_parameters">Parameters</string>
+    <string name="section_palette">Palette</string>
+    <string name="section_render_style">Render Style</string>
+    <string name="section_background">Background</string>
+    <string name="section_tone_mapping">Tone Mapping</string>
+    <string name="section_camera">Camera</string>
+    <string name="section_render_detail">Render Detail</string>
+    <string name="section_preview_density">Preview Density</string>
+    <string name="section_animation_export">Animation Export</string>
+    <string name="section_recent_renders">Recent Renders</string>
+
+    <!-- ====================================================================
+         Buttons
+         ==================================================================== -->
+    <string name="btn_render">▶  Render</string>
+    <string name="btn_render_hd">HD Render</string>
+    <string name="btn_render_4k">4K Render</string>
+    <string name="btn_export_png">Export PNG</string>
+    <string name="btn_set_wallpaper">🖼  Set as Wallpaper</string>
+    <string name="btn_export_video">🎬  Export Video</string>
+    <string name="btn_cancel_export">Cancel export</string>
+    <string name="btn_randomize_params">🎲 Params</string>
+    <string name="btn_randomize_all">🎲 Attractor</string>
+    <string name="btn_save_preset">+ Save current</string>
+    <string name="btn_apply">Apply</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_edit_colour">Edit colour</string>
+
+    <!-- ====================================================================
+         Toggles and descriptions
+         ==================================================================== -->
+    <string name="toggle_full_range">Full palette range</string>
+    <string name="toggle_full_range_desc">Stretch density so all palette colours show.</string>
+    <string name="toggle_transparent_bg">Transparent background</string>
+    <string name="toggle_transparent_bg_desc">Export PNG with transparent BG — great for stickers.</string>
+    <string name="toggle_pingpong">Ping-pong loop</string>
+    <string name="label_frames">Frames:</string>
+    <string name="label_name">Name</string>
+    <string name="camera_3d_only">Camera controls are only available for 3D attractors.\n\nSwitch to a 3D attractor on the Shape tab to use yaw, pitch, roll, and depth controls.</string>
+    <string name="save_preset_title">Save preset</string>
+    <string name="save_preset_hint">Save the current attractor, parameters, camera and look as a reusable preset.</string>
+    <string name="gamma_hint">Gamma flattens (lower) or boosts (higher) the brightest regions.</string>
+    <string name="depth_hint">Dims points farther from the camera to bring out 3-D form. 0% is flat.</string>
+
+    <!-- Slider labels -->
+    <string name="slider_yaw">Yaw = %1$s°</string>
+    <string name="slider_pitch">Pitch = %1$s°</string>
+    <string name="slider_roll">Roll = %1$s°</string>
+    <string name="slider_zoom">Zoom = %1$s</string>
+    <string name="slider_depth">Depth = %1$s%%</string>
+    <string name="slider_gamma">Gamma = %1$s</string>
+
+    <!-- Content descriptions for inner controls -->
+    <string name="cd_edit_palette">Edit custom palette</string>
+    <string name="cd_edit_custom_bg">Edit custom background colour</string>
+    <string name="cd_delete_preset">Delete preset %1$s</string>
+    <string name="cd_show_info">Show info about %1$s</string>
+    <string name="cd_show_hint">Show hint for %1$s</string>
+    <string name="cd_type_value">Type value for %1$s</string>
+    <string name="image_attractor">Strange Attractor — %1$s</string>
+
+    <!-- ====================================================================
+         Animation modes
+         ==================================================================== -->
+    <string name="anim_morph">Morph</string>
+    <string name="anim_orbit_trace">Orbit Trace</string>
+    <string name="anim_sweep">Sweep</string>
+    <string name="anim_morph_pingpong_desc">Plays A→B→A for a seamless looping video.</string>
+    <string name="anim_orbit_pingpong_desc">Trace the orbit up, then erase back to the start.</string>
+    <string name="anim_sweep_pingpong_desc">Morph to the random target and back — seamless loop.</string>
+    <string name="anim_set_frame_a">Set Frame A</string>
+    <string name="anim_set_frame_b">Set Frame B</string>
+    <string name="anim_frame_a_done">✓ Frame A</string>
+    <string name="anim_frame_b_done">✓ Frame B</string>
+    <string name="anim_morph_hint">Set Frame A and Frame B to enable export.</string>
+    <string name="anim_orbit_hint">Renders the attractor as growing coloured dots — each frame reveals more of the orbit path. No keyframes needed.</string>
+    <string name="anim_sweep_hint">Auto-varies all parameters from the current state to a random target — a fresh result every export. No keyframes needed.</string>
+    <string name="anim_exporting_frame">Exporting frame %1$d / %2$d</string>
+
+    <!-- ====================================================================
+         Color picker dialog
+         ==================================================================== -->
+    <string name="dialog_custom_bg">Custom background</string>
+    <string name="label_hue">Hue: %1$s°</string>
+    <string name="label_saturation">Saturation: %1$s%%</string>
+    <string name="label_brightness">Brightness: %1$s%%</string>
+    <string name="label_value_range">Value (%1$s … %2$s)</string>
+
+    <!-- ====================================================================
+         Snackbar messages
+         ==================================================================== -->
+    <string name="msg_wallpaper_ok">Wallpaper set!</string>
+    <string name="msg_wallpaper_failed">Wallpaper failed: %1$s</string>
+    <string name="msg_retrying">Retrying with more iterations…</string>
+    <string name="msg_video_saved">Video saved!</string>
+    <string name="msg_video_failed">Video export failed: %1$s</string>
+    <string name="share_video_chooser">Share video</string>
+
+    <!-- Empty state -->
+    <string name="my_presets_empty">Save the current attractor, parameters, camera and look as a reusable preset.</string>
+
+    <!-- ====================================================================
+         Notification (VideoExportService)
+         ==================================================================== -->
+    <string name="notif_export_title">Exporting video…</string>
+    <string name="notif_export_preparing">Preparing…</string>
+    <string name="notif_export_progress">Frame %1$d / %2$d</string>
+    <string name="notif_export_cancel">Cancel</string>
+    <string name="notif_channel_name">Video Export</string>
+    <string name="notif_channel_desc">Shows progress while exporting an animation to MP4.</string>
 </resources>

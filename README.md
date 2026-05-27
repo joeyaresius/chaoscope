@@ -113,7 +113,7 @@ The video encoder writes NV12 (YUV420SemiPlanar) directly into MediaCodec input 
 | CMake | 3.22.1+ |
 | NDK | r25 or newer |
 | Min SDK | 26 (Android 8.0) |
-| Target SDK | 35 |
+| Target SDK | 36 |
 
 ---
 

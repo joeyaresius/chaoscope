@@ -1,5 +1,6 @@
 package com.chaoscope.ui
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -7,7 +8,9 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -15,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -29,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaoscope.AttractorType
 import com.chaoscope.ChaoscopeEngine
+import com.chaoscope.LangPrefs
 import com.chaoscope.PaletteType
 import com.chaoscope.R
 import com.chaoscope.RenderStyle
@@ -40,6 +45,15 @@ import kotlin.math.sin
 private val Primary   = Color(0xFF4FC3F7)
 private val Secondary = Color(0xFF9C27B0)
 private val BmcYellow = Color(0xFFFFDD00)
+
+private data class LangOption(val code: String, val flag: String)
+private val LANGUAGES = listOf(
+    LangOption("en",    "🇺🇸"),
+    LangOption("pt-BR", "🇧🇷"),
+    LangOption("fr",    "🇫🇷"),
+    LangOption("es",    "🇪🇸"),
+    LangOption("zh-CN", "🇨🇳"),
+)
 
 @Composable
 fun SplashScreen(
@@ -60,7 +74,7 @@ fun SplashScreen(
                     params        = floatArrayOf(10f, 28f, 2.667f, 0.005f),
                     width         = 768,
                     height        = 768,
-                    iterations    = 2_000_000L,
+                    iterations    = 300_000L,
                     yaw           = 25f,
                     pitch         = 15f,
                     roll          = 0f,
@@ -199,7 +213,7 @@ fun SplashScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            Spacer(Modifier.height(220.dp))
+            Spacer(Modifier.height(140.dp))
 
             Text(
                 text          = "Chaoscope",
@@ -209,7 +223,7 @@ fun SplashScreen(
                 letterSpacing = 2.sp,
             )
             Text(
-                text          = "Strange Attractor Explorer",
+                text          = stringResource(R.string.splash_tagline),
                 fontSize      = 14.sp,
                 color         = Secondary,
                 letterSpacing = 1.sp,
@@ -224,9 +238,7 @@ fun SplashScreen(
             Spacer(Modifier.height(24.dp))
 
             Text(
-                text       = "Visualise the hidden order inside chaos.\n" +
-                             "Millions of iterations. Twelve attractors.\n" +
-                             "Infinite shapes waiting to be discovered.",
+                text       = stringResource(R.string.splash_description),
                 fontSize   = 14.sp,
                 color      = Color(0xFFBBBBCC),
                 textAlign  = TextAlign.Center,
@@ -241,9 +253,7 @@ fun SplashScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text       = "✦  A tribute to the original Chaoscope\n" +
-                                 "by Nicolas Desprez (2000s) — the Windows app\n" +
-                                 "that first made strange attractors beautiful.",
+                    text       = stringResource(R.string.splash_tribute),
                     fontSize   = 12.sp,
                     color      = Color(0xFF8899BB),
                     textAlign  = TextAlign.Center,
@@ -263,7 +273,9 @@ fun SplashScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
             ) {
                 Text(
-                    text       = if (isFirstLaunch) "Explore Attractors" else "Close",
+                    text       = stringResource(
+                        if (isFirstLaunch) R.string.splash_btn_explore else R.string.splash_btn_close
+                    ),
                     color      = Color.Black,
                     fontWeight = FontWeight.Bold,
                     fontSize   = 16.sp,
@@ -281,7 +293,7 @@ fun SplashScreen(
                     border = androidx.compose.foundation.BorderStroke(1.5.dp, Primary),
                 ) {
                     Text(
-                        text       = "🎓  Show tutorial",
+                        text       = stringResource(R.string.splash_btn_tutorial),
                         color      = Primary,
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 15.sp,
@@ -306,7 +318,7 @@ fun SplashScreen(
             ) {
                 Text(text = "☕  ", fontSize = 18.sp)
                 Text(
-                    text       = "Buy me a coffee",
+                    text       = stringResource(R.string.splash_btn_coffee),
                     color      = BmcYellow,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 15.sp,
@@ -315,12 +327,13 @@ fun SplashScreen(
 
             Spacer(Modifier.height(12.dp))
 
+            val feedbackSubject = stringResource(R.string.splash_feedback_subject)
             OutlinedButton(
                 onClick  = {
                     context.startActivity(
                         Intent(Intent.ACTION_SENDTO).apply {
                             data = Uri.parse("mailto:chaoscope@duck.com")
-                            putExtra(Intent.EXTRA_SUBJECT, "Chaoscope — Suggestion / Feedback")
+                            putExtra(Intent.EXTRA_SUBJECT, feedbackSubject)
                         }
                     )
                 },
@@ -332,7 +345,7 @@ fun SplashScreen(
             ) {
                 Text(text = "✉  ", fontSize = 16.sp, color = Secondary)
                 Text(
-                    text       = "Suggest or Criticize",
+                    text       = stringResource(R.string.splash_btn_feedback),
                     color      = Secondary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 15.sp,
@@ -341,8 +354,38 @@ fun SplashScreen(
 
             Spacer(Modifier.height(20.dp))
 
+            // ── Language selector ─────────────────────────────────────────
+            var currentLang by remember { mutableStateOf(LangPrefs.get(context)) }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier              = Modifier.padding(bottom = 8.dp),
+            ) {
+                LANGUAGES.forEach { lang ->
+                    val selected = currentLang == lang.code
+                    Box(
+                        modifier         = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (selected) Primary.copy(alpha = 0.25f)
+                                else Color.Transparent
+                            )
+                            .clickable {
+                                if (lang.code != currentLang) {
+                                    LangPrefs.set(context, lang.code)
+                                    currentLang = lang.code
+                                    (context as? Activity)?.recreate()
+                                }
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(lang.flag, fontSize = 20.sp)
+                    }
+                }
+            }
+
             Text(
-                text          = "Open source · Apache 2.0 License",
+                text          = stringResource(R.string.splash_footer),
                 fontSize      = 11.sp,
                 color         = Color(0xFF445566),
                 letterSpacing = 0.5.sp,

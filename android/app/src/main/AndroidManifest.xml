@@ -9,6 +9,9 @@
     <!-- Needed to call WallpaperManager.setBitmap() -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
+    <!-- Required to post notifications (API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Required to start a ForegroundService (API 28+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Required for foregroundServiceType="dataSync" on API 34+ -->
@@ -17,6 +20,7 @@
     <application
         android:name=".ChaoscopeApplication"
         android:label="Chaoscope"
+        android:largeHeap="true"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher_round"
         android:theme="@style/Theme.Chaoscope"

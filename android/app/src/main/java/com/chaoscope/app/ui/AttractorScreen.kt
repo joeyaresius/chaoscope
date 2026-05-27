@@ -1,9 +1,15 @@
 package com.chaoscope.ui
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.google.android.play.core.review.ReviewManagerFactory
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -105,6 +111,22 @@ fun AttractorScreen(
     val context           = LocalContext.current
     val haptics           = LocalHapticFeedback.current
 
+    // ── Notification permission (Android 13+) ────────────────────────────────
+    // Without POST_NOTIFICATIONS the export foreground notification is silently
+    // dropped.  We ask once on first launch; the user can deny — export still
+    // works, they just won't see the progress notification or Cancel button.
+    val notifPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* granted/denied — no action needed; service handles missing permission */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     // ── In-app review (fires once after 20 renders/exports) ──────────────────
     LaunchedEffect(Unit) {
         vm.reviewTrigger.collect {
@@ -127,8 +149,12 @@ fun AttractorScreen(
     val shareLabel      = stringResource(R.string.export_share)
     val shareChooser    = stringResource(R.string.share_render_chooser)
     val failedMsg       = state.exportError?.let { stringResource(R.string.export_failed, it) }
-    val wallpaperOkMsg  = "Wallpaper set!"
-    val wallpaperErrMsg = state.wallpaperError?.let { "Wallpaper failed: $it" }
+    val wallpaperOkMsg  = stringResource(R.string.msg_wallpaper_ok)
+    val wallpaperErrMsg = state.wallpaperError?.let { stringResource(R.string.msg_wallpaper_failed, it) }
+    val retryingMsg     = stringResource(R.string.msg_retrying)
+    val videoSavedMsg   = stringResource(R.string.msg_video_saved)
+    val videoFailedMsgFmt = state.videoExportError?.let { stringResource(R.string.msg_video_failed, it) }
+    val shareVideoChooser = stringResource(R.string.share_video_chooser)
 
     // Surface export feedback as a Snackbar with View / Share actions.
     LaunchedEffect(state.exportDone, state.exportError) {
@@ -173,7 +199,7 @@ fun AttractorScreen(
     LaunchedEffect(state.isRetrying) {
         if (state.isRetrying) {
             snackbarHostState.showSnackbar(
-                message  = "Retrying with more iterations…",
+                message  = retryingMsg,
                 duration = SnackbarDuration.Indefinite,
             )
         }
@@ -191,10 +217,10 @@ fun AttractorScreen(
     // Surface video-export feedback as a Snackbar.
     LaunchedEffect(state.videoExportUri, state.videoExportError) {
         when {
-            state.videoExportError != null -> {
+            videoFailedMsgFmt != null -> {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 snackbarHostState.showSnackbar(
-                    message  = "Video export failed: ${state.videoExportError}",
+                    message  = videoFailedMsgFmt,
                     duration = SnackbarDuration.Short,
                 )
                 vm.clearVideoExportFlag()
@@ -202,8 +228,8 @@ fun AttractorScreen(
             state.videoExportUri != null -> {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 val result = snackbarHostState.showSnackbar(
-                    message     = "Video saved!",
-                    actionLabel = "Share",
+                    message     = videoSavedMsg,
+                    actionLabel = shareLabel,
                     duration    = SnackbarDuration.Short,
                 )
                 if (result == SnackbarResult.ActionPerformed) {
@@ -214,7 +240,7 @@ fun AttractorScreen(
                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     context.startActivity(
-                        android.content.Intent.createChooser(intent, "Share video"))
+                        android.content.Intent.createChooser(intent, shareVideoChooser))
                 }
                 vm.clearVideoExportFlag()
             }
@@ -271,7 +297,7 @@ fun AttractorScreen(
         val offsetPx        = if (panelState.offset.isNaN()) screenH * 0.75f else panelState.offset
         val panelHeightDp   = with(density) { (screenH - offsetPx).toDp() }
         val contentHeightDp = (panelHeightDp - 28.dp).coerceAtLeast(0.dp)
-        val canvasBg        = Color(state.bgColor.argb.toLong() and 0xFFFFFFFFL)
+        val canvasBg        = Color(state.effectiveBgArgb.toLong() and 0xFFFFFFFFL)
 
         // ── Attractor canvas ─────────────────────────────────────────────────
         Box(
@@ -322,7 +348,7 @@ fun AttractorScreen(
             } else if (state.bitmap != null) {
                 Image(
                     bitmap             = state.bitmap!!.asImageBitmap(),
-                    contentDescription = "Strange Attractor — ${state.attractorType.displayName}",
+                    contentDescription = stringResource(R.string.image_attractor, state.attractorType.displayName),
                     modifier           = Modifier.fillMaxSize(),
                     contentScale       = ContentScale.Fit,
                 )
@@ -417,6 +443,7 @@ fun AttractorScreen(
                         vm.randomize()
                     },
                     onBgColor          = vm::setBgColor,
+                    onCustomBgColor    = vm::setCustomBgColor,
                     onEditPalette      = vm::openPaletteEditor,
                     onTutorialAnchor   = { target, rect -> vm.updateTutorialAnchor(target, rect) },
                     onOpenRecent       = { uriString ->
@@ -438,7 +465,7 @@ fun AttractorScreen(
                                         putExtra(Intent.EXTRA_STREAM, Uri.parse(uriString))
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     },
-                                    "Share render",
+                                    shareChooser,
                                 )
                             )
                         }
@@ -503,23 +530,23 @@ private fun SavePresetDialog(
     var name by remember { mutableStateOf(defaultName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title   = { Text("Save preset") },
+        title   = { Text(stringResource(R.string.save_preset_title)) },
         text    = {
             OutlinedTextField(
                 value         = name,
                 onValueChange = { name = it },
                 singleLine    = true,
-                label         = { Text("Name") },
+                label         = { Text(stringResource(R.string.label_name)) },
             )
         },
         confirmButton = {
             TextButton(
                 onClick = { onSave(name) },
                 enabled = name.isNotBlank(),
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.btn_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) }
         },
     )
 }
@@ -585,6 +612,7 @@ private fun ControlPanel(
     onRandomizeParams:  ()              -> Unit,
     onRandomizeAll:     ()              -> Unit,
     onBgColor:          (BgColor)       -> Unit,
+    onCustomBgColor:    (Int)           -> Unit,
     onOpenRecent:       (String)        -> Unit,
     onShareRecent:      (String)        -> Unit,
     onEditPalette:      ()              -> Unit,
@@ -595,7 +623,12 @@ private fun ControlPanel(
     // Tab selection — survives rotation via rememberSaveable, not persisted to UiState
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
-    val tabTitles = listOf("Shape", "Look", "Camera", "Export")
+    val tabTitles = listOf(
+        stringResource(R.string.tab_shape),
+        stringResource(R.string.tab_look),
+        stringResource(R.string.tab_camera),
+        stringResource(R.string.tab_export),
+    )
     val tabIcons  = listOf(
         Icons.Outlined.AutoAwesome,
         Icons.Outlined.Palette,
@@ -642,7 +675,7 @@ private fun ControlPanel(
                     0 -> {
                         // Attractor selector
                         InfoSection(
-                            title       = "Attractor",
+                            title       = stringResource(R.string.section_attractor),
                             description = state.attractorType.description,
                         ) {
                             LazyRow(
@@ -667,7 +700,7 @@ private fun ControlPanel(
                         // Curated presets
                         val presets = state.attractorType.presets
                         if (presets.isNotEmpty()) {
-                            SectionLabel("Presets")
+                            SectionLabel(stringResource(R.string.section_presets))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(presets) { preset ->
                                     AssistChip(
@@ -687,15 +720,15 @@ private fun ControlPanel(
                             verticalAlignment     = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            SectionLabel("My Presets")
+                            SectionLabel(stringResource(R.string.section_my_presets))
                             TextButton(onClick = onSavePreset) {
-                                Text("+ Save current",
+                                Text(stringResource(R.string.btn_save_preset),
                                      style = MaterialTheme.typography.labelSmall)
                             }
                         }
                         if (userPresets.isEmpty()) {
                             Text(
-                                text  = "Save the current attractor, parameters, camera and look as a reusable preset.",
+                                text  = stringResource(R.string.my_presets_empty),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             )
@@ -711,7 +744,7 @@ private fun ControlPanel(
                                         trailingIcon = {
                                             Icon(
                                                 imageVector        = Icons.Outlined.Close,
-                                                contentDescription = "Delete preset ${preset.name}",
+                                                contentDescription = stringResource(R.string.cd_delete_preset, preset.name),
                                                 modifier           = Modifier
                                                     .size(16.dp)
                                                     .clickable { onDeletePreset(preset.name) },
@@ -723,7 +756,7 @@ private fun ControlPanel(
                         }
 
                         // Parameters
-                        SectionLabel("Parameters")
+                        SectionLabel(stringResource(R.string.section_parameters))
                         state.attractorType.paramNames.forEachIndexed { idx, name ->
                             val range = state.attractorType.paramRanges[idx]
                             val value = state.params.getOrElse(idx) { 0f }
@@ -733,6 +766,7 @@ private fun ControlPanel(
                                 value         = value,
                                 valueRange    = range,
                                 hint          = hint,
+                                onCommitValue = { onParam(idx, it) },
                                 onValueChange = { onParam(idx, it) },
                                 modifier      = if (idx == 0) Modifier.onGloballyPositioned { c ->
                                     onTutorialAnchor(TutorialTarget.ParamSlider, c.boundsInWindow())
@@ -752,7 +786,7 @@ private fun ControlPanel(
                                     containerColor = MaterialTheme.colorScheme.secondary,
                                 ),
                             ) {
-                                Text("🎲 Params",
+                                Text(stringResource(R.string.btn_randomize_params),
                                      color = MaterialTheme.colorScheme.onSecondary)
                             }
                             Button(
@@ -762,7 +796,7 @@ private fun ControlPanel(
                                     containerColor = MaterialTheme.colorScheme.secondary,
                                 ),
                             ) {
-                                Text("🎲 Attractor",
+                                Text(stringResource(R.string.btn_randomize_all),
                                      color = MaterialTheme.colorScheme.onSecondary)
                             }
                         }
@@ -774,12 +808,12 @@ private fun ControlPanel(
                     1 -> {
                         // Palette
                         InfoSection(
-                            title       = "Palette",
+                            title       = stringResource(R.string.section_palette),
                             description = state.palette.description,
                             extraAction = {
                                 Icon(
                                     imageVector        = Icons.Outlined.Edit,
-                                    contentDescription = "Edit custom palette",
+                                    contentDescription = stringResource(R.string.cd_edit_palette),
                                     tint               = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                                     modifier           = Modifier
                                         .size(16.dp)
@@ -808,7 +842,7 @@ private fun ControlPanel(
 
                         // Render style
                         InfoSection(
-                            title       = "Render Style",
+                            title       = stringResource(R.string.section_render_style),
                             description = state.renderStyle.description,
                         ) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -826,13 +860,19 @@ private fun ControlPanel(
                         }
 
                         // Background colour
-                        SectionLabel("Background")
+                        SectionLabel(stringResource(R.string.section_background))
+                        var showCustomBgPicker by remember { mutableStateOf(false) }
+
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(BgColor.entries) { bg ->
-                                val bgCompose = Color(bg.argb.toLong() and 0xFFFFFFFFL)
+                                val swatchArgb = if (bg == BgColor.CUSTOM) state.customBgArgb else bg.argb
+                                val bgCompose  = Color(swatchArgb.toLong() and 0xFFFFFFFFL)
                                 FilterChip(
                                     selected = state.bgColor == bg,
-                                    onClick  = { onBgColor(bg) },
+                                    onClick  = {
+                                        onBgColor(bg)
+                                        if (bg == BgColor.CUSTOM) showCustomBgPicker = true
+                                    },
                                     label    = {
                                         Row(
                                             verticalAlignment     = Alignment.CenterVertically,
@@ -854,13 +894,42 @@ private fun ControlPanel(
                             }
                         }
 
+                        // Show edit icon when Custom is already selected
+                        if (state.bgColor == BgColor.CUSTOM) {
+                            TextButton(
+                                onClick  = { showCustomBgPicker = true },
+                                modifier = Modifier.padding(top = 2.dp),
+                            ) {
+                                Icon(
+                                    imageVector        = Icons.Outlined.Edit,
+                                    contentDescription = stringResource(R.string.cd_edit_custom_bg),
+                                    modifier           = Modifier.size(14.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.btn_edit_colour),
+                                     style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+
+                        if (showCustomBgPicker) {
+                            CustomBgColorDialog(
+                                initialArgb = state.customBgArgb,
+                                onConfirm   = { argb ->
+                                    onCustomBgColor(argb)
+                                    showCustomBgPicker = false
+                                },
+                                onDismiss   = { showCustomBgPicker = false },
+                            )
+                        }
+
                         // Tone mapping
-                        SectionLabel("Tone Mapping")
+                        SectionLabel(stringResource(R.string.section_tone_mapping))
                         LabelledSlider(
-                            label         = "Gamma = ${"%.2f".format(state.gamma)}",
+                            label         = stringResource(R.string.slider_gamma, "%.2f".format(state.gamma)),
                             value         = state.gamma,
                             valueRange    = 0.3f..2.0f,
-                            hint          = "Gamma flattens (lower) or boosts (higher) the brightest regions.",
+                            hint          = stringResource(R.string.gamma_hint),
+                            onCommitValue = onGamma,
                             onValueChange = onGamma,
                         )
                         Row(
@@ -869,10 +938,10 @@ private fun ControlPanel(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Full palette range",
+                                Text(stringResource(R.string.toggle_full_range),
                                      style = MaterialTheme.typography.bodySmall)
                                 Text(
-                                    text  = "Stretch density so all palette colours show.",
+                                    text  = stringResource(R.string.toggle_full_range_desc),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 )
@@ -885,10 +954,10 @@ private fun ControlPanel(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Transparent background",
+                                Text(stringResource(R.string.toggle_transparent_bg),
                                      style = MaterialTheme.typography.bodySmall)
                                 Text(
-                                    text  = "Export PNG with transparent BG — great for stickers.",
+                                    text  = stringResource(R.string.toggle_transparent_bg_desc),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 )
@@ -902,26 +971,26 @@ private fun ControlPanel(
                     // ── CAMERA ────────────────────────────────────────────────
                     2 -> {
                         if (state.attractorType.is3D) {
-                            SectionLabel("Camera")
-                            LabelledSlider("Yaw = ${"%.0f".format(state.yaw)}°",
+                            SectionLabel(stringResource(R.string.section_camera))
+                            LabelledSlider(stringResource(R.string.slider_yaw, "%.0f".format(state.yaw)),
                                 state.yaw,   -180f..180f, onValueChange = onYaw)
-                            LabelledSlider("Pitch = ${"%.0f".format(state.pitch)}°",
+                            LabelledSlider(stringResource(R.string.slider_pitch, "%.0f".format(state.pitch)),
                                 state.pitch, -90f..90f,   onValueChange = onPitch)
-                            LabelledSlider("Roll = ${"%.0f".format(state.roll)}°",
+                            LabelledSlider(stringResource(R.string.slider_roll, "%.0f".format(state.roll)),
                                 state.roll,  -180f..180f, onValueChange = onRoll)
-                            LabelledSlider("Zoom = ${"%.2f".format(state.zoom)}",
+                            LabelledSlider(stringResource(R.string.slider_zoom, "%.2f".format(state.zoom)),
                                 state.zoom,  0.1f..5f,    onValueChange = onZoom)
                             LabelledSlider(
-                                label         = "Depth = ${"%.0f".format(state.depthCue * 100)}%",
+                                label         = stringResource(R.string.slider_depth, "%.0f".format(state.depthCue * 100)),
                                 value         = state.depthCue,
                                 valueRange    = 0f..1f,
-                                hint          = "Dims points farther from the camera to bring out 3-D form. 0% is flat.",
+                                hint          = stringResource(R.string.depth_hint),
                                 onValueChange = onDepthCue,
                             )
                         } else {
                             Spacer(Modifier.height(24.dp))
                             Text(
-                                text  = "Camera controls are only available for 3D attractors.\n\nSwitch to a 3D attractor on the Shape tab to use yaw, pitch, roll, and depth controls.",
+                                text  = stringResource(R.string.camera_3d_only),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                             )
@@ -941,7 +1010,7 @@ private fun ControlPanel(
                                 onClick  = onRender,
                                 enabled  = !isRendering,
                                 modifier = Modifier.weight(1f),
-                            ) { Text("▶  Render") }
+                            ) { Text(stringResource(R.string.btn_render)) }
                             Button(
                                 onClick  = onRenderHD,
                                 enabled  = !isRendering,
@@ -955,7 +1024,7 @@ private fun ControlPanel(
                                     containerColor = MaterialTheme.colorScheme.tertiary,
                                 ),
                             ) {
-                                Text("HD Render",
+                                Text(stringResource(R.string.btn_render_hd),
                                      color = MaterialTheme.colorScheme.onTertiary)
                             }
                         }
@@ -971,24 +1040,24 @@ private fun ControlPanel(
                                     containerColor = MaterialTheme.colorScheme.tertiary,
                                 ),
                             ) {
-                                Text("4K Render",
+                                Text(stringResource(R.string.btn_render_4k),
                                      color = MaterialTheme.colorScheme.onTertiary)
                             }
                             OutlinedButton(
                                 onClick  = onExport,
                                 enabled  = state.bitmap != null && !isRendering,
                                 modifier = Modifier.weight(1f),
-                            ) { Text("Export PNG") }
+                            ) { Text(stringResource(R.string.btn_export_png)) }
                         }
                         OutlinedButton(
                             onClick  = onSetWallpaper,
                             enabled  = state.bitmap != null && !isRendering,
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("🖼  Set as Wallpaper") }
+                        ) { Text(stringResource(R.string.btn_set_wallpaper)) }
 
                         // Recent renders
                         if (recentExports.isNotEmpty()) {
-                            SectionLabel("Recent Renders")
+                            SectionLabel(stringResource(R.string.section_recent_renders))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(recentExports) { uri ->
                                     RecentThumb(
@@ -1014,7 +1083,7 @@ private fun ControlPanel(
 
                         // Performance
                         InfoSection(
-                            title       = "Render Detail",
+                            title       = stringResource(R.string.section_render_detail),
                             description = state.renderQuality.description,
                         ) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1031,7 +1100,7 @@ private fun ControlPanel(
                             }
                         }
                         InfoSection(
-                            title       = "Preview Density",
+                            title       = stringResource(R.string.section_preview_density),
                             description = state.previewDensity.description,
                         ) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1088,7 +1157,7 @@ private fun InfoSection(
             SectionLabel(title)
             Icon(
                 imageVector        = Icons.Outlined.Info,
-                contentDescription = "Show info about $title",
+                contentDescription = stringResource(R.string.cd_show_info, title),
                 tint               = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
                 modifier           = Modifier
                     .size(14.dp)
@@ -1111,16 +1180,110 @@ private fun InfoSection(
     }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Custom background colour picker dialog — H/S/V sliders + live preview
+// ────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun CustomBgColorDialog(
+    initialArgb: Int,
+    onConfirm:   (Int) -> Unit,
+    onDismiss:   () -> Unit,
+) {
+    val initR = ((initialArgb shr 16) and 0xFF) / 255f
+    val initG = ((initialArgb shr  8) and 0xFF) / 255f
+    val initB = ( initialArgb         and 0xFF) / 255f
+    val initHsv = remember { rgbToHsv(initR, initG, initB) }
+
+    var hue by remember { mutableFloatStateOf(initHsv[0]) }
+    var sat by remember { mutableFloatStateOf(initHsv[1]) }
+    var bri by remember { mutableFloatStateOf(initHsv[2]) }
+
+    fun currentArgb(): Int {
+        val (r, g, b) = hsvToRgb(hue, sat, bri)
+        val ri = (r * 255).toInt().coerceIn(0, 255)
+        val gi = (g * 255).toInt().coerceIn(0, 255)
+        val bi = (b * 255).toInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.dialog_custom_bg)) },
+        text  = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .background(
+                            color = Color(currentArgb().toLong() and 0xFFFFFFFFL),
+                            shape = MaterialTheme.shapes.medium,
+                        )
+                )
+
+                SaturationValueBox(hue = hue, sat = sat, value = bri) { s, v ->
+                    sat = s; bri = v
+                }
+                HueBar(hue = hue) { h -> hue = h }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(currentArgb()) }) { Text(stringResource(R.string.btn_apply)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) }
+        },
+    )
+}
+
 @Composable
 private fun LabelledSlider(
-    label:         String,
-    value:         Float,
-    valueRange:    ClosedFloatingPointRange<Float>,
-    hint:          String? = null,
-    modifier:      Modifier = Modifier,
-    onValueChange: (Float) -> Unit,
+    label:          String,
+    value:          Float,
+    valueRange:     ClosedFloatingPointRange<Float>,
+    hint:           String?       = null,
+    modifier:       Modifier      = Modifier,
+    onCommitValue:  ((Float) -> Unit)? = null,   // if non-null, value text becomes tappable
+    onValueChange:  (Float) -> Unit,
 ) {
-    var hintVisible by remember { mutableStateOf(false) }
+    var hintVisible  by remember { mutableStateOf(false) }
+    var showTypeDialog by remember { mutableStateOf(false) }
+
+    if (showTypeDialog && onCommitValue != null) {
+        var editText by remember { mutableStateOf("%.4f".format(value).trimEnd('0').trimEnd('.')) }
+        AlertDialog(
+            onDismissRequest = { showTypeDialog = false },
+            title = { Text(label) },
+            text  = {
+                OutlinedTextField(
+                    value           = editText,
+                    onValueChange   = { editText = it.filter { c -> c.isDigit() || c == '.' || c == '-' } },
+                    singleLine      = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    label           = {
+                        Text(stringResource(
+                            R.string.label_value_range,
+                            valueRange.start.toString(),
+                            valueRange.endInclusive.toString(),
+                        ))
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    editText.toFloatOrNull()
+                        ?.coerceIn(valueRange)
+                        ?.let { onCommitValue(it) }
+                    showTypeDialog = false
+                }) { Text(stringResource(R.string.btn_apply)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTypeDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
+            },
+        )
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier              = Modifier.fillMaxWidth(),
@@ -1133,10 +1296,20 @@ private fun LabelledSlider(
                 color    = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
+            if (onCommitValue != null) {
+                Icon(
+                    imageVector        = Icons.Outlined.Edit,
+                    contentDescription = stringResource(R.string.cd_type_value, label),
+                    tint               = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                    modifier           = Modifier
+                        .size(14.dp)
+                        .clickable { showTypeDialog = true },
+                )
+            }
             if (hint != null) {
                 Icon(
                     imageVector        = Icons.Outlined.Info,
-                    contentDescription = "Show hint for $label",
+                    contentDescription = stringResource(R.string.cd_show_hint, label),
                     tint               = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                     modifier           = Modifier
                         .size(14.dp)
@@ -1191,13 +1364,13 @@ private fun AnimationSection(
         AnimMode.PARAM_SWEEP  -> state.animFrames >= 2 && !state.isExportingVideo
     }
     val pingPongDesc = when (state.animMode) {
-        AnimMode.MORPH       -> "Plays A→B→A for a seamless looping video."
-        AnimMode.ORBIT_TRACE -> "Trace the orbit up, then erase back to the start."
-        AnimMode.PARAM_SWEEP -> "Morph to the random target and back — seamless loop."
+        AnimMode.MORPH       -> stringResource(R.string.anim_morph_pingpong_desc)
+        AnimMode.ORBIT_TRACE -> stringResource(R.string.anim_orbit_pingpong_desc)
+        AnimMode.PARAM_SWEEP -> stringResource(R.string.anim_sweep_pingpong_desc)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionLabel("Animation Export")
+        SectionLabel(stringResource(R.string.section_animation_export))
 
         // ── Mode selector (3 chips) ───────────────────────────────────────
         Row(
@@ -1209,21 +1382,21 @@ private fun AnimationSection(
                 onClick  = { onAnimMode(AnimMode.MORPH) },
                 enabled  = !state.isExportingVideo,
                 modifier = Modifier.weight(1f),
-                label    = { Text("Morph", style = MaterialTheme.typography.labelSmall) },
+                label    = { Text(stringResource(R.string.anim_morph), style = MaterialTheme.typography.labelSmall) },
             )
             FilterChip(
                 selected = state.animMode == AnimMode.ORBIT_TRACE,
                 onClick  = { onAnimMode(AnimMode.ORBIT_TRACE) },
                 enabled  = !state.isExportingVideo,
                 modifier = Modifier.weight(1f),
-                label    = { Text("Orbit Trace", style = MaterialTheme.typography.labelSmall) },
+                label    = { Text(stringResource(R.string.anim_orbit_trace), style = MaterialTheme.typography.labelSmall) },
             )
             FilterChip(
                 selected = state.animMode == AnimMode.PARAM_SWEEP,
                 onClick  = { onAnimMode(AnimMode.PARAM_SWEEP) },
                 enabled  = !state.isExportingVideo,
                 modifier = Modifier.weight(1f),
-                label    = { Text("Sweep", style = MaterialTheme.typography.labelSmall) },
+                label    = { Text(stringResource(R.string.anim_sweep), style = MaterialTheme.typography.labelSmall) },
             )
         }
 
@@ -1243,7 +1416,9 @@ private fun AnimationSection(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
                         else ButtonDefaults.outlinedButtonColors(),
                     ) {
-                        Text(if (state.keyframeA != null) "✓ Frame A" else "Set Frame A",
+                        Text(stringResource(
+                                if (state.keyframeA != null) R.string.anim_frame_a_done
+                                else R.string.anim_set_frame_a),
                              style = MaterialTheme.typography.labelSmall)
                     }
                     OutlinedButton(
@@ -1255,13 +1430,15 @@ private fun AnimationSection(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
                         else ButtonDefaults.outlinedButtonColors(),
                     ) {
-                        Text(if (state.keyframeB != null) "✓ Frame B" else "Set Frame B",
+                        Text(stringResource(
+                                if (state.keyframeB != null) R.string.anim_frame_b_done
+                                else R.string.anim_set_frame_b),
                              style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 if (!canExport && !state.isExportingVideo) {
                     Text(
-                        text  = "Set Frame A and Frame B to enable export.",
+                        text  = stringResource(R.string.anim_morph_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     )
@@ -1270,8 +1447,7 @@ private fun AnimationSection(
 
             AnimMode.ORBIT_TRACE -> {
                 Text(
-                    text  = "Renders the attractor as growing coloured dots — each frame " +
-                            "reveals more of the orbit path. No keyframes needed.",
+                    text  = stringResource(R.string.anim_orbit_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
@@ -1279,8 +1455,7 @@ private fun AnimationSection(
 
             AnimMode.PARAM_SWEEP -> {
                 Text(
-                    text  = "Auto-varies all parameters from the current state to a random " +
-                            "target — a fresh result every export. No keyframes needed.",
+                    text  = stringResource(R.string.anim_sweep_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
@@ -1298,7 +1473,7 @@ private fun AnimationSection(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text  = "Frames:",
+                text  = stringResource(R.string.label_frames),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -1333,7 +1508,7 @@ private fun AnimationSection(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = "Ping-pong loop",
+                    text  = stringResource(R.string.toggle_pingpong),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -1356,7 +1531,8 @@ private fun AnimationSection(
                 state.videoExportProgress.toFloat() / state.videoExportTotal else 0f
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text  = "Exporting frame ${state.videoExportProgress} / ${state.videoExportTotal}",
+                    text  = stringResource(R.string.anim_exporting_frame,
+                                           state.videoExportProgress, state.videoExportTotal),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
@@ -1371,7 +1547,7 @@ private fun AnimationSection(
                     colors   = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
-                ) { Text("Cancel export") }
+                ) { Text(stringResource(R.string.btn_cancel_export)) }
             }
         } else {
             Button(
@@ -1382,7 +1558,7 @@ private fun AnimationSection(
                     containerColor = MaterialTheme.colorScheme.secondary,
                 ),
             ) {
-                Text("🎬  Export Video", color = MaterialTheme.colorScheme.onSecondary)
+                Text(stringResource(R.string.btn_export_video), color = MaterialTheme.colorScheme.onSecondary)
             }
         }
     }

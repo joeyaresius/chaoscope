@@ -303,7 +303,7 @@ private fun StopEditor(
 // ── 2-D saturation / brightness picker ──────────────────────────────────────
 
 @Composable
-private fun SaturationValueBox(
+internal fun SaturationValueBox(
     hue:      Float,
     sat:      Float,
     value:    Float,
@@ -340,7 +340,7 @@ private fun SaturationValueBox(
 // ── Hue bar ──────────────────────────────────────────────────────────────────
 
 @Composable
-private fun HueBar(hue: Float, onChange: (Float) -> Unit) {
+internal fun HueBar(hue: Float, onChange: (Float) -> Unit) {
     var box by remember { mutableStateOf(IntSize.Zero) }
     val currentOnChange = rememberUpdatedState(onChange)
     fun handle(o: Offset) {
@@ -388,9 +388,9 @@ private fun SliderRow(
 
 // ── Colour math (pure functions live in ColorMath.kt) ────────────────────────
 
-private fun hsvColor(h: Float, s: Float, v: Float): Color {
+internal fun hsvColor(h: Float, s: Float, v: Float): Color {
     val (r, g, b) = hsvToRgb(h, s, v); return Color(r, g, b)
 }
 
-private fun hueColors(): List<Color> =
+internal fun hueColors(): List<Color> =
     (0..12).map { i -> hsvColor(i * 30f, 1f, 1f) }

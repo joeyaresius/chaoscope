@@ -1,5 +1,6 @@
 package com.chaoscope
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +15,10 @@ import com.chaoscope.ui.theme.ChaoscopeTheme
 class MainActivity : ComponentActivity() {
 
     private val vm: ChaoscopeViewModel by viewModels()
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LangPrefs.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

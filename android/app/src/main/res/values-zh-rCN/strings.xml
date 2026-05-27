@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chaoscope</string>
+
+    <string name="export_saved">已保存到 图片/Chaoscope</string>
+    <string name="export_failed">无法保存：%1$s</string>
+    <string name="export_share">分享</string>
+    <string name="share_render_chooser">分享渲染图</string>
+
+    <string name="cd_about">关于 Chaoscope</string>
+    <string name="cd_cancel_render">取消渲染</string>
+    <string name="cd_skip_welcome">跳过欢迎页</string>
+    <string name="cd_close">关闭</string>
+
+    <string name="cd_recent_open">最近渲染 — 点击打开</string>
+    <string name="cd_recent_share">分享此渲染图</string>
+
+    <string name="cd_live_preview">%1$s 吸引子实时预览</string>
+
+    <string name="splash_tagline">奇异吸引子探索器</string>
+    <string name="splash_description">可视化混沌中隐藏的秩序。\n数百万次迭代。十二种吸引子。\n等你发现的无限形态。</string>
+    <string name="splash_tribute">✦  向 Nicolas Desprez 的原版 Chaoscope（2000 年代）致敬\n——那款首次让奇异吸引子变得绝美的 Windows 应用。</string>
+    <string name="splash_btn_explore">开始探索</string>
+    <string name="splash_btn_close">关闭</string>
+    <string name="splash_btn_tutorial">🎓  显示教程</string>
+    <string name="splash_btn_coffee">请我喝杯咖啡</string>
+    <string name="splash_btn_feedback">建议或反馈</string>
+    <string name="splash_footer">开源 · Apache 2.0 许可证</string>
+    <string name="splash_feedback_subject">Chaoscope — 建议 / 反馈</string>
+
+    <string name="tab_shape">形状</string>
+    <string name="tab_look">外观</string>
+    <string name="tab_camera">相机</string>
+    <string name="tab_export">导出</string>
+
+    <string name="section_attractor">吸引子</string>
+    <string name="section_presets">预设</string>
+    <string name="section_my_presets">我的预设</string>
+    <string name="section_parameters">参数</string>
+    <string name="section_palette">调色板</string>
+    <string name="section_render_style">渲染风格</string>
+    <string name="section_background">背景</string>
+    <string name="section_tone_mapping">色调映射</string>
+    <string name="section_camera">相机</string>
+    <string name="section_render_detail">渲染细节</string>
+    <string name="section_preview_density">预览密度</string>
+    <string name="section_animation_export">导出动画</string>
+    <string name="section_recent_renders">最近渲染</string>
+
+    <string name="btn_render">▶  渲染</string>
+    <string name="btn_render_hd">HD</string>
+    <string name="btn_render_4k">4K</string>
+    <string name="btn_export_png">导出 PNG</string>
+    <string name="btn_set_wallpaper">🖼  设为壁纸</string>
+    <string name="btn_export_video">🎬  导出视频</string>
+    <string name="btn_cancel_export">取消导出</string>
+    <string name="btn_randomize_params">🎲 参数</string>
+    <string name="btn_randomize_all">🎲 吸引子</string>
+    <string name="btn_save_preset">+ 保存当前</string>
+    <string name="btn_apply">应用</string>
+    <string name="btn_cancel">取消</string>
+    <string name="btn_save">保存</string>
+    <string name="btn_edit_colour">编辑颜色</string>
+
+    <string name="toggle_full_range">完整调色板范围</string>
+    <string name="toggle_full_range_desc">拉伸密度，使所有调色板颜色都显示出来。</string>
+    <string name="toggle_transparent_bg">透明背景</string>
+    <string name="toggle_transparent_bg_desc">导出带透明背景的 PNG — 非常适合贴纸。</string>
+    <string name="toggle_pingpong">乒乓循环</string>
+    <string name="label_frames">帧数：</string>
+    <string name="label_name">名称</string>
+    <string name="camera_3d_only">相机控件仅适用于 3D 吸引子。\n\n请在\"形状\"标签页切换到 3D 吸引子，以使用偏航、俯仰、翻滚和景深控件。</string>
+    <string name="save_preset_title">保存预设</string>
+    <string name="save_preset_hint">将当前吸引子、参数、相机和外观保存为可复用预设。</string>
+    <string name="gamma_hint">伽马值降低会压暗、升高会增强最亮区域。</string>
+    <string name="depth_hint">将远离相机的点变暗以突出 3D 形态。0%% 即为平面。</string>
+
+    <string name="slider_yaw">偏航 = %1$s°</string>
+    <string name="slider_pitch">俯仰 = %1$s°</string>
+    <string name="slider_roll">翻滚 = %1$s°</string>
+    <string name="slider_zoom">缩放 = %1$s</string>
+    <string name="slider_depth">景深 = %1$s%%</string>
+    <string name="slider_gamma">伽马 = %1$s</string>
+
+    <string name="cd_edit_palette">编辑自定义调色板</string>
+    <string name="cd_edit_custom_bg">编辑自定义背景色</string>
+    <string name="cd_delete_preset">删除预设 %1$s</string>
+    <string name="cd_show_info">显示 %1$s 的信息</string>
+    <string name="cd_show_hint">显示 %1$s 的提示</string>
+    <string name="cd_type_value">输入 %1$s 的值</string>
+    <string name="image_attractor">奇异吸引子 — %1$s</string>
+
+    <string name="anim_morph">变形</string>
+    <string name="anim_orbit_trace">轨迹描绘</string>
+    <string name="anim_sweep">扫描</string>
+    <string name="anim_morph_pingpong_desc">播放 A→B→A，形成无缝循环视频。</string>
+    <string name="anim_orbit_pingpong_desc">先描绘轨迹，然后再擦除回起点。</string>
+    <string name="anim_sweep_pingpong_desc">变形到随机目标再返回 — 无缝循环。</string>
+    <string name="anim_set_frame_a">设为关键帧 A</string>
+    <string name="anim_set_frame_b">设为关键帧 B</string>
+    <string name="anim_frame_a_done">✓ 关键帧 A</string>
+    <string name="anim_frame_b_done">✓ 关键帧 B</string>
+    <string name="anim_morph_hint">同时设置关键帧 A 和 B 才能启用导出。</string>
+    <string name="anim_orbit_hint">将吸引子渲染为不断生长的彩色点 — 每帧揭示更多轨迹。无需关键帧。</string>
+    <string name="anim_sweep_hint">自动将所有参数从当前状态变化到随机目标 — 每次导出都不同。无需关键帧。</string>
+    <string name="anim_exporting_frame">正在导出第 %1$d / %2$d 帧</string>
+
+    <string name="dialog_custom_bg">自定义背景</string>
+    <string name="label_hue">色相：%1$s°</string>
+    <string name="label_saturation">饱和度：%1$s%%</string>
+    <string name="label_brightness">亮度：%1$s%%</string>
+    <string name="label_value_range">数值（%1$s … %2$s）</string>
+
+    <string name="msg_wallpaper_ok">壁纸已设置！</string>
+    <string name="msg_wallpaper_failed">设置壁纸失败：%1$s</string>
+    <string name="msg_retrying">使用更多迭代重试中…</string>
+    <string name="msg_video_saved">视频已保存！</string>
+    <string name="msg_video_failed">视频导出失败：%1$s</string>
+    <string name="share_video_chooser">分享视频</string>
+
+    <string name="my_presets_empty">将当前吸引子、参数、相机和外观保存为可复用预设。</string>
+
+    <string name="notif_export_title">正在导出视频…</string>
+    <string name="notif_export_preparing">准备中…</string>
+    <string name="notif_export_progress">第 %1$d / %2$d 帧</string>
+    <string name="notif_export_cancel">取消</string>
+    <string name="notif_channel_name">视频导出</string>
+    <string name="notif_channel_desc">导出 MP4 动画时显示进度。</string>
+</resources>

@@ -128,10 +128,8 @@ struct RGB { uint8_t r, g, b; };
 static void buildLUT(int palIdx, RGB* lut, int size,
                      const float* customStops = nullptr, int numCustomStops = 0) {
     if (palIdx == PALETTE_CUSTOM && customStops != nullptr && numCustomStops >= 2) {
-        // Build from caller-supplied [pos, r, g, b, ...] stops (r/g/b in 0..1)
         for (int i = 0; i < size; i++) {
             float t = (float)i / (float)(size - 1);
-            // Find surrounding stops
             int lo = 0, hi = numCustomStops - 1;
             for (int s = 0; s < numCustomStops - 1; s++) {
                 if (t >= customStops[s * 4] && t <= customStops[(s + 1) * 4]) {
@@ -169,14 +167,12 @@ static void accumulateBatch(const float* us, const float* vs, int n,
     for (int i = 0; i < n; i++) {
         int px = (int)((us[i] - xMin) * xScale);
         int py = (int)((vs[i] - yMin) * yScale);
-        // unsigned comparison catches negative values in one branch
         if ((unsigned)px < (unsigned)width && (unsigned)py < (unsigned)height) {
             hist[py * width + px]++;
         }
     }
 }
 
-// As accumulateBatch, but also sums per-pixel depth so we can shade by mean depth.
 static void accumulateBatchDepth(const float* us, const float* vs, const float* ws, int n,
                                   uint32_t* hist, float* depthAccum, int width, int height,
                                   float xMin, float xMax, float yMin, float yMax) {
@@ -209,10 +205,14 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     buildRotationMatrix(rp.yaw, rp.pitch, rp.roll, R);
 
     // ── Work buffers ─────────────────────────────────────────────────────────
-    const bool useDepth = rp.depthCue > 0.f;
+    // LIQUID (style 2) always uses depth regardless of the depthCue slider.
+    const bool isLiquid = (rp.renderStyle == 2);
+    const bool isLight  = (rp.renderStyle == 5);
+    const bool useDepth = (rp.depthCue > 0.f) || isLiquid;
+
     std::vector<float>    xs(BATCH_SIZE), ys(BATCH_SIZE), zs(BATCH_SIZE);
     std::vector<float>    us(BATCH_SIZE), vs(BATCH_SIZE);
-    std::vector<float>    ws(useDepth ? BATCH_SIZE : 0);
+    std::vector<float>    ws(useDepth || isLight ? BATCH_SIZE : 0);
     std::vector<uint32_t> hist(static_cast<size_t>(W * H), 0u);
     std::vector<float>    depthAccum(useDepth ? static_cast<size_t>(W * H) : 0, 0.f);
     float wMin = FLT_MAX, wMax = -FLT_MAX;
@@ -235,41 +235,66 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
                           xs.data(), ys.data(), zs.data(), BATCH_SIZE);
     }
 
-    // ── Auto-bounds via BOUNDS_STEPS × BATCH_SIZE sample points ─────────────
+    // ── Auto-bounds + (for LIGHT) mean speed estimation ─────────────────────
     float uMin = FLT_MAX, uMax = -FLT_MAX;
     float vMin = FLT_MAX, vMax = -FLT_MAX;
+
+    // For LIGHT: accumulate mean 3-D step length to normalise speed later.
+    double speedSum   = 0.0;
+    int    speedCount = 0;
+    std::vector<float> bprev_xs, bprev_ys, bprev_zs;
+    if (isLight) {
+        bprev_xs.assign(xs.begin(), xs.end());
+        bprev_ys.assign(ys.begin(), ys.end());
+        bprev_zs.assign(zs.begin(), zs.end());
+    }
+
     for (int s = 0; s < BOUNDS_STEPS; s++) {
         attractorIterateN(rp.attractorType, rp.params,
                           xs.data(), ys.data(), zs.data(), BATCH_SIZE);
-        // Project at zoom = 1 so the auto-bounds are zoom-independent; zoom is
-        // applied below as a crop around the centre (otherwise it cancels out).
-        if (useDepth) {
-            projectBatchDepth(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
-                              us.data(), vs.data(), ws.data());
-        } else {
-            projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
-                         us.data(), vs.data());
+
+        if (isLight) {
+            for (int i = 0; i < BATCH_SIZE; i++) {
+                float dx = xs[i] - bprev_xs[i];
+                float dy = ys[i] - bprev_ys[i];
+                float dz = zs[i] - bprev_zs[i];
+                speedSum += sqrtf(dx*dx + dy*dy + dz*dz);
+            }
+            speedCount += BATCH_SIZE;
+            bprev_xs.assign(xs.begin(), xs.end());
+            bprev_ys.assign(ys.begin(), ys.end());
+            bprev_zs.assign(zs.begin(), zs.end());
         }
+
+        projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
+                     us.data(), vs.data());
         for (int i = 0; i < BATCH_SIZE; i++) {
             if (us[i] < uMin) uMin = us[i];
             if (us[i] > uMax) uMax = us[i];
             if (vs[i] < vMin) vMin = vs[i];
             if (vs[i] > vMax) vMax = vs[i];
-            if (useDepth) {
-                if (ws[i] < wMin) wMin = ws[i];
-                if (ws[i] > wMax) wMax = ws[i];
+        }
+        if (useDepth) {
+            for (int i = 0; i < BATCH_SIZE; i++) {
+                float w = R[6]*xs[i] + R[7]*ys[i] + R[8]*zs[i];
+                if (w < wMin) wMin = w;
+                if (w > wMax) wMax = w;
             }
         }
     }
-    // Add 5% base padding + optional extra (used on retry to catch wider orbits)
+
+    // Mean 3-D step length — used as tanh scale for LIGHT speed normalisation.
+    // tanh(1) ≈ 0.76, so the mean speed maps near the 3/4 point of the palette.
+    float speedScale = (speedCount > 0)
+        ? (float)(speedSum / speedCount) : 1.f;
+    if (speedScale < 1e-12f) speedScale = 1.f;
+
     float extraPad = (rp.boundsExtraPad > 0.f) ? rp.boundsExtraPad : 0.f;
     float padU = (uMax - uMin) * (0.05f + extraPad) + 1e-6f;
     float padV = (vMax - vMin) * (0.05f + extraPad) + 1e-6f;
     uMin -= padU; uMax += padU;
     vMin -= padV; vMax += padV;
 
-    // Apply zoom as a crop: shrink the world window by 1/zoom about its centre.
-    // zoom > 1 magnifies (narrower window); points outside the window clip.
     float zoom = (rp.zoom > 0.f) ? rp.zoom : 1.f;
     {
         float cu = (uMin + uMax) * 0.5f, hu = (uMax - uMin) * 0.5f / zoom;
@@ -278,7 +303,149 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         vMin = cv - hv; vMax = cv + hv;
     }
 
-    // ── Main iteration loop ──────────────────────────────────────────────────
+    // ── Build palette LUT (shared by all modes) ──────────────────────────────
+    static constexpr int LUT_SIZE = 1024;
+    RGB lut[LUT_SIZE];
+    buildLUT(rp.paletteIndex, lut, LUT_SIZE,
+             rp.numCustomStops > 0 ? rp.customStops : nullptr, rp.numCustomStops);
+
+    const float gamma = (rp.gamma > 0.f) ? rp.gamma : 1.f;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // LIGHT mode (style 5) — per-point orbit-speed × curvature coloring
+    // ════════════════════════════════════════════════════════════════════════
+    //
+    // Each accumulated point carries two properties:
+    //   speed     = 3-D step length (prev → current), normalised via tanh.
+    //               Maps to palette LUT index: slow = dark end, fast = bright end.
+    //   curvature = cos of the angle at the previous point formed by the two
+    //               consecutive displacement vectors.
+    //               Sharp bend → bright multiplier; straight path → dim.
+    //
+    // Per-pixel colour = palette_color(speed) × curvature_brightness × log_density.
+    if (isLight) {
+        std::vector<float>    rAccum(static_cast<size_t>(W * H), 0.f);
+        std::vector<float>    gAccum(static_cast<size_t>(W * H), 0.f);
+        std::vector<float>    bAccum(static_cast<size_t>(W * H), 0.f);
+        std::vector<uint32_t> lightCount(static_cast<size_t>(W * H), 0u);
+
+        // Previous and pre-previous positions for each parallel trajectory.
+        std::vector<float> prev_xs(xs), prev_ys(ys), prev_zs(zs);
+        std::vector<float> pprev_xs(xs), pprev_ys(ys), pprev_zs(zs);
+
+        // Advance once so prev ≠ pprev from the start.
+        attractorIterateN(rp.attractorType, rp.params,
+                          xs.data(), ys.data(), zs.data(), BATCH_SIZE);
+
+        const float xScale = (float)(W - 1) / (uMax - uMin);
+        const float yScale = (float)(H - 1) / (vMax - vMin);
+
+        long long accumulated = 0;
+        while (accumulated < rp.iterations) {
+            const int batchN = (int)std::min((long long)BATCH_SIZE,
+                                              rp.iterations - accumulated);
+
+            // pprev ← prev ← xs before this iteration
+            pprev_xs.assign(prev_xs.begin(), prev_xs.end());
+            pprev_ys.assign(prev_ys.begin(), prev_ys.end());
+            pprev_zs.assign(prev_zs.begin(), prev_zs.end());
+            prev_xs.assign(xs.begin(), xs.end());
+            prev_ys.assign(ys.begin(), ys.end());
+            prev_zs.assign(zs.begin(), zs.end());
+
+            attractorIterateN(rp.attractorType, rp.params,
+                              xs.data(), ys.data(), zs.data(), batchN);
+
+            for (int i = 0; i < batchN; i++) {
+                // Step vectors in world space
+                const float ax = xs[i]     - prev_xs[i];
+                const float ay = ys[i]     - prev_ys[i];
+                const float az = zs[i]     - prev_zs[i];
+                const float bx = prev_xs[i] - pprev_xs[i];
+                const float by = prev_ys[i] - pprev_ys[i];
+                const float bz = prev_zs[i] - pprev_zs[i];
+
+                const float lenA = sqrtf(ax*ax + ay*ay + az*az);
+                const float lenB = sqrtf(bx*bx + by*by + bz*bz);
+
+                // ── Speed → LUT index ─────────────────────────────────────
+                // tanh(lenA / speedScale): mean speed ≈ 0.76 on the palette.
+                const float speedNorm = (lenA > 0.f)
+                    ? tanhf(lenA / speedScale)
+                    : 0.f;
+                const int lutIdx = (int)(speedNorm * (float)(LUT_SIZE - 1));
+
+                // ── Curvature → brightness multiplier ─────────────────────
+                // Sharp turn (cos → +1, 0°) = bright.
+                // Straight path (cos → −1, 180°) = dim.
+                // Range [0.08, 1.0] so even straight segments remain visible.
+                float curvatureBrightness = 0.08f;
+                if (lenA > 1e-12f && lenB > 1e-12f) {
+                    float cosA = (ax*bx + ay*by + az*bz) / (lenA * lenB);
+                    if (cosA >  1.f) cosA =  1.f;
+                    if (cosA < -1.f) cosA = -1.f;
+                    curvatureBrightness = 0.08f + 0.92f * (1.f + cosA) * 0.5f;
+                }
+
+                // ── Project prev position → pixel ────────────────────────
+                const float u = (R[0]*prev_xs[i] + R[1]*prev_ys[i] + R[2]*prev_zs[i]);
+                const float v = (R[3]*prev_xs[i] + R[4]*prev_ys[i] + R[5]*prev_zs[i]);
+                const int px = (int)((u - uMin) * xScale);
+                const int py = (int)((v - vMin) * yScale);
+
+                if ((unsigned)px < (unsigned)W && (unsigned)py < (unsigned)H) {
+                    const int idx = py * W + px;
+                    rAccum[idx] += (float)lut[lutIdx].r * curvatureBrightness;
+                    gAccum[idx] += (float)lut[lutIdx].g * curvatureBrightness;
+                    bAccum[idx] += (float)lut[lutIdx].b * curvatureBrightness;
+                    lightCount[idx]++;
+                }
+            }
+            accumulated += batchN;
+        }
+
+        // ── Tone-map: log-brightness × per-pixel mean colour ────────────────
+        uint32_t maxHit = *std::max_element(lightCount.begin(), lightCount.end());
+        if (maxHit == 0) {
+            const int bg = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
+            for (int i = 0; i < W * H; i++) outPixels[i] = bg;
+            return false;
+        }
+        const float logMax = logf(1.f + (float)maxHit);
+
+        for (int i = 0; i < W * H; i++) {
+            if (lightCount[i] == 0) {
+                outPixels[i] = rp.transparentBg
+                    ? 0
+                    : ((rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u));
+                continue;
+            }
+            float bright = logf(1.f + (float)lightCount[i]) / logMax;
+            if (gamma != 1.f) bright = powf(bright, gamma);
+
+            const float inv = 1.f / (float)lightCount[i];
+            float fr = rAccum[i] * inv * bright;
+            float fg = gAccum[i] * inv * bright;
+            float fb = bAccum[i] * inv * bright;
+
+            // Clamp to [0, 255]
+            auto clamp255 = [](float v) -> uint8_t {
+                return (v < 0.f) ? 0u : (v > 255.f) ? 255u : (uint8_t)v;
+            };
+            outPixels[i] = static_cast<int>(
+                (0xFFu << 24) |
+                ((uint32_t)clamp255(fr) << 16) |
+                ((uint32_t)clamp255(fg) <<  8) |
+                 (uint32_t)clamp255(fb)
+            );
+        }
+        return true;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Histogram path (Standard, Sparse, Liquid, Plasma, Solid)
+    // ════════════════════════════════════════════════════════════════════════
+
     long long accumulated = 0;
     while (accumulated < rp.iterations) {
         int batchN = (int)std::min((long long)BATCH_SIZE,
@@ -300,7 +467,7 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         accumulated += batchN;
     }
 
-    // Per-pixel mean depth, from raw counts (before any LIQUID blur).
+    // Per-pixel mean depth, from raw counts.
     std::vector<float> meanW;
     if (useDepth) {
         meanW.assign(static_cast<size_t>(W * H), 0.f);
@@ -308,58 +475,21 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
             if (hist[i] > 0) meanW[i] = depthAccum[i] / (float)hist[i];
     }
 
-    // ── Tone-map: find log(1 + max) ──────────────────────────────────────────
+    // ── Tone-map ─────────────────────────────────────────────────────────────
     uint32_t maxCount = *std::max_element(hist.begin(), hist.end());
     if (maxCount == 0) {
-        // Fill with background colour but signal to the caller that the orbit was empty
         int bgFill = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
         for (int i = 0; i < W * H; i++) outPixels[i] = bgFill;
         return false;
     }
     float logMax = logf(1.f + (float)maxCount);
 
-    // ── LIQUID (style 2): 3×3 box blur on histogram before tone-mapping ──────
-    if (rp.renderStyle == 2) {
-        std::vector<uint32_t> blurred(W * H, 0u);
-        for (int row = 0; row < H; row++) {
-            for (int col = 0; col < W; col++) {
-                uint64_t sum = 0; int cnt = 0;
-                for (int dr = -1; dr <= 1; dr++) {
-                    for (int dc = -1; dc <= 1; dc++) {
-                        int nr = row + dr, nc = col + dc;
-                        if ((unsigned)nr < (unsigned)H &&
-                            (unsigned)nc < (unsigned)W) {
-                            sum += hist[nr * W + nc]; cnt++;
-                        }
-                    }
-                }
-                blurred[row * W + col] = (uint32_t)(sum / cnt);
-            }
-        }
-        hist = std::move(blurred);
-        maxCount = *std::max_element(hist.begin(), hist.end());
-        if (maxCount == 0) {
-            int bgFill = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
-            for (int i = 0; i < W * H; i++) outPixels[i] = bgFill;
-            return false;
-        }
-        logMax = logf(1.f + (float)maxCount);
-    }
-
-    // ── Build palette LUT ────────────────────────────────────────────────────
-    static constexpr int LUT_SIZE = 1024;
-    RGB lut[LUT_SIZE];
-    buildLUT(rp.paletteIndex, lut, LUT_SIZE,
-             rp.numCustomStops > 0 ? rp.customStops : nullptr, rp.numCustomStops);
-
-    const float gamma = (rp.gamma > 0.f) ? rp.gamma : 1.f;
-
-    // ── Pass 1: base density (style + gamma) per populated pixel ──────────────
+    // ── Pass 1: per-pixel density ─────────────────────────────────────────────
     std::vector<float> dens(static_cast<size_t>(W * H), 0.f);
     for (int i = 0; i < W * H; i++) {
         if (hist[i] == 0) continue;
         float density;
-        // GAS: linear 4th-root gives a broad, diffuse cloud
+        // SPARSE (style 1): 4th-root gives diffuse starfield / dust-cloud look.
         if (rp.renderStyle == 1) {
             density = powf((float)hist[i] / (float)maxCount, 0.25f);
         } else {
@@ -367,28 +497,25 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         }
 
         switch (rp.renderStyle) {
-        case 1: // GAS – shaped above; no extra transform
+        case 1: // SPARSE — no extra transform after 4th-root
             break;
-        case 2: // LIQUID – blurred, soft gamma curve
-            density = powf(density, 0.65f);
+        case 2: // LIQUID — log density; depth modulation applied in Pass 2
             if (gamma != 1.f) density = powf(density, gamma);
             break;
-        case 3: // PLASMA – cyclic colour bands
+        case 3: // PLASMA — cyclic colour bands
             density = fmodf(density * 4.0f, 1.0f);
             break;
-        case 4: // SOLID – binary threshold
+        case 4: // SOLID — binary threshold
             density = (density > 0.15f) ? 1.0f : 0.0f;
             break;
-        default: // STANDARD (0)
+        default: // STANDARD (0) — log + gamma
             if (gamma != 1.f) density = powf(density, gamma);
             break;
         }
-
         dens[i] = density;
     }
 
-    // Full-range: histogram-equalise populated densities so the whole palette is
-    // used (min..max stretch barely helps — density is skewed toward the dark end).
+    // ── Full-range equalisation ──────────────────────────────────────────────
     static constexpr int CDF_BINS = 1024;
     const bool equalize = (rp.fullRange != 0);
     std::vector<float> cdf;
@@ -414,7 +541,7 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     for (int i = 0; i < W * H; i++) {
         if (hist[i] == 0) {
             if (rp.transparentBg) {
-                outPixels[i] = 0; // fully transparent
+                outPixels[i] = 0;
             } else {
                 outPixels[i] = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
             }
@@ -427,11 +554,17 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
             density = cdf[b];
         }
 
-        // Depth shading: dim points farther along the camera axis.
+        // Depth shading.
         if (useDepth && wMax > wMin) {
             float dn = (meanW[i] - wMin) / (wMax - wMin);
             if (dn < 0.f) dn = 0.f; else if (dn > 1.f) dn = 1.f;
-            density *= 1.f - rp.depthCue * 0.5f * dn;
+            if (isLiquid) {
+                // Original Liquid: z-buffer depth gives strong near-bright / far-dim.
+                // Near (dn=0) unchanged; far (dn=1) dimmed to ~22% brightness.
+                density *= 1.f - 0.78f * dn;
+            } else if (rp.depthCue > 0.f) {
+                density *= 1.f - rp.depthCue * 0.5f * dn;
+            }
         }
 
         if (density < 0.f) density = 0.f;
@@ -495,8 +628,6 @@ std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
     vMin -= padV;  vMax += padV;
     float uRange = uMax - uMin;
     float vRange = vMax - vMin;
-    // Zoom scales the normalised output about the centre (bounds are zoom-free),
-    // so zoom > 1 spreads points past [-1, 1] and they draw off-canvas — magnified.
     float zoom = (rp.zoom > 0.f) ? rp.zoom : 1.f;
 
     std::vector<float> result;

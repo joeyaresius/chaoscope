@@ -275,11 +275,12 @@ val builtInPaletteStops: Map<PaletteType, List<ColorStop>> = mapOf(
 // ────────────────────────────────────────────────────────────────────────────
 
 enum class RenderStyle(val displayName: String, val description: String) {
-    STANDARD("Standard", "Balanced histogram render — a good default."),
-    GAS     ("Gas",      "Sparse low-density points — like cosmic dust or starfields."),
-    LIQUID  ("Liquid",   "Smooth flowing streams — soft, painterly washes."),
-    PLASMA  ("Plasma",   "High-energy glow with bright hot cores."),
-    SOLID   ("Solid",    "Densely filled regions — bold, poster-like."),
+    STANDARD("Gas",    "Log-histogram accumulation — the classic Chaoscope mode."),
+    GAS     ("Dust",   "4th-root sparse points — diffuse starfield or dust-cloud look."),
+    LIQUID  ("Liquid", "Gas with z-buffer depth — near points bright, far points dim."),
+    PLASMA  ("Plasma", "Cyclic colour bands — high-frequency striped patterns."),
+    SOLID   ("Solid",  "Hard threshold silhouette — bold, poster-like fills."),
+    LIGHT   ("Light",  "Per-point orbit speed × curvature — warm core, cool periphery, bright at bends."),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -320,6 +321,8 @@ enum class BgColor(val displayName: String, val argb: Int) {
     DARK_RED  ("Crimson",  0xFF1A0000.toInt()),
     DARK_PLUM ("Plum",     0xFF12001A.toInt()),
     WHITE     ("White",    0xFFFFFFFF.toInt()),
+    /** User-defined colour; actual ARGB lives in [UiState.customBgArgb]. */
+    CUSTOM    ("Custom",   0xFF000000.toInt()),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -472,6 +475,7 @@ data class UiState(
     val lastExportUri: String?       = null,
     val renderStyle: RenderStyle     = RenderStyle.STANDARD,
     val bgColor: BgColor             = BgColor.BLACK,
+    val customBgArgb: Int            = 0xFF1A0028.toInt(),
     val renderQuality: RenderQuality = RenderQuality.STANDARD,
     val previewDensity: PreviewDensity = PreviewDensity.MEDIUM,
     val transparentBg: Boolean       = false,
@@ -488,4 +492,8 @@ data class UiState(
     val videoExportTotal: Int        = 0,
     val videoExportError: String?    = null,
     val videoExportUri: String?      = null,
-)
+) {
+    /** Resolves the effective background ARGB — custom value when [bgColor] == CUSTOM. */
+    val effectiveBgArgb: Int get() =
+        if (bgColor == BgColor.CUSTOM) customBgArgb else bgColor.argb
+}

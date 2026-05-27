@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chaoscope</string>
+
+    <string name="export_saved">Enregistré dans Images/Chaoscope</string>
+    <string name="export_failed">Impossible d\'enregistrer : %1$s</string>
+    <string name="export_share">Partager</string>
+    <string name="share_render_chooser">Partager le rendu</string>
+
+    <string name="cd_about">À propos de Chaoscope</string>
+    <string name="cd_cancel_render">Annuler le rendu</string>
+    <string name="cd_skip_welcome">Passer l\'écran d\'accueil</string>
+    <string name="cd_close">Fermer</string>
+
+    <string name="cd_recent_open">Rendu récent — touchez pour ouvrir</string>
+    <string name="cd_recent_share">Partager ce rendu</string>
+
+    <string name="cd_live_preview">Aperçu en direct de l\'attracteur %1$s</string>
+
+    <string name="splash_tagline">Explorateur d\'Attracteurs Étranges</string>
+    <string name="splash_description">Visualisez l\'ordre caché dans le chaos.\nDes millions d\'itérations. Douze attracteurs.\nUne infinité de formes à découvrir.</string>
+    <string name="splash_tribute">✦  Un hommage au Chaoscope original\nde Nicolas Desprez (années 2000) — l\'application Windows\nqui a rendu les attracteurs étranges beaux pour la première fois.</string>
+    <string name="splash_btn_explore">Explorer les Attracteurs</string>
+    <string name="splash_btn_close">Fermer</string>
+    <string name="splash_btn_tutorial">🎓  Afficher le tutoriel</string>
+    <string name="splash_btn_coffee">Offrez-moi un café</string>
+    <string name="splash_btn_feedback">Suggérer ou Critiquer</string>
+    <string name="splash_footer">Open source · Licence Apache 2.0</string>
+    <string name="splash_feedback_subject">Chaoscope — Suggestion / Avis</string>
+
+    <string name="tab_shape">Forme</string>
+    <string name="tab_look">Aspect</string>
+    <string name="tab_camera">Caméra</string>
+    <string name="tab_export">Exporter</string>
+
+    <string name="section_attractor">Attracteur</string>
+    <string name="section_presets">Préréglages</string>
+    <string name="section_my_presets">Mes Préréglages</string>
+    <string name="section_parameters">Paramètres</string>
+    <string name="section_palette">Palette</string>
+    <string name="section_render_style">Style de Rendu</string>
+    <string name="section_background">Arrière-plan</string>
+    <string name="section_tone_mapping">Mappage de Tons</string>
+    <string name="section_camera">Caméra</string>
+    <string name="section_render_detail">Détail du Rendu</string>
+    <string name="section_preview_density">Densité de l\'Aperçu</string>
+    <string name="section_animation_export">Exporter Animation</string>
+    <string name="section_recent_renders">Rendus Récents</string>
+
+    <string name="btn_render">▶  Rendu</string>
+    <string name="btn_render_hd">HD</string>
+    <string name="btn_render_4k">4K</string>
+    <string name="btn_export_png">Exporter PNG</string>
+    <string name="btn_set_wallpaper">🖼  Définir comme Fond d\'écran</string>
+    <string name="btn_export_video">🎬  Exporter Vidéo</string>
+    <string name="btn_cancel_export">Annuler l\'export</string>
+    <string name="btn_randomize_params">🎲 Paramètres</string>
+    <string name="btn_randomize_all">🎲 Attracteur</string>
+    <string name="btn_save_preset">+ Enregistrer</string>
+    <string name="btn_apply">Appliquer</string>
+    <string name="btn_cancel">Annuler</string>
+    <string name="btn_save">Enregistrer</string>
+    <string name="btn_edit_colour">Modifier couleur</string>
+
+    <string name="toggle_full_range">Plage complète</string>
+    <string name="toggle_full_range_desc">Étire la densité pour afficher toutes les couleurs de la palette.</string>
+    <string name="toggle_transparent_bg">Fond transparent</string>
+    <string name="toggle_transparent_bg_desc">Exporter le PNG avec un fond transparent — parfait pour les stickers.</string>
+    <string name="toggle_pingpong">Boucle ping-pong</string>
+    <string name="label_frames">Images :</string>
+    <string name="label_name">Nom</string>
+    <string name="camera_3d_only">Les contrôles de caméra ne sont disponibles que pour les attracteurs 3D.\n\nPassez à un attracteur 3D dans l\'onglet Forme pour utiliser le lacet, le tangage, le roulis et la profondeur.</string>
+    <string name="save_preset_title">Enregistrer le préréglage</string>
+    <string name="save_preset_hint">Enregistrez l\'attracteur, les paramètres, la caméra et l\'aspect actuels comme préréglage réutilisable.</string>
+    <string name="gamma_hint">Le gamma aplatit (bas) ou amplifie (haut) les régions les plus lumineuses.</string>
+    <string name="depth_hint">Atténue les points éloignés de la caméra pour faire ressortir la forme 3D. 0%% est plat.</string>
+
+    <string name="slider_yaw">Lacet = %1$s°</string>
+    <string name="slider_pitch">Tangage = %1$s°</string>
+    <string name="slider_roll">Roulis = %1$s°</string>
+    <string name="slider_zoom">Zoom = %1$s</string>
+    <string name="slider_depth">Profondeur = %1$s%%</string>
+    <string name="slider_gamma">Gamma = %1$s</string>
+
+    <string name="cd_edit_palette">Modifier la palette personnalisée</string>
+    <string name="cd_edit_custom_bg">Modifier la couleur de fond personnalisée</string>
+    <string name="cd_delete_preset">Supprimer le préréglage %1$s</string>
+    <string name="cd_show_info">Afficher les infos de %1$s</string>
+    <string name="cd_show_hint">Afficher l\'astuce pour %1$s</string>
+    <string name="cd_type_value">Saisir la valeur pour %1$s</string>
+    <string name="image_attractor">Attracteur Étrange — %1$s</string>
+
+    <string name="anim_morph">Morphing</string>
+    <string name="anim_orbit_trace">Tracé d\'Orbite</string>
+    <string name="anim_sweep">Balayage</string>
+    <string name="anim_morph_pingpong_desc">Joue A→B→A pour une vidéo en boucle continue.</string>
+    <string name="anim_orbit_pingpong_desc">Trace l\'orbite puis l\'efface jusqu\'au début.</string>
+    <string name="anim_sweep_pingpong_desc">Morph vers la cible aléatoire puis retour — boucle continue.</string>
+    <string name="anim_set_frame_a">Définir Image A</string>
+    <string name="anim_set_frame_b">Définir Image B</string>
+    <string name="anim_frame_a_done">✓ Image A</string>
+    <string name="anim_frame_b_done">✓ Image B</string>
+    <string name="anim_morph_hint">Définissez l\'Image A et l\'Image B pour activer l\'export.</string>
+    <string name="anim_orbit_hint">Affiche l\'attracteur sous forme de points colorés croissants — chaque image révèle plus de l\'orbite. Aucune image-clé requise.</string>
+    <string name="anim_sweep_hint">Varie automatiquement tous les paramètres de l\'état actuel vers une cible aléatoire — un résultat unique à chaque export. Aucune image-clé requise.</string>
+    <string name="anim_exporting_frame">Export de l\'image %1$d / %2$d</string>
+
+    <string name="dialog_custom_bg">Fond personnalisé</string>
+    <string name="label_hue">Teinte : %1$s°</string>
+    <string name="label_saturation">Saturation : %1$s%%</string>
+    <string name="label_brightness">Luminosité : %1$s%%</string>
+    <string name="label_value_range">Valeur (%1$s … %2$s)</string>
+
+    <string name="msg_wallpaper_ok">Fond d\'écran défini !</string>
+    <string name="msg_wallpaper_failed">Échec du fond d\'écran : %1$s</string>
+    <string name="msg_retrying">Nouvel essai avec plus d\'itérations…</string>
+    <string name="msg_video_saved">Vidéo enregistrée !</string>
+    <string name="msg_video_failed">Échec de l\'export vidéo : %1$s</string>
+    <string name="share_video_chooser">Partager la vidéo</string>
+
+    <string name="my_presets_empty">Enregistrez l\'attracteur, les paramètres, la caméra et l\'aspect actuels comme préréglage réutilisable.</string>
+
+    <string name="notif_export_title">Export de la vidéo…</string>
+    <string name="notif_export_preparing">Préparation…</string>
+    <string name="notif_export_progress">Image %1$d / %2$d</string>
+    <string name="notif_export_cancel">Annuler</string>
+    <string name="notif_channel_name">Export Vidéo</string>
+    <string name="notif_channel_desc">Affiche la progression de l\'export d\'une animation en MP4.</string>
+</resources>

@@ -99,6 +99,7 @@ class ChaoscopePreferences(private val context: Context) {
                             ?: PreviewDensity.MEDIUM,
             customStops    = savedCustomStops,
             transparentBg  = prefs[KEY_TRANSPARENT_BG] ?: false,
+            customBgArgb   = prefs[KEY_CUSTOM_BG_ARGB] ?: 0xFF1A0028.toInt(),
         )
     }
 
@@ -118,6 +119,7 @@ class ChaoscopePreferences(private val context: Context) {
             prefs[KEY_RENDER_QUALITY]  = state.renderQuality.ordinal
             prefs[KEY_PREVIEW_DENSITY] = state.previewDensity.ordinal
             prefs[KEY_TRANSPARENT_BG]  = state.transparentBg
+            prefs[KEY_CUSTOM_BG_ARGB]  = state.customBgArgb
 
             // Clear any stale param entries from a previous attractor with more params.
             val maxParams = AttractorType.entries.maxOf { it.paramNames.size }
@@ -216,6 +218,7 @@ class ChaoscopePreferences(private val context: Context) {
         private val KEY_RENDER_QUALITY     = intPreferencesKey("render_quality")
         private val KEY_PREVIEW_DENSITY    = intPreferencesKey("preview_density")
         private val KEY_TRANSPARENT_BG     = booleanPreferencesKey("transparent_bg")
+        private val KEY_CUSTOM_BG_ARGB      = intPreferencesKey("custom_bg_argb")
         private val KEY_RENDER_EXPORT_COUNT = intPreferencesKey("render_export_count")
         private val KEY_REVIEW_TRIGGERED    = booleanPreferencesKey("review_triggered")
         private val KEY_RECENTS            = stringPreferencesKey("recent_exports")

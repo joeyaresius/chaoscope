@@ -251,6 +251,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         renderLookPreview()
     }
 
+    fun setCustomBgColor(argb: Int) {
+        _uiState.update { it.copy(bgColor = BgColor.CUSTOM, customBgArgb = argb) }
+        renderLookPreview()
+    }
+
     fun setRenderQuality(quality: RenderQuality) {
         _uiState.update { it.copy(renderQuality = quality) }
         renderLookPreview() // re-render preview at the new detail so the change shows
@@ -348,6 +353,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
         dotJob?.cancel()
         dotJob = viewModelScope.launch(Dispatchers.Default) {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             _dotPoints.value = computeDots(_uiState.value)
         }
         // No finishJob — dots stay visible until a render completes
@@ -551,6 +557,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         VideoExportService.start(getApplication())
 
         videoExportJob = viewModelScope.launch(Dispatchers.Default) {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             // Pre-compute the full orbit point cloud once for ORBIT_TRACE so that
             // every frame is a prefix of the same orbit (true cumulative trace).
             // maxPts scales with render quality so the final frame is noticeably dense.
@@ -699,7 +706,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
-        canvas.drawColor(s.bgColor.argb)
+        canvas.drawColor(s.effectiveBgArgb)
 
         val paint = Paint().apply {
             strokeWidth = 3f
@@ -830,7 +837,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             paletteIndex   = s.palette.ordinal,
             gamma          = s.gamma,
             renderStyle    = s.renderStyle.ordinal,
-            bgColor        = s.bgColor.argb,
+            bgColor        = s.effectiveBgArgb,
             boundsExtraPad = boundsExtraPad,
             depthCue       = if (s.attractorType.is3D) s.depthCue else 0f,
             fullRange      = if (s.fullRange) 1 else 0,
@@ -863,6 +870,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     ) {
         renderJob?.cancel()
         renderJob = viewModelScope.launch(Dispatchers.Default) {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             if (debounceMs > 0L) delay(debounceMs)
             _uiState.update { it.copy(isRendering = true, isRetrying = false) }
             try {

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chaoscope</string>
+
+    <!-- Export feedback -->
+    <string name="export_saved">Salvo em Imagens/Chaoscope</string>
+    <string name="export_failed">Não foi possível salvar: %1$s</string>
+    <string name="export_share">Compartilhar</string>
+    <string name="share_render_chooser">Compartilhar imagem</string>
+
+    <!-- Top-bar actions -->
+    <string name="cd_about">Sobre o Chaoscope</string>
+    <string name="cd_cancel_render">Cancelar renderização</string>
+    <string name="cd_skip_welcome">Pular tela de boas-vindas</string>
+    <string name="cd_close">Fechar</string>
+
+    <!-- Recents -->
+    <string name="cd_recent_open">Imagem recente — toque para abrir</string>
+    <string name="cd_recent_share">Compartilhar esta imagem</string>
+
+    <!-- Live preview -->
+    <string name="cd_live_preview">Pré-visualização do atrator %1$s</string>
+
+    <!-- Splash -->
+    <string name="splash_tagline">Explorador de Atratores Estranhos</string>
+    <string name="splash_description">Visualize a ordem oculta dentro do caos.\nMilhões de iterações. Doze atratores.\nFormas infinitas esperando para serem descobertas.</string>
+    <string name="splash_tribute">✦  Uma homenagem ao Chaoscope original\nde Nicolas Desprez (anos 2000) — o app do Windows\nque primeiro tornou os atratores estranhos belos.</string>
+    <string name="splash_btn_explore">Explorar Atratores</string>
+    <string name="splash_btn_close">Fechar</string>
+    <string name="splash_btn_tutorial">🎓  Mostrar tutorial</string>
+    <string name="splash_btn_coffee">Me pague um café</string>
+    <string name="splash_btn_feedback">Sugerir ou Criticar</string>
+    <string name="splash_footer">Código aberto · Licença Apache 2.0</string>
+    <string name="splash_feedback_subject">Chaoscope — Sugestão / Feedback</string>
+
+    <!-- Tabs -->
+    <string name="tab_shape">Forma</string>
+    <string name="tab_look">Aparência</string>
+    <string name="tab_camera">Câmera</string>
+    <string name="tab_export">Exportar</string>
+
+    <!-- Sections -->
+    <string name="section_attractor">Atrator</string>
+    <string name="section_presets">Predefinições</string>
+    <string name="section_my_presets">Minhas Predefinições</string>
+    <string name="section_parameters">Parâmetros</string>
+    <string name="section_palette">Paleta</string>
+    <string name="section_render_style">Estilo de Renderização</string>
+    <string name="section_background">Fundo</string>
+    <string name="section_tone_mapping">Mapeamento de Tons</string>
+    <string name="section_camera">Câmera</string>
+    <string name="section_render_detail">Detalhe da Renderização</string>
+    <string name="section_preview_density">Densidade da Pré-visualização</string>
+    <string name="section_animation_export">Exportar Animação</string>
+    <string name="section_recent_renders">Renderizações Recentes</string>
+
+    <!-- Buttons -->
+    <string name="btn_render">▶  Renderizar</string>
+    <string name="btn_render_hd">HD</string>
+    <string name="btn_render_4k">4K</string>
+    <string name="btn_export_png">Exportar PNG</string>
+    <string name="btn_set_wallpaper">🖼  Definir como Papel de Parede</string>
+    <string name="btn_export_video">🎬  Exportar Vídeo</string>
+    <string name="btn_cancel_export">Cancelar exportação</string>
+    <string name="btn_randomize_params">🎲 Parâmetros</string>
+    <string name="btn_randomize_all">🎲 Atrator</string>
+    <string name="btn_save_preset">+ Salvar atual</string>
+    <string name="btn_apply">Aplicar</string>
+    <string name="btn_cancel">Cancelar</string>
+    <string name="btn_save">Salvar</string>
+    <string name="btn_edit_colour">Editar cor</string>
+
+    <!-- Toggles & descriptions -->
+    <string name="toggle_full_range">Paleta completa</string>
+    <string name="toggle_full_range_desc">Estica a densidade para mostrar todas as cores da paleta.</string>
+    <string name="toggle_transparent_bg">Fundo transparente</string>
+    <string name="toggle_transparent_bg_desc">Exporta PNG com fundo transparente — ótimo para adesivos.</string>
+    <string name="toggle_pingpong">Loop ping-pong</string>
+    <string name="label_frames">Quadros:</string>
+    <string name="label_name">Nome</string>
+    <string name="camera_3d_only">Os controles de câmera só estão disponíveis para atratores 3D.\n\nMude para um atrator 3D na aba Forma para usar yaw, pitch, roll e profundidade.</string>
+    <string name="save_preset_title">Salvar predefinição</string>
+    <string name="save_preset_hint">Salve o atrator, parâmetros, câmera e aparência atuais como uma predefinição reutilizável.</string>
+    <string name="gamma_hint">Gama achata (menor) ou realça (maior) as regiões mais brilhantes.</string>
+    <string name="depth_hint">Escurece pontos mais distantes da câmera para realçar a forma 3D. 0%% é plano.</string>
+
+    <!-- Sliders -->
+    <string name="slider_yaw">Yaw = %1$s°</string>
+    <string name="slider_pitch">Pitch = %1$s°</string>
+    <string name="slider_roll">Roll = %1$s°</string>
+    <string name="slider_zoom">Zoom = %1$s</string>
+    <string name="slider_depth">Profundidade = %1$s%%</string>
+    <string name="slider_gamma">Gama = %1$s</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_edit_palette">Editar paleta personalizada</string>
+    <string name="cd_edit_custom_bg">Editar cor de fundo personalizada</string>
+    <string name="cd_delete_preset">Excluir predefinição %1$s</string>
+    <string name="cd_show_info">Mostrar informações sobre %1$s</string>
+    <string name="cd_show_hint">Mostrar dica para %1$s</string>
+    <string name="cd_type_value">Digitar valor para %1$s</string>
+    <string name="image_attractor">Atrator Estranho — %1$s</string>
+
+    <!-- Animation -->
+    <string name="anim_morph">Morph</string>
+    <string name="anim_orbit_trace">Traçado da Órbita</string>
+    <string name="anim_sweep">Varredura</string>
+    <string name="anim_morph_pingpong_desc">Reproduz A→B→A para um loop perfeito.</string>
+    <string name="anim_orbit_pingpong_desc">Traça a órbita e depois apaga de volta ao início.</string>
+    <string name="anim_sweep_pingpong_desc">Morfa até o alvo aleatório e volta — loop perfeito.</string>
+    <string name="anim_set_frame_a">Definir Quadro A</string>
+    <string name="anim_set_frame_b">Definir Quadro B</string>
+    <string name="anim_frame_a_done">✓ Quadro A</string>
+    <string name="anim_frame_b_done">✓ Quadro B</string>
+    <string name="anim_morph_hint">Defina o Quadro A e o Quadro B para habilitar a exportação.</string>
+    <string name="anim_orbit_hint">Renderiza o atrator como pontos coloridos crescentes — cada quadro revela mais do caminho da órbita. Sem quadros-chave.</string>
+    <string name="anim_sweep_hint">Varia automaticamente todos os parâmetros do estado atual até um alvo aleatório — um resultado diferente a cada exportação. Sem quadros-chave.</string>
+    <string name="anim_exporting_frame">Exportando quadro %1$d / %2$d</string>
+
+    <!-- Color dialog -->
+    <string name="dialog_custom_bg">Fundo personalizado</string>
+    <string name="label_hue">Matiz: %1$s°</string>
+    <string name="label_saturation">Saturação: %1$s%%</string>
+    <string name="label_brightness">Brilho: %1$s%%</string>
+    <string name="label_value_range">Valor (%1$s … %2$s)</string>
+
+    <!-- Snackbar -->
+    <string name="msg_wallpaper_ok">Papel de parede definido!</string>
+    <string name="msg_wallpaper_failed">Falha no papel de parede: %1$s</string>
+    <string name="msg_retrying">Tentando novamente com mais iterações…</string>
+    <string name="msg_video_saved">Vídeo salvo!</string>
+    <string name="msg_video_failed">Falha ao exportar vídeo: %1$s</string>
+    <string name="share_video_chooser">Compartilhar vídeo</string>
+
+    <string name="my_presets_empty">Salve o atrator, parâmetros, câmera e aparência atuais como uma predefinição reutilizável.</string>
+
+    <!-- Notification -->
+    <string name="notif_export_title">Exportando vídeo…</string>
+    <string name="notif_export_preparing">Preparando…</string>
+    <string name="notif_export_progress">Quadro %1$d / %2$d</string>
+    <string name="notif_export_cancel">Cancelar</string>
+    <string name="notif_channel_name">Exportação de Vídeo</string>
+    <string name="notif_channel_desc">Mostra o progresso ao exportar uma animação para MP4.</string>
+</resources>
