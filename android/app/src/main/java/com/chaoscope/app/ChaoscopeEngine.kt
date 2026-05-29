@@ -61,4 +61,29 @@ object ChaoscopeEngine {
         roll: Float,
         zoom: Float,
     ): FloatArray
+
+    /**
+     * Like [nativeGetPoints] but returns interleaved [u0,v0,d0, u1,v1,d1, ...]
+     * triples, where each `d` is camera-axis depth in [0, 1]. Lets the caller
+     * colour the dot preview through a palette LUT.
+     */
+    external fun nativeGetPointsDepth(
+        attractorType: Int,
+        params: FloatArray,
+        nPts: Int,
+        yaw: Float,
+        pitch: Float,
+        roll: Float,
+        zoom: Float,
+    ): FloatArray
+
+    /**
+     * Sample [size] ARGB_8888 colours evenly across a palette (or [customStops]
+     * when [paletteIndex] is the CUSTOM ordinal). Used to colour the dot preview.
+     */
+    external fun nativePaletteLut(
+        paletteIndex: Int,
+        size: Int,
+        customStops: FloatArray? = null,
+    ): IntArray
 }

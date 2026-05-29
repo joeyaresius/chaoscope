@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Cameraswitch
 import androidx.compose.material.icons.outlined.Close
@@ -49,8 +50,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -68,6 +71,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -81,6 +85,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaoscope.*
 import com.chaoscope.R
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
@@ -102,6 +107,7 @@ fun AttractorScreen(
 ) {
     val state            by vm.uiState.collectAsStateWithLifecycle()
     val dotPoints        by vm.dotPoints.collectAsStateWithLifecycle()
+    val paletteLut       by vm.paletteLut.collectAsStateWithLifecycle()
     val recentExports    by vm.recentExports.collectAsStateWithLifecycle()
     val showTutorial     by vm.showTutorial.collectAsStateWithLifecycle()
     val tutorialStep     by vm.tutorialStep.collectAsStateWithLifecycle()
@@ -144,6 +150,13 @@ fun AttractorScreen(
     var showSavePresetDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope             = rememberCoroutineScope()
+    val clipboard         = LocalClipboardManager.current
+
+    // Auto-generated caption for the current attractor — rides along on shares
+    // and the copy-to-clipboard action.
+    val shareCaption    = buildShareCaption(state.attractorType, state.palette, state.params)
+    val captionCopedMsg = stringResource(R.string.msg_caption_copied)
 
     val savedMsg        = stringResource(R.string.export_saved)
     val shareLabel      = stringResource(R.string.export_share)
@@ -179,6 +192,7 @@ fun AttractorScreen(
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "image/png"
                         putExtra(Intent.EXTRA_STREAM, Uri.parse(uri))
+                        putExtra(Intent.EXTRA_TEXT, shareCaption)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     context.startActivity(Intent.createChooser(intent, shareChooser))
@@ -321,6 +335,7 @@ fun AttractorScreen(
                 val livePreviewCd = stringResource(
                     R.string.cd_live_preview, state.attractorType.displayName
                 )
+                val lut = paletteLut
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
@@ -328,22 +343,33 @@ fun AttractorScreen(
                 ) {
                     val halfW = size.width  / 2f
                     val halfH = size.height / 2f
-                    val offsets = ArrayList<Offset>(pts.size / 2)
-                    var i = 0
-                    while (i < pts.size - 1) {
-                        offsets.add(Offset(
-                            halfW + pts[i]     * halfW,
-                            halfH + pts[i + 1] * halfH,
-                        ))
-                        i += 2
+                    val stroke = 1.0.dp.toPx()
+                    if (lut.isEmpty()) {
+                        // Fallback: single accent colour before the LUT is ready.
+                        val offsets = ArrayList<Offset>(pts.size / 3)
+                        var i = 0
+                        while (i < pts.size - 2) {
+                            offsets.add(Offset(halfW + pts[i] * halfW, halfH + pts[i + 1] * halfH))
+                            i += 3
+                        }
+                        drawPoints(offsets, PointMode.Points, Color(0xFF4FC3F7), stroke, cap = StrokeCap.Round)
+                    } else {
+                        // Bucket dots by their depth-mapped palette colour, then one
+                        // drawPoints call per colour bucket.
+                        val buckets = Array(lut.size) { ArrayList<Offset>() }
+                        val lastIdx = lut.size - 1
+                        var i = 0
+                        while (i < pts.size - 2) {
+                            val off = Offset(halfW + pts[i] * halfW, halfH + pts[i + 1] * halfH)
+                            val d   = pts[i + 2].coerceIn(0f, 1f)
+                            buckets[(d * lastIdx).toInt()].add(off)
+                            i += 3
+                        }
+                        for (b in lut.indices) {
+                            if (buckets[b].isEmpty()) continue
+                            drawPoints(buckets[b], PointMode.Points, Color(lut[b]), stroke, cap = StrokeCap.Round)
+                        }
                     }
-                    drawPoints(
-                        points      = offsets,
-                        pointMode   = PointMode.Points,
-                        color       = Color(0xFF4FC3F7),
-                        strokeWidth = 1.0.dp.toPx(),
-                        cap         = StrokeCap.Round,
-                    )
                 }
             } else if (state.bitmap != null) {
                 Image(
@@ -463,10 +489,20 @@ fun AttractorScreen(
                                     Intent(Intent.ACTION_SEND).apply {
                                         type = "image/png"
                                         putExtra(Intent.EXTRA_STREAM, Uri.parse(uriString))
+                                        putExtra(Intent.EXTRA_TEXT, shareCaption)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     },
                                     shareChooser,
                                 )
+                            )
+                        }
+                    },
+                    onCopyCaption      = {
+                        clipboard.setText(AnnotatedString(shareCaption))
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message  = captionCopedMsg,
+                                duration = SnackbarDuration.Short,
                             )
                         }
                     },
@@ -615,6 +651,7 @@ private fun ControlPanel(
     onCustomBgColor:    (Int)           -> Unit,
     onOpenRecent:       (String)        -> Unit,
     onShareRecent:      (String)        -> Unit,
+    onCopyCaption:      ()              -> Unit,
     onEditPalette:      ()              -> Unit,
     onTutorialAnchor:   (TutorialTarget, Rect) -> Unit,
     isRendering:        Boolean,
@@ -641,17 +678,40 @@ private fun ControlPanel(
             .fillMaxWidth()
             .height(panelContentHeight),
     ) {
-        // ── Tab row ──────────────────────────────────────────────────────────
-        TabRow(selectedTabIndex = selectedTab) {
-            tabTitles.forEachIndexed { i, title ->
-                Tab(
-                    selected = selectedTab == i,
-                    onClick  = { selectedTab = i },
-                    text     = { Text(title, style = MaterialTheme.typography.labelSmall) },
-                    icon     = {
-                        Icon(tabIcons[i], contentDescription = title, modifier = Modifier.size(18.dp))
-                    },
-                )
+        // ── Tab row with a central play/render button ────────────────────────
+        Box(modifier = Modifier.fillMaxWidth()) {
+            TabRow(selectedTabIndex = selectedTab) {
+                tabTitles.forEachIndexed { i, title ->
+                    Tab(
+                        selected = selectedTab == i,
+                        onClick  = { selectedTab = i },
+                        text     = { Text(title, style = MaterialTheme.typography.labelSmall) },
+                        icon     = {
+                            Icon(tabIcons[i], contentDescription = title, modifier = Modifier.size(18.dp))
+                        },
+                    )
+                }
+            }
+            FloatingActionButton(
+                onClick        = onRender,
+                modifier       = Modifier
+                    .align(Alignment.Center)
+                    .size(48.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor   = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                if (isRendering) {
+                    CircularProgressIndicator(
+                        modifier    = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color       = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Icon(
+                        imageVector        = Icons.Filled.PlayArrow,
+                        contentDescription = stringResource(R.string.btn_render),
+                    )
+                }
             }
         }
 
@@ -701,14 +761,11 @@ private fun ControlPanel(
                         val presets = state.attractorType.presets
                         if (presets.isNotEmpty()) {
                             SectionLabel(stringResource(R.string.section_presets))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(presets) { preset ->
-                                    AssistChip(
+                                    PresetThumb(
+                                        preset  = preset,
                                         onClick = { onApplyPreset(preset) },
-                                        label   = {
-                                            Text(preset.name,
-                                                 style = MaterialTheme.typography.labelSmall)
-                                        },
                                     )
                                 }
                             }
@@ -1001,16 +1058,12 @@ private fun ControlPanel(
 
                     // ── EXPORT ────────────────────────────────────────────────
                     3 -> {
-                        // Render buttons
+                        // Export-resolution renders. The quick preview render lives
+                        // on the central play button in the tab bar.
                         Row(
                             modifier              = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Button(
-                                onClick  = onRender,
-                                enabled  = !isRendering,
-                                modifier = Modifier.weight(1f),
-                            ) { Text(stringResource(R.string.btn_render)) }
                             Button(
                                 onClick  = onRenderHD,
                                 enabled  = !isRendering,
@@ -1054,6 +1107,10 @@ private fun ControlPanel(
                             enabled  = state.bitmap != null && !isRendering,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.btn_set_wallpaper)) }
+                        OutlinedButton(
+                            onClick  = onCopyCaption,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.btn_copy_caption)) }
 
                         // Recent renders
                         if (recentExports.isNotEmpty()) {
@@ -1137,6 +1194,55 @@ private fun SectionLabel(text: String) {
         color    = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
     )
+}
+
+/**
+ * A tappable preset card: a rendered thumbnail with the preset name underneath.
+ * The thumbnail is rendered + cached lazily by [PresetThumbnails]; a spinner
+ * shows until it is ready.
+ */
+@Composable
+private fun PresetThumb(preset: Preset, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val thumb by produceState<android.graphics.Bitmap?>(initialValue = null, preset) {
+        value = PresetThumbnails.get(context, preset)
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier            = Modifier
+            .width(64.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier         = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            val bmp = thumb
+            if (bmp != null) {
+                Image(
+                    bitmap             = bmp.asImageBitmap(),
+                    contentDescription = preset.name,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.fillMaxSize(),
+                )
+            } else {
+                CircularProgressIndicator(
+                    modifier    = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
+        }
+        Text(
+            text     = preset.name,
+            style    = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
 }
 
 /** A SectionLabel with an info-icon toggle and optional extra action slot. */

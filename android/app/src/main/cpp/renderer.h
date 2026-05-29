@@ -56,3 +56,18 @@ bool renderAttractor(const RenderParams& rp, int* outPixels);
  * Intended for real-time rotation feedback (~50 K points, < 5 ms on ARM).
  */
 std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts = 50000);
+
+/**
+ * As getProjectedPoints, but returns (u, v, depth) triples. `depth` is the
+ * camera-axis distance normalised to [0, 1] across the cloud (0 = far, 1 = near),
+ * so the caller can colour each dot through a palette LUT for a live preview.
+ */
+std::vector<float> getProjectedPointsDepth(const RenderParams& rp, int n_pts = 50000);
+
+/**
+ * Fill `out` with `size` ARGB_8888 colours sampled evenly across the given
+ * palette (or the custom stops when palIdx is the CUSTOM index). Used to colour
+ * the dot-preview cloud without running a full render.
+ */
+void getPaletteLutARGB(int palIdx, int* out, int size,
+                       const float* customStops = nullptr, int numCustomStops = 0);

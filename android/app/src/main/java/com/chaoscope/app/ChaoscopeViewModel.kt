@@ -58,6 +58,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private val _dotPoints  = MutableStateFlow<FloatArray?>(null)
     val dotPoints: StateFlow<FloatArray?> = _dotPoints.asStateFlow()
 
+    // Palette colours for the dot preview, sampled across the active palette.
+    // Rebuilt on palette / custom-stop changes; lets colour edits recolour the
+    // live dots instead of triggering a full histogram render.
+    private val _paletteLut = MutableStateFlow(IntArray(0))
+    val paletteLut: StateFlow<IntArray> = _paletteLut.asStateFlow()
+
     private val _isDragging = MutableStateFlow(false)
     val isDragging: StateFlow<Boolean> = _isDragging.asStateFlow()
 
@@ -100,6 +106,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             prefs.loadLastState()?.let { saved ->
                 _uiState.update { saved }
             }
+            rebuildPaletteLut()
             fetchDotPoints()
         }
 
@@ -206,7 +213,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setPalette(palette: PaletteType) {
         _uiState.update { it.copy(palette = palette) }
-        renderLookPreview()
+        // Colour change only — recolour the live dots, don't run a full render.
+        rebuildPaletteLut()
+        fetchDotPoints()
     }
 
     fun setCamera(
@@ -321,7 +330,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     fun saveCustomStops(stops: List<ColorStop>) {
         _uiState.update { it.copy(palette = PaletteType.CUSTOM, customStops = stops) }
         viewModelScope.launch { prefs.saveCustomStops(stops) }
-        renderLookPreview()
+        // Colour change only — recolour the live dots, don't run a full render.
+        rebuildPaletteLut()
+        fetchDotPoints()
     }
 
     // ── Real-time rotation (drag gesture) ────────────────────────────────────────
@@ -359,9 +370,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         // No finishJob — dots stay visible until a render completes
     }
 
-    /** Compute the projected dot cloud for a state snapshot (shared by preview + auto-rotate). */
+    /** Compute the projected dot cloud (u,v,depth triples) for a state snapshot. */
     private fun computeDots(s: UiState): FloatArray =
-        ChaoscopeEngine.nativeGetPoints(
+        ChaoscopeEngine.nativeGetPointsDepth(
             attractorType = s.attractorType.ordinal,
             params        = s.params.toFloatArray(),
             nPts          = s.previewDensity.dots,
@@ -370,6 +381,29 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             roll          = s.roll,
             zoom          = s.zoom,
         )
+
+    /** Flatten custom palette stops to [pos,r,g,b, ...] for native; null for built-ins. */
+    private fun customStopsArray(s: UiState): FloatArray? =
+        if (s.palette == PaletteType.CUSTOM) {
+            FloatArray(s.customStops.size * 4).also { arr ->
+                s.customStops.forEachIndexed { i, stop ->
+                    arr[i * 4 + 0] = stop.pos
+                    arr[i * 4 + 1] = stop.r
+                    arr[i * 4 + 2] = stop.g
+                    arr[i * 4 + 3] = stop.b
+                }
+            }
+        } else null
+
+    /** Resample the dot-preview palette LUT for the current palette/custom stops. */
+    private fun rebuildPaletteLut() {
+        val s = _uiState.value
+        _paletteLut.value = ChaoscopeEngine.nativePaletteLut(
+            paletteIndex = s.palette.ordinal,
+            size         = DOT_LUT_SIZE,
+            customStops  = customStopsArray(s),
+        )
+    }
 
     /** Called when the finger lifts – just clears dot state, no render. */
     fun finishRotation() {
@@ -814,16 +848,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun nativeRenderCall(s: UiState, iterations: Long, size: Int,
                                   boundsExtraPad: Float = 0f): IntArray? {
-        val customStops = if (s.palette == PaletteType.CUSTOM) {
-            FloatArray(s.customStops.size * 4).also { arr ->
-                s.customStops.forEachIndexed { i, stop ->
-                    arr[i * 4 + 0] = stop.pos
-                    arr[i * 4 + 1] = stop.r
-                    arr[i * 4 + 2] = stop.g
-                    arr[i * 4 + 3] = stop.b
-                }
-            }
-        } else null
+        val customStops = customStopsArray(s)
         return ChaoscopeEngine.nativeRender(
             attractorType  = s.attractorType.ordinal,
             params         = s.params.toFloatArray(),
@@ -914,6 +939,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         const val PREVIEW_SIZE       = 768
         const val HD_SIZE            = 2048
         const val HD_SIZE_4K         = 3840
+
+        // Number of colour samples in the dot-preview palette LUT.
+        private const val DOT_LUT_SIZE = 64
 
         const val TUTORIAL_STEPS          = 5 // Canvas, AttractorRow, ParamSlider, RenderHD, Palette
         private const val REVIEW_TRIGGER_COUNT = 20

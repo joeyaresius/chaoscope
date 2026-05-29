@@ -249,27 +249,62 @@ E2 ✅ DONE (4K, transparent PNG, set-as-wallpaper). E3 deferred — see below.
 
 Consistent-pipeline improvements that benefit all users immediately.
 
-### F1. More attractors
-Add 4–6 new strange attractors using the same C++ histogram pipeline.
-Candidates (all have canonical 3D forms):
-- **Dadras** — 5 params, produces a smooth torus-knot surface
-- **Halvorsen** — 1 param (cyclic symmetry like Thomas but more dramatic)
-- **Burke-Shaw** — 2 params, produces tangled ribbons
-- **Chen-Lee** — 3 params, wing-like chaos
-- **Sprott B/C** — minimal 1–2 param systems, great for beginners
-Each needs: C++ iterate function, Kotlin enum entry + paramRanges/hints, 3 curated presets.
+### F1. More attractors — ✅ DONE
+Added 4 new 3-D attractors on the existing C++ histogram pipeline (12 → 16 total),
+each with 3 curated presets (36 → 48). Ordinals 12–15 are appended after Pickover so
+existing saved-preset palette/attractor ordinals stay stable. Equations were validated
+in the Python host port (`prototype/`) before porting to confirm convergence and tune
+defaults/cameras.
+- **Halvorsen** (ord 12) — cyclically symmetric; interlocking torus-knot loops. `a, dt`
+- **Burke-Shaw** (ord 13) — fast galaxy-like double-spiral. `s, v, dt`
+- **Chen-Lee** (ord 14) — wing-like double-lobe butterfly. `a, b, c, dt` (small dt — diverges easily)
+- **Sprott-B** (ord 15) — minimal two-term system; broad swirling disc. `a, b, dt`
+Dadras was dropped — it already ships as "Chaotic Flow". Nosé-Hoover was evaluated but
+dropped (too diffuse vs. the others).
+**Files:** `attractors.h`, `attractors.cpp`, `AttractorDefs.kt` (enum + `CURATED_PRESETS`).
 
-### F2. Preset thumbnail previews
-Pre-render small PNG thumbnails for each curated preset and bundle in `assets/`.
-Show as a 64×64 image on each preset chip. Dramatically improves discoverability.
-Alternative: generate on first run and cache to disk (no bundle size cost).
+### F2. Preset thumbnail previews — ✅ DONE
+Curated presets now show a 64dp rendered thumbnail (image + name) instead of a text
+chip. Implemented via the "generate + cache" route (no bundle size cost): `PresetThumbnails`
+renders each preset once at 128px through the existing native engine, holds an in-memory
+`LruCache`, and persists PNGs under `cacheDir/preset_thumbs/`. Only the selected attractor's
+presets are requested at a time, so cost is one-time and negligible.
+**Files:** `PresetThumbnails.kt` (new), `ui/AttractorScreen.kt` (`PresetThumb` composable).
 
 ### F3. Palette additions
 - **Spectrum** palette — full hue wheel (rainbow). 30-min addition to the LUT table.
 - **Sunset**, **Ice**, **Neon** — 3 more tasteful presets to round out the palette row.
 
-### F4. Social / sharing polish
-- Auto-generate a caption "Lorenz attractor · Nebula palette · σ=10 ρ=28" in the share intent.
-- "Copy to clipboard" action alongside Share in the export Snackbar.
+### F4. Social / sharing polish — ✅ DONE
+- Auto-generated caption ("Lorenz attractor · Nebula palette · σ=10 ρ=28 … — made with
+  Chaoscope") via `buildShareCaption` in `AttractorDefs.kt`; attached as `EXTRA_TEXT` on
+  every PNG share intent (export Snackbar + recent-render chips).
+- "Copy Caption" button in the Export tab copies the caption to the clipboard
+  (`LocalClipboardManager`) with a confirmation Snackbar.
+- Covered by unit tests in `AttractorDefsTest`.
 
 **Suggested order:** F3 (palette additions, 30 min) → F1 (attractors, ~2 days) → F2 (thumbnails, 1 day) → F4 (sharing, 1 hr).
+
+---
+
+## Track G — Interaction polish (user feedback)
+
+### G1. Central play/render button — ✅ DONE
+A circular play FAB docked in the centre of the control tab bar runs the quick preview
+render (`onRender` → `renderPreview`); it shows a spinner while rendering. The plain
+"Render" button was removed from the Export tab, which now keeps only the HD / 4K
+export-resolution renders. **Files:** `ui/AttractorScreen.kt`.
+
+### G2. Live palette recolour without re-render — ✅ DONE
+Changing the palette (or editing custom stops) no longer triggers a full histogram
+render — it recolours the live dot preview instead. The dot cloud is now coloured by
+camera-axis depth through a palette LUT:
+- `getProjectedPointsDepth` (native) returns `(u,v,depth)` triples; `getPaletteLutARGB`
+  exposes the palette as ARGB samples. Both reach Kotlin via new JNI methods
+  (`nativeGetPointsDepth`, `nativePaletteLut`).
+- The ViewModel keeps a `paletteLut` StateFlow, rebuilt on palette/custom-stop changes;
+  `setPalette`/`saveCustomStops` now call `fetchDotPoints()` instead of `renderLookPreview()`.
+- The preview Canvas buckets dots by depth-mapped LUT colour. Flat-depth attractors
+  (2-D, or head-on views) fall back to the palette midpoint so dots stay visible.
+**Files:** `renderer.cpp/.h`, `chaoscope_jni.cpp`, `ChaoscopeEngine.kt`,
+`ChaoscopeViewModel.kt`, `ui/AttractorScreen.kt`.

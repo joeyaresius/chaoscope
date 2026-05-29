@@ -647,3 +647,84 @@ std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
     }
     return result;
 }
+
+std::vector<float> getProjectedPointsDepth(const RenderParams& rp, int n_pts) {
+    static constexpr int BATCH_DOT  = 4096;
+    static constexpr int WARMUP_DOT = 100;
+    static constexpr int BOUNDS_DOT = 2;
+
+    float R[9];
+    buildRotationMatrix(rp.yaw, rp.pitch, rp.roll, R);
+
+    std::vector<float> xs(BATCH_DOT), ys(BATCH_DOT), zs(BATCH_DOT);
+    std::vector<float> us(BATCH_DOT), vs(BATCH_DOT), ws(BATCH_DOT);
+
+    uint32_t seed = 0xCAFEBABEu;
+    auto lcg = [&]() -> float {
+        seed = seed * 1664525u + 1013904223u;
+        return ((float)(seed >> 8) / (float)(1u << 24)) - 0.5f;
+    };
+    for (int i = 0; i < BATCH_DOT; i++) {
+        xs[i] = lcg() * 0.1f;
+        ys[i] = lcg() * 0.1f;
+        zs[i] = lcg() * 0.1f;
+    }
+
+    for (int w = 0; w < WARMUP_DOT; w++)
+        attractorIterateN(rp.attractorType, rp.params,
+                          xs.data(), ys.data(), zs.data(), BATCH_DOT);
+
+    float uMin = FLT_MAX, uMax = -FLT_MAX;
+    float vMin = FLT_MAX, vMax = -FLT_MAX;
+    float wMin = FLT_MAX, wMax = -FLT_MAX;
+    for (int s = 0; s < BOUNDS_DOT; s++) {
+        attractorIterateN(rp.attractorType, rp.params,
+                          xs.data(), ys.data(), zs.data(), BATCH_DOT);
+        projectBatchDepth(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_DOT,
+                          us.data(), vs.data(), ws.data());
+        for (int i = 0; i < BATCH_DOT; i++) {
+            if (us[i] < uMin) uMin = us[i];  if (us[i] > uMax) uMax = us[i];
+            if (vs[i] < vMin) vMin = vs[i];  if (vs[i] > vMax) vMax = vs[i];
+            if (ws[i] < wMin) wMin = ws[i];  if (ws[i] > wMax) wMax = ws[i];
+        }
+    }
+    float padU = (uMax - uMin) * 0.05f + 1e-6f;
+    float padV = (vMax - vMin) * 0.05f + 1e-6f;
+    uMin -= padU;  uMax += padU;
+    vMin -= padV;  vMax += padV;
+    float uRange = uMax - uMin;
+    float vRange = vMax - vMin;
+    // Flat depth (2-D attractors, or a perfectly head-on view) has no usable
+    // gradient — colour every dot at the palette midpoint so they stay visible.
+    bool  flatDepth = (wMax - wMin) <= 1e-4f;
+    float wRange    = flatDepth ? 1.f : (wMax - wMin);
+    float zoom = (rp.zoom > 0.f) ? rp.zoom : 1.f;
+
+    std::vector<float> result;
+    result.reserve(n_pts * 3);
+    long long acc = 0;
+    while (acc < n_pts) {
+        int bn = (int)std::min((long long)BATCH_DOT, (long long)n_pts - acc);
+        attractorIterateN(rp.attractorType, rp.params,
+                          xs.data(), ys.data(), zs.data(), bn);
+        projectBatchDepth(R, 1.0f, xs.data(), ys.data(), zs.data(), bn,
+                          us.data(), vs.data(), ws.data());
+        for (int i = 0; i < bn; i++) {
+            result.push_back(((us[i] - uMin) / uRange * 2.f - 1.f) * zoom);
+            result.push_back(((vs[i] - vMin) / vRange * 2.f - 1.f) * zoom);
+            result.push_back(flatDepth ? 0.5f : (ws[i] - wMin) / wRange);  // depth in [0,1]
+        }
+        acc += bn;
+    }
+    return result;
+}
+
+void getPaletteLutARGB(int palIdx, int* out, int size,
+                       const float* customStops, int numCustomStops) {
+    if (size <= 0) return;
+    std::vector<RGB> lut(static_cast<size_t>(size));
+    buildLUT(palIdx, lut.data(), size, customStops, numCustomStops);
+    for (int i = 0; i < size; i++) {
+        out[i] = (0xFF << 24) | (lut[i].r << 16) | (lut[i].g << 8) | lut[i].b;
+    }
+}

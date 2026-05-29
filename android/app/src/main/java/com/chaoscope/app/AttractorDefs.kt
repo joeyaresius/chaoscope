@@ -186,6 +186,58 @@ enum class AttractorType(
             "Final twist — sets the overall handedness.",
         ),
     ),
+    HALVORSEN(
+        displayName   = "Halvorsen",
+        is3D          = true,
+        defaultParams = floatArrayOf(1.89f, 0.005f),
+        paramNames    = listOf("a", "dt"),
+        paramRanges   = listOf(1.0f..2.5f, 0.002f..0.01f),
+        description   = "Cyclically symmetric — the same equation cycled through x, y and z. Folds into interlocking torus-knot loops, like a 3-D pretzel.",
+        paramHints    = listOf(
+            "Damping — lower values loosen the loops; near 1.4 the orbit barely stays bound.",
+            "dt — simulation step. Smaller = smoother, slower convergence.",
+        ),
+    ),
+    BURKE_SHAW(
+        displayName   = "Burke-Shaw",
+        is3D          = true,
+        defaultParams = floatArrayOf(10f, 4.272f, 0.005f),
+        paramNames    = listOf("s", "v", "dt"),
+        paramRanges   = listOf(5f..15f, 1f..8f, 0.002f..0.01f),
+        description   = "A fast double-spiral that winds into a tight tornado of nested shells — dense, galaxy-like swirls.",
+        paramHints    = listOf(
+            "Coupling strength — drives the swirl rate. Higher winds the spiral tighter.",
+            "Vertical forcing — lifts and stretches the funnel along its axis.",
+            "dt — simulation step.",
+        ),
+    ),
+    CHEN_LEE(
+        displayName   = "Chen-Lee",
+        is3D          = true,
+        defaultParams = floatArrayOf(5f, -10f, -0.38f, 0.001f),
+        paramNames    = listOf("a", "b", "c", "dt"),
+        paramRanges   = listOf(1f..8f, -15f..-5f, -3f..0f, 0.0005f..0.003f),
+        description   = "A wing-like system from rigid-body rotation. Two broad lobes ringed by orbiting filaments — a cosmic butterfly.",
+        paramHints    = listOf(
+            "X expansion — sets how far the wings spread.",
+            "Y contraction — pulls the orbit back inward. More negative = tighter core.",
+            "Z damping — controls the vertical depth of the lobes.",
+            "dt — simulation step. Keep small; this system diverges easily.",
+        ),
+    ),
+    SPROTT_B(
+        displayName   = "Sprott-B",
+        is3D          = true,
+        defaultParams = floatArrayOf(1f, 1f, 0.02f),
+        paramNames    = listOf("a", "b", "dt"),
+        paramRanges   = listOf(0.5f..2f, 0.5f..2f, 0.005f..0.04f),
+        description   = "One of Sprott's minimal chaotic systems — just two terms, yet it traces a broad swirling disc. Elegant and beginner-friendly.",
+        paramHints    = listOf(
+            "Coupling — scales the y·z drive that feeds the swirl.",
+            "Feedback — scales the x·y term that closes the loop. Reshapes the disc.",
+            "dt — simulation step.",
+        ),
+    ),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -429,6 +481,26 @@ val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
         Preset("Conch", AttractorType.PICKOVER, listOf(2.1f, 0.5f, -0.7f, -2.3f), yaw = 40f, pitch = 15f, palette = PaletteType.FIRE),
         Preset("Veil",  AttractorType.PICKOVER, listOf(2.3f, 0.35f, -0.6f, -2.5f), yaw = 15f, pitch = 35f, palette = PaletteType.AURORA),
     ),
+    AttractorType.HALVORSEN to listOf(
+        Preset("Pretzel", AttractorType.HALVORSEN, listOf(1.89f, 0.005f), yaw = 30f, pitch = 20f, palette = PaletteType.AURORA),
+        Preset("Knot",    AttractorType.HALVORSEN, listOf(1.89f, 0.005f), yaw = 60f, pitch = 10f, palette = PaletteType.NEBULA, renderStyle = RenderStyle.GAS),
+        Preset("Coil",    AttractorType.HALVORSEN, listOf(1.89f, 0.005f), yaw = 90f, pitch = 5f,  palette = PaletteType.FIRE,   renderStyle = RenderStyle.PLASMA),
+    ),
+    AttractorType.BURKE_SHAW to listOf(
+        Preset("Galaxy",    AttractorType.BURKE_SHAW, listOf(10f, 4.272f, 0.005f), yaw = 25f, pitch = 25f, palette = PaletteType.ELECTRIC),
+        Preset("Tornado",   AttractorType.BURKE_SHAW, listOf(10f, 4.272f, 0.005f), yaw = 90f, pitch = 0f,  palette = PaletteType.FIRE,   renderStyle = RenderStyle.LIQUID),
+        Preset("Whirlpool", AttractorType.BURKE_SHAW, listOf(10f, 4.272f, 0.005f), yaw = 10f, pitch = 35f, palette = PaletteType.AURORA, renderStyle = RenderStyle.GAS),
+    ),
+    AttractorType.CHEN_LEE to listOf(
+        Preset("Butterfly", AttractorType.CHEN_LEE, listOf(5f, -10f, -0.38f, 0.001f), yaw = 45f, pitch = 35f, palette = PaletteType.FIRE),
+        Preset("Wings",     AttractorType.CHEN_LEE, listOf(5f, -10f, -0.38f, 0.001f), yaw = 30f, pitch = 20f, palette = PaletteType.NEBULA),
+        Preset("Rings",     AttractorType.CHEN_LEE, listOf(5f, -10f, -0.38f, 0.001f), yaw = 20f, pitch = 60f, palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.GAS),
+    ),
+    AttractorType.SPROTT_B to listOf(
+        Preset("Disc",   AttractorType.SPROTT_B, listOf(1f, 1f, 0.02f), yaw = 30f, pitch = 20f, palette = PaletteType.NEBULA),
+        Preset("Halo",   AttractorType.SPROTT_B, listOf(1f, 1f, 0.02f), yaw = 0f,  pitch = 60f, palette = PaletteType.AURORA),
+        Preset("Vortex", AttractorType.SPROTT_B, listOf(1f, 1f, 0.02f), yaw = 60f, pitch = 10f, palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
+    ),
 )
 
 /** Curated presets for this attractor (empty if none defined). */
@@ -496,4 +568,38 @@ data class UiState(
     /** Resolves the effective background ARGB — custom value when [bgColor] == CUSTOM. */
     val effectiveBgArgb: Int get() =
         if (bgColor == BgColor.CUSTOM) customBgArgb else bgColor.argb
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Sharing
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Format a parameter value compactly: trim trailing zeros, locale-independent. */
+private fun formatParamValue(v: Float): String =
+    String.format(java.util.Locale.US, "%.3f", v).trimEnd('0').trimEnd('.')
+
+/**
+ * Human-readable caption for sharing / clipboard, e.g.
+ * "Lorenz attractor · Nebula palette · σ=10 ρ=28 β=2.667 — made with Chaoscope".
+ */
+fun buildShareCaption(
+    type: AttractorType,
+    palette: PaletteType,
+    params: List<Float>,
+): String {
+    val paramStr = type.paramNames
+        .zip(params)
+        .joinToString(" ") { (name, v) -> "$name=${formatParamValue(v)}" }
+    val paletteName = if (palette == PaletteType.CUSTOM) "Custom" else palette.displayName
+    return buildString {
+        append(type.displayName)
+        append(" attractor · ")
+        append(paletteName)
+        append(" palette")
+        if (paramStr.isNotBlank()) {
+            append(" · ")
+            append(paramStr)
+        }
+        append(" — made with Chaoscope")
+    }
 }

@@ -116,4 +116,78 @@ Java_com_chaoscope_ChaoscopeEngine_nativeGetPoints(
     return result;
 }
 
+/**
+ * Like nativeGetPoints, but returns interleaved (u, v, depth) triples for a
+ * depth-shaded / palette-coloured dot preview.
+ */
+JNIEXPORT jfloatArray JNICALL
+Java_com_chaoscope_ChaoscopeEngine_nativeGetPointsDepth(
+    JNIEnv*     env,
+    jobject     /* this */,
+    jint        attractorType,
+    jfloatArray jParams,
+    jint        nPts,
+    jfloat      yaw,
+    jfloat      pitch,
+    jfloat      roll,
+    jfloat      zoom
+) {
+    RenderParams rp{};
+    rp.attractorType = static_cast<int>(attractorType);
+    rp.yaw   = yaw;   rp.pitch = pitch;
+    rp.roll  = roll;  rp.zoom  = zoom;
+    rp.width = 1;     rp.height = 1;
+
+    memset(rp.params, 0, sizeof(rp.params));
+    jsize   paramLen = env->GetArrayLength(jParams);
+    jfloat* pData    = env->GetFloatArrayElements(jParams, nullptr);
+    int     copyLen  = (paramLen < 8) ? (int)paramLen : 8;
+    for (int i = 0; i < copyLen; i++) rp.params[i] = pData[i];
+    env->ReleaseFloatArrayElements(jParams, pData, JNI_ABORT);
+
+    auto pts = getProjectedPointsDepth(rp, static_cast<int>(nPts));
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(pts.size()));
+    if (result == nullptr) return nullptr;
+    env->SetFloatArrayRegion(result, 0, static_cast<jsize>(pts.size()), pts.data());
+    return result;
+}
+
+/**
+ * Sample `size` ARGB colours across a palette (or custom stops) for colouring
+ * the dot preview. Returns an int[] of `size` ARGB_8888 values.
+ */
+JNIEXPORT jintArray JNICALL
+Java_com_chaoscope_ChaoscopeEngine_nativePaletteLut(
+    JNIEnv*     env,
+    jobject     /* this */,
+    jint        paletteIndex,
+    jint        size,
+    jfloatArray jCustomStops
+) {
+    int n = static_cast<int>(size);
+    if (n <= 0) return nullptr;
+
+    float  stops[8 * 4];
+    float* stopsPtr  = nullptr;
+    int    numStops  = 0;
+    memset(stops, 0, sizeof(stops));
+    if (jCustomStops != nullptr) {
+        jsize stopLen = env->GetArrayLength(jCustomStops);
+        jfloat* sData = env->GetFloatArrayElements(jCustomStops, nullptr);
+        int copyStops = (stopLen / 4 < 8) ? (int)(stopLen / 4) : 8;
+        for (int i = 0; i < copyStops * 4; i++) stops[i] = sData[i];
+        numStops = copyStops;
+        stopsPtr = stops;
+        env->ReleaseFloatArrayElements(jCustomStops, sData, JNI_ABORT);
+    }
+
+    jintArray result = env->NewIntArray(n);
+    if (result == nullptr) return nullptr;
+    jint* data = env->GetIntArrayElements(result, nullptr);
+    getPaletteLutARGB(static_cast<int>(paletteIndex),
+                      reinterpret_cast<int*>(data), n, stopsPtr, numStops);
+    env->ReleaseIntArrayElements(result, data, 0);
+    return result;
+}
+
 } // extern "C"

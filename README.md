@@ -15,8 +15,8 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 ## Features
 
 ### Attractors & exploration
-- **12 attractors** — 2D and 3D systems, each with editable parameters and camera control
-- **36 curated presets** (3 per attractor) — one tap to load a stunning starting point
+- **16 attractors** — 2D and 3D systems, each with editable parameters and camera control
+- **48 curated presets** (3 per attractor) — one tap to load a stunning starting point
 - **User-saved presets** — bookmark your favourite configurations and reload them any time
 - **Full 3D camera control** — yaw, pitch, roll, zoom sliders update the preview in real time
 - **Blank-render auto-retry** — if the orbit doesn't converge, the engine retries at 4× iterations with wider bounds before surfacing an error
@@ -34,15 +34,18 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 - **PNG export** — Preview (768 px), HD (2048 px), or 4K (3840 px), saved to `Pictures/Chaoscope/`
 - **Transparent PNG** — renders with a transparent background for compositing
 - **Set as wallpaper** — one-tap wallpaper from any render
+- **Auto-generated share caption** — every PNG share carries a caption (attractor · palette · parameters); "Copy Caption" copies it to the clipboard
 - **MP4 video animation** — three modes:
   - **Morph** — smoothly interpolates between two saved keyframes (A → B)
   - **Orbit Trace** — incrementally reveals the attractor orbit, each dot coloured by its palette position (cumulative trace build-up)
   - **Param Sweep** — automatically varies all parameters toward a random target for an organic, unpredictable morph
   - Ping-pong loop option doubles any export into a seamless forward-reverse loop
   - 15 / 30 / 60 frame quick-picks or any custom frame count (2–600)
-  - Runs as a **foreground service** so the export continues and shows a progress notification when the app is backgrounded; Cancel button in the notification stops the job cleanly
+  - Runs as a **foreground service** holding a partial wake lock, so the export keeps running (and shows a progress notification) when the app is backgrounded **or the screen turns off**; Cancel button in the notification stops the job cleanly
 
 ### UX
+- **Central play button** — a render button docked in the control tab bar renders the current view on demand
+- **Live palette preview** — changing the palette recolours the depth-shaded dot cloud instantly instead of triggering a full re-render
 - **Splash screen** — renders a live Lorenz butterfly in the background on startup
 - **First-run tutorial** — 5-step coach-mark overlay highlights every major feature
 - **No ads, no tracking** — fully offline (Google Play in-app review API is the sole network call, made once after 20 renders/exports)
@@ -65,6 +68,10 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 | Barnsley Fern | 3D |
 | Julia | 3D |
 | Pickover | 3D |
+| Halvorsen | 3D |
+| Burke-Shaw | 3D |
+| Chen-Lee | 3D |
+| Sprott-B | 3D |
 
 ---
 

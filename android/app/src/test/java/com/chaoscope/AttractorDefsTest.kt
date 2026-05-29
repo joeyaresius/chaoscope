@@ -46,8 +46,10 @@ class AttractorDefsTest {
 
     // ── PaletteType ───────────────────────────────────────────────────────────
 
-    @Test fun `CUSTOM is present and at ordinal 6`() {
-        assertEquals(6, PaletteType.CUSTOM.ordinal)
+    @Test fun `CUSTOM is the last palette`() {
+        // CUSTOM must stay last so adding built-in palettes never shifts the
+        // ordinals that presets/serialization persist by.
+        assertEquals(PaletteType.entries.size - 1, PaletteType.CUSTOM.ordinal)
     }
 
     @Test fun `all palettes have non-blank display names`() {
@@ -93,5 +95,31 @@ class AttractorDefsTest {
     @Test fun `UiState default params match CLIFFORD defaults`() {
         val state = UiState()
         assertEquals(AttractorType.CLIFFORD.defaultParams.toList(), state.params)
+    }
+
+    // ── Share caption ─────────────────────────────────────────────────────────
+
+    @Test fun `share caption includes attractor, palette and params`() {
+        val c = buildShareCaption(
+            AttractorType.LORENZ, PaletteType.NEBULA, listOf(10f, 28f, 2.667f, 0.005f),
+        )
+        assertTrue("missing attractor name in '$c'", c.contains("Lorenz"))
+        assertTrue("missing palette name in '$c'",  c.contains("Nebula"))
+        assertTrue("missing param σ=10 in '$c'",     c.contains("σ=10"))
+        assertTrue("missing param β=2.667 in '$c'",  c.contains("β=2.667"))
+        assertTrue("missing app tag in '$c'",        c.contains("Chaoscope"))
+    }
+
+    @Test fun `share caption trims trailing zeros but keeps significant digits`() {
+        val c = buildShareCaption(
+            AttractorType.LORENZ, PaletteType.NEBULA, listOf(10f, 28f, 2.667f, 0.005f),
+        )
+        assertFalse("should trim 10.000 to 10 in '$c'", c.contains("10.000"))
+        assertTrue("should keep 0.005 in '$c'",         c.contains("0.005"))
+    }
+
+    @Test fun `share caption labels custom palette`() {
+        val c = buildShareCaption(AttractorType.CLIFFORD, PaletteType.CUSTOM, listOf(1f))
+        assertTrue("custom palette should be labelled in '$c'", c.contains("Custom"))
     }
 }

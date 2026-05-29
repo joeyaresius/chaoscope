@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.CoroutineScope
@@ -54,6 +55,7 @@ object VideoExportState {
 class VideoExportService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -65,6 +67,10 @@ class VideoExportService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+
+        // Hold a partial wake lock so the encode keeps running when the screen
+        // turns off (the foreground service alone doesn't stop the CPU suspending).
+        acquireWakeLock()
 
         // Put ourselves in the foreground immediately to avoid ANR
         startForeground(NOTIF_ID, buildNotification(0, 0))
@@ -87,8 +93,27 @@ class VideoExportService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        releaseWakeLock()
         scope.cancel()
         super.onDestroy()
+    }
+
+    // ── Wake lock ──────────────────────────────────────────────────────────────
+
+    private fun acquireWakeLock() {
+        if (wakeLock != null) return
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).apply {
+            setReferenceCounted(false)
+            // Timeout is a safety backstop only; the service stops itself (releasing
+            // the lock) as soon as the export finishes, errors or is cancelled.
+            acquire(MAX_EXPORT_MS)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
     }
 
     // ── Notification helpers ──────────────────────────────────────────────────
@@ -129,6 +154,9 @@ class VideoExportService : Service() {
         const val ACTION_STOP = "com.chaoscope.STOP_VIDEO_EXPORT"
         const val NOTIF_ID    = 1001
         const val CHANNEL_ID  = "video_export"
+        private const val WAKE_LOCK_TAG = "chaoscope:video_export"
+        // Backstop so a stray lock can't drain the battery indefinitely.
+        private const val MAX_EXPORT_MS = 60L * 60L * 1000L // 60 min
 
         fun start(context: Context) {
             context.startForegroundService(

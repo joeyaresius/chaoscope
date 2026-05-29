@@ -17,6 +17,10 @@
     <!-- Required for foregroundServiceType="dataSync" on API 34+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Keep the CPU running during video export so it continues when the screen
+         turns off (otherwise the device suspends and the encode stalls) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:name=".ChaoscopeApplication"
         android:label="Chaoscope"

@@ -248,6 +248,67 @@ void attractorIterateN(
         break;
     }
 
+    // ── Halvorsen (Euler) ────────────────────────────────────────────────────
+    // Cyclically symmetric — the same equation rotated through x, y, z.
+    // dx/dt = -a*x - 4*y - 4*z - y²
+    // dy/dt = -a*y - 4*z - 4*x - z²
+    // dz/dt = -a*z - 4*x - 4*y - x²
+    case ATTRACTOR_HALVORSEN: {
+        const float a = p[0], dt = p[1];
+        for (int i = 0; i < n; i++) {
+            float x = xs[i], y = ys[i], z = zs[i];
+            xs[i] = x + dt * (-a*x - 4.f*y - 4.f*z - y*y);
+            ys[i] = y + dt * (-a*y - 4.f*z - 4.f*x - z*z);
+            zs[i] = z + dt * (-a*z - 4.f*x - 4.f*y - x*x);
+        }
+        break;
+    }
+
+    // ── Burke-Shaw (Euler) ───────────────────────────────────────────────────
+    // dx/dt = -s*(x + y)
+    // dy/dt = -y - s*x*z
+    // dz/dt = s*x*y + v
+    case ATTRACTOR_BURKE_SHAW: {
+        const float s = p[0], v = p[1], dt = p[2];
+        for (int i = 0; i < n; i++) {
+            float x = xs[i], y = ys[i], z = zs[i];
+            xs[i] = x + dt * (-s * (x + y));
+            ys[i] = y + dt * (-y - s * x * z);
+            zs[i] = z + dt * (s * x * y + v);
+        }
+        break;
+    }
+
+    // ── Chen-Lee (Euler) ─────────────────────────────────────────────────────
+    // dx/dt = a*x - y*z
+    // dy/dt = b*y + x*z
+    // dz/dt = c*z + x*y/3
+    case ATTRACTOR_CHEN_LEE: {
+        const float a = p[0], b = p[1], c = p[2], dt = p[3];
+        for (int i = 0; i < n; i++) {
+            float x = xs[i], y = ys[i], z = zs[i];
+            xs[i] = x + dt * (a * x - y * z);
+            ys[i] = y + dt * (b * y + x * z);
+            zs[i] = z + dt * (c * z + x * y / 3.f);
+        }
+        break;
+    }
+
+    // ── Sprott-B (Euler) ─────────────────────────────────────────────────────
+    // dx/dt = a*y*z
+    // dy/dt = x - y
+    // dz/dt = 1 - b*x*y
+    case ATTRACTOR_SPROTT_B: {
+        const float a = p[0], b = p[1], dt = p[2];
+        for (int i = 0; i < n; i++) {
+            float x = xs[i], y = ys[i], z = zs[i];
+            xs[i] = x + dt * (a * y * z);
+            ys[i] = y + dt * (x - y);
+            zs[i] = z + dt * (1.f - b * x * y);
+        }
+        break;
+    }
+
     default:
         break;
     }

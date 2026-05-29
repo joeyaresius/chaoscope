@@ -14,6 +14,10 @@ static constexpr int ATTRACTOR_ICON          = 8;  // Symmetry Icons (p=3)
 static constexpr int ATTRACTOR_IFS           = 9;  // Barnsley Fern
 static constexpr int ATTRACTOR_JULIA         = 10; // Julia inverse iteration
 static constexpr int ATTRACTOR_PICKOVER      = 11; // Pickover
+static constexpr int ATTRACTOR_HALVORSEN     = 12; // Halvorsen (cyclically symmetric)
+static constexpr int ATTRACTOR_BURKE_SHAW    = 13; // Burke-Shaw
+static constexpr int ATTRACTOR_CHEN_LEE      = 14; // Chen-Lee
+static constexpr int ATTRACTOR_SPROTT_B      = 15; // Sprott-B
 
 /**
  * Iterate n points in-place for one step.
@@ -31,6 +35,10 @@ static constexpr int ATTRACTOR_PICKOVER      = 11; // Pickover
  *   IFS            params[0..2] : width, lean, twist     (Barnsley Fern, 3-D)
  *   JULIA          params[0..2] : c_re, c_im, c_j        (quaternion Julia, 3-D)
  *   PICKOVER       params[0..3] : a, b, c, d
+ *   HALVORSEN      params[0..1] : a, dt
+ *   BURKE_SHAW     params[0..2] : s, v, dt
+ *   CHEN_LEE       params[0..3] : a, b, c, dt
+ *   SPROTT_B       params[0..2] : a, b, dt
  */
 void attractorIterateN(
     int type, const float* params,

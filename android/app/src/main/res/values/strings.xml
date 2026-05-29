@@ -68,6 +68,7 @@
     <string name="btn_render_4k">4K Render</string>
     <string name="btn_export_png">Export PNG</string>
     <string name="btn_set_wallpaper">🖼  Set as Wallpaper</string>
+    <string name="btn_copy_caption">📋  Copy Caption</string>
     <string name="btn_export_video">🎬  Export Video</string>
     <string name="btn_cancel_export">Cancel export</string>
     <string name="btn_randomize_params">🎲 Params</string>
@@ -142,6 +143,7 @@
          Snackbar messages
          ==================================================================== -->
     <string name="msg_wallpaper_ok">Wallpaper set!</string>
+    <string name="msg_caption_copied">Caption copied to clipboard</string>
     <string name="msg_wallpaper_failed">Wallpaper failed: %1$s</string>
     <string name="msg_retrying">Retrying with more iterations…</string>
     <string name="msg_video_saved">Video saved!</string>
