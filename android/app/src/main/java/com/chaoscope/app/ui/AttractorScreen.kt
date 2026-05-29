@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -61,9 +62,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
@@ -87,7 +94,10 @@ import com.chaoscope.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 // ────────────────────────────────────────────────────────────────────────────
 // 3-stop draggable panel
@@ -390,10 +400,9 @@ fun AttractorScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (state.isRendering) {
-                    CircularProgressIndicator(
-                        modifier    = Modifier.size(22.dp),
-                        strokeWidth = 2.dp,
-                        color       = MaterialTheme.colorScheme.primary,
+                    ChaosSpinner(
+                        palette  = paletteLut,
+                        modifier = Modifier.size(26.dp),
                     )
                     IconButton(onClick = vm::cancelRender) {
                         Icon(
@@ -507,6 +516,7 @@ fun AttractorScreen(
                         }
                     },
                     isRendering        = state.isRendering,
+                    paletteLut         = paletteLut,
                     panelContentHeight = contentHeightDp,
                 )
             }
@@ -655,6 +665,7 @@ private fun ControlPanel(
     onEditPalette:      ()              -> Unit,
     onTutorialAnchor:   (TutorialTarget, Rect) -> Unit,
     isRendering:        Boolean,
+    paletteLut:         IntArray,
     panelContentHeight: Dp,
 ) {
     // Tab selection — survives rotation via rememberSaveable, not persisted to UiState
@@ -678,33 +689,41 @@ private fun ControlPanel(
             .fillMaxWidth()
             .height(panelContentHeight),
     ) {
-        // ── Tab row with a central play/render button ────────────────────────
+        // ── Tab row split into two pairs with a central play/render button ───
+        // [Shape · Look]  ▶  [Camera · Export] — the gap keeps the FAB clear of
+        // the tab tap targets.
         Box(modifier = Modifier.fillMaxWidth()) {
-            TabRow(selectedTabIndex = selectedTab) {
-                tabTitles.forEachIndexed { i, title ->
-                    Tab(
-                        selected = selectedTab == i,
-                        onClick  = { selectedTab = i },
-                        text     = { Text(title, style = MaterialTheme.typography.labelSmall) },
-                        icon     = {
-                            Icon(tabIcons[i], contentDescription = title, modifier = Modifier.size(18.dp))
-                        },
-                    )
-                }
+            Row(
+                modifier          = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PanelTab(tabTitles[0], tabIcons[0], selectedTab == 0,
+                         { selectedTab = 0 }, Modifier.weight(1f).fillMaxHeight())
+                PanelTab(tabTitles[1], tabIcons[1], selectedTab == 1,
+                         { selectedTab = 1 }, Modifier.weight(1f).fillMaxHeight())
+                Spacer(Modifier.width(64.dp))   // clear slot for the centred FAB
+                PanelTab(tabTitles[2], tabIcons[2], selectedTab == 2,
+                         { selectedTab = 2 }, Modifier.weight(1f).fillMaxHeight())
+                PanelTab(tabTitles[3], tabIcons[3], selectedTab == 3,
+                         { selectedTab = 3 }, Modifier.weight(1f).fillMaxHeight())
             }
             FloatingActionButton(
                 onClick        = onRender,
                 modifier       = Modifier
                     .align(Alignment.Center)
-                    .size(48.dp),
+                    .size(48.dp)
+                    .onGloballyPositioned { c ->
+                        onTutorialAnchor(TutorialTarget.RenderButton, c.boundsInWindow())
+                    },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor   = MaterialTheme.colorScheme.onPrimary,
             ) {
                 if (isRendering) {
-                    CircularProgressIndicator(
-                        modifier    = Modifier.size(22.dp),
-                        strokeWidth = 2.dp,
-                        color       = MaterialTheme.colorScheme.onPrimary,
+                    ChaosSpinner(
+                        palette  = paletteLut,
+                        modifier = Modifier.size(30.dp),
                     )
                 } else {
                     Icon(
@@ -714,6 +733,7 @@ private fun ControlPanel(
                 }
             }
         }
+        HorizontalDivider()
 
         // ── Tab content ──────────────────────────────────────────────────────
         AnimatedContent(
@@ -1186,6 +1206,86 @@ private fun ControlPanel(
 // ────────────────────────────────────────────────────────────────────────────
 // Reusable composables
 // ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Chaos-themed loading indicator: a few bodies orbit the centre on distinct
+ * Lissajous paths (different x/y frequencies → non-circular, chaotic-looking),
+ * each trailing a short fading comet tail. Tinted by the active palette.
+ */
+@Composable
+private fun ChaosSpinner(palette: IntArray, modifier: Modifier = Modifier) {
+    val colors = remember(palette) {
+        if (palette.isEmpty())
+            listOf(Color(0xFF4FC3F7), Color(0xFF9C7BFF), Color(0xFFFF7BAC))
+        else listOf(0.55f, 0.78f, 0.97f).map { f ->
+            Color(palette[(f * (palette.size - 1)).toInt().coerceIn(0, palette.size - 1)])
+        }
+    }
+    // radiusFactor, freqX, freqY, phase — distinct per body for a tangled orbit.
+    val bodies = remember {
+        listOf(
+            floatArrayOf(0.92f, 2f, 3f, 0.0f),
+            floatArrayOf(0.66f, 3f, 2f, 1.7f),
+            floatArrayOf(0.44f, 5f, 4f, 3.4f),
+        )
+    }
+    val tail = 5
+
+    val transition = rememberInfiniteTransition(label = "chaos_spinner")
+    val t by transition.animateFloat(
+        initialValue  = 0f,
+        targetValue   = (2.0 * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation  = tween(durationMillis = 1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "phase",
+    )
+
+    Canvas(modifier) {
+        val cx   = size.width  / 2f
+        val cy   = size.height / 2f
+        val rMax = size.minDimension / 2f * 0.88f
+        val dot  = size.minDimension * 0.12f
+        bodies.forEachIndexed { i, b ->
+            val (rf, fx, fy, phase) = b
+            val color = colors[i % colors.size]
+            for (k in 0 until tail) {
+                val tt = t - k * 0.18f
+                val x  = cx + rf * rMax * cos(fx * tt + phase)
+                val y  = cy + rf * rMax * sin(fy * tt + phase)
+                val frac = 1f - k.toFloat() / tail
+                drawCircle(
+                    color  = color.copy(alpha = frac),
+                    radius = dot * (0.5f + 0.5f * frac),
+                    center = Offset(x, y),
+                )
+            }
+        }
+    }
+}
+
+/** One tab in the split control bar: stacked icon + label, tinted by selection. */
+@Composable
+private fun PanelTab(
+    title:    String,
+    icon:     ImageVector,
+    selected: Boolean,
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tint = if (selected) MaterialTheme.colorScheme.primary
+               else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        modifier            = modifier.clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, contentDescription = title, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.height(2.dp))
+        Text(title, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1)
+    }
+}
 
 @Composable
 private fun SectionLabel(text: String) {

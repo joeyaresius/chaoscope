@@ -37,12 +37,13 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 // Tutorial target keys
-enum class TutorialTarget { Canvas, AttractorRow, ParamSlider, RenderHdButton, PaletteRow }
+enum class TutorialTarget { Canvas, AttractorRow, ParamSlider, RenderButton, RenderHdButton, PaletteRow }
 
 data class TutorialAnchors(
     val canvas: Rect?         = null,
     val attractorRow: Rect?   = null,
     val paramSlider: Rect?    = null,
+    val renderButton: Rect?   = null,
     val renderHdButton: Rect? = null,
     val paletteRow: Rect?     = null,
 )
@@ -200,6 +201,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 bitmap = null,
             )
         }
+        rebuildPaletteLut()   // preset carries its own palette — recolour the dots
         fetchDotPoints()
     }
 
@@ -316,6 +318,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 TutorialTarget.Canvas        -> a.copy(canvas = rect)
                 TutorialTarget.AttractorRow  -> a.copy(attractorRow = rect)
                 TutorialTarget.ParamSlider   -> a.copy(paramSlider = rect)
+                TutorialTarget.RenderButton  -> a.copy(renderButton = rect)
                 TutorialTarget.RenderHdButton -> a.copy(renderHdButton = rect)
                 TutorialTarget.PaletteRow    -> a.copy(paletteRow = rect)
             }

@@ -11,8 +11,8 @@ android {
         applicationId = "com.chaoscope"
         minSdk        = 26
         targetSdk     = 36
-        versionCode   = 8
-        versionName   = "0.1.6"
+        versionCode   = 9
+        versionName   = "0.1.7"
 
         externalNativeBuild {
             cmake {
@@ -71,7 +71,8 @@ android {
     }
 
     buildFeatures {
-        compose = true
+        compose     = true
+        buildConfig = true   // exposes BuildConfig.VERSION_NAME to the splash screen
     }
 
     compileOptions {

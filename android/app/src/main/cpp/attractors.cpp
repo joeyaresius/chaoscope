@@ -279,21 +279,6 @@ void attractorIterateN(
         break;
     }
 
-    // ── Chen-Lee (Euler) ─────────────────────────────────────────────────────
-    // dx/dt = a*x - y*z
-    // dy/dt = b*y + x*z
-    // dz/dt = c*z + x*y/3
-    case ATTRACTOR_CHEN_LEE: {
-        const float a = p[0], b = p[1], c = p[2], dt = p[3];
-        for (int i = 0; i < n; i++) {
-            float x = xs[i], y = ys[i], z = zs[i];
-            xs[i] = x + dt * (a * x - y * z);
-            ys[i] = y + dt * (b * y + x * z);
-            zs[i] = z + dt * (c * z + x * y / 3.f);
-        }
-        break;
-    }
-
     // ── Sprott-B (Euler) ─────────────────────────────────────────────────────
     // dx/dt = a*y*z
     // dy/dt = x - y

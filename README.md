@@ -15,8 +15,8 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 ## Features
 
 ### Attractors & exploration
-- **16 attractors** — 2D and 3D systems, each with editable parameters and camera control
-- **48 curated presets** (3 per attractor) — one tap to load a stunning starting point
+- **15 attractors** — 2D and 3D systems, each with editable parameters and camera control
+- **45 curated presets** (3 per attractor) — one tap to load a stunning starting point
 - **User-saved presets** — bookmark your favourite configurations and reload them any time
 - **Full 3D camera control** — yaw, pitch, roll, zoom sliders update the preview in real time
 - **Blank-render auto-retry** — if the orbit doesn't converge, the engine retries at 4× iterations with wider bounds before surfacing an error
@@ -70,7 +70,6 @@ Strange attractors are the visual fingerprints of chaotic systems — mathematic
 | Pickover | 3D |
 | Halvorsen | 3D |
 | Burke-Shaw | 3D |
-| Chen-Lee | 3D |
 | Sprott-B | 3D |
 
 ---

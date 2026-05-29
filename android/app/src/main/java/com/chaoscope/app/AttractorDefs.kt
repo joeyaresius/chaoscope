@@ -211,20 +211,6 @@ enum class AttractorType(
             "dt — simulation step.",
         ),
     ),
-    CHEN_LEE(
-        displayName   = "Chen-Lee",
-        is3D          = true,
-        defaultParams = floatArrayOf(5f, -10f, -0.38f, 0.001f),
-        paramNames    = listOf("a", "b", "c", "dt"),
-        paramRanges   = listOf(1f..8f, -15f..-5f, -3f..0f, 0.0005f..0.003f),
-        description   = "A wing-like system from rigid-body rotation. Two broad lobes ringed by orbiting filaments — a cosmic butterfly.",
-        paramHints    = listOf(
-            "X expansion — sets how far the wings spread.",
-            "Y contraction — pulls the orbit back inward. More negative = tighter core.",
-            "Z damping — controls the vertical depth of the lobes.",
-            "dt — simulation step. Keep small; this system diverges easily.",
-        ),
-    ),
     SPROTT_B(
         displayName   = "Sprott-B",
         is3D          = true,
@@ -490,11 +476,6 @@ val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
         Preset("Galaxy",    AttractorType.BURKE_SHAW, listOf(10f, 4.272f, 0.005f), yaw = 25f, pitch = 25f, palette = PaletteType.ELECTRIC),
         Preset("Tornado",   AttractorType.BURKE_SHAW, listOf(10f, 4.272f, 0.005f), yaw = 90f, pitch = 0f,  palette = PaletteType.FIRE,   renderStyle = RenderStyle.LIQUID),
         Preset("Whirlpool", AttractorType.BURKE_SHAW, listOf(10f, 4.272f, 0.005f), yaw = 10f, pitch = 35f, palette = PaletteType.AURORA, renderStyle = RenderStyle.GAS),
-    ),
-    AttractorType.CHEN_LEE to listOf(
-        Preset("Butterfly", AttractorType.CHEN_LEE, listOf(5f, -10f, -0.38f, 0.001f), yaw = 45f, pitch = 35f, palette = PaletteType.FIRE),
-        Preset("Wings",     AttractorType.CHEN_LEE, listOf(5f, -10f, -0.38f, 0.001f), yaw = 30f, pitch = 20f, palette = PaletteType.NEBULA),
-        Preset("Rings",     AttractorType.CHEN_LEE, listOf(5f, -10f, -0.38f, 0.001f), yaw = 20f, pitch = 60f, palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.GAS),
     ),
     AttractorType.SPROTT_B to listOf(
         Preset("Disc",   AttractorType.SPROTT_B, listOf(1f, 1f, 0.02f), yaw = 30f, pitch = 20f, palette = PaletteType.NEBULA),

@@ -16,8 +16,7 @@ static constexpr int ATTRACTOR_JULIA         = 10; // Julia inverse iteration
 static constexpr int ATTRACTOR_PICKOVER      = 11; // Pickover
 static constexpr int ATTRACTOR_HALVORSEN     = 12; // Halvorsen (cyclically symmetric)
 static constexpr int ATTRACTOR_BURKE_SHAW    = 13; // Burke-Shaw
-static constexpr int ATTRACTOR_CHEN_LEE      = 14; // Chen-Lee
-static constexpr int ATTRACTOR_SPROTT_B      = 15; // Sprott-B
+static constexpr int ATTRACTOR_SPROTT_B      = 14; // Sprott-B
 
 /**
  * Iterate n points in-place for one step.
@@ -37,7 +36,6 @@ static constexpr int ATTRACTOR_SPROTT_B      = 15; // Sprott-B
  *   PICKOVER       params[0..3] : a, b, c, d
  *   HALVORSEN      params[0..1] : a, dt
  *   BURKE_SHAW     params[0..2] : s, v, dt
- *   CHEN_LEE       params[0..3] : a, b, c, dt
  *   SPROTT_B       params[0..2] : a, b, dt
  */
 void attractorIterateN(

@@ -37,7 +37,7 @@ private val STEPS = listOf(
     ),
     TutorialStepData(null,
         title     = "Pick an attractor",
-        body      = "Scroll the chip row to choose from 12 strange attractors. Each one has a unique shape.",
+        body      = "Scroll the chip row to choose from 15 strange attractors — or tap Surprise Me for a random one.",
         nextLabel = "Next",
     ),
     TutorialStepData(null,
@@ -46,13 +46,13 @@ private val STEPS = listOf(
         nextLabel = "Next",
     ),
     TutorialStepData(null,
-        title     = "Render in HD",
-        body      = "Tap HD Render to run 50 million iterations and produce a full-resolution image.",
+        title     = "Tap to render",
+        body      = "The ▶ button in the centre renders your attractor. For a full-resolution image, use HD or 4K in the Export tab.",
         nextLabel = "Next",
     ),
     TutorialStepData(null,
         title     = "Change the palette",
-        body      = "Switch palette chips to recolour the attractor. Tap Edit to build your own gradient.",
+        body      = "Switch palette chips to recolour instantly — the live preview updates right away. Tap Edit to build your own gradient.",
         nextLabel = "Done",
     ),
 )
@@ -72,17 +72,22 @@ fun TutorialOverlay(
         0 -> anchors.canvas
         1 -> anchors.attractorRow
         2 -> anchors.paramSlider
-        3 -> anchors.renderHdButton
+        3 -> anchors.renderButton
         4 -> anchors.paletteRow
         else -> null
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             // Consume all taps so underlying content isn't clickable
             .pointerInput(Unit) { detectTapGestures { /* consume */ } },
     ) {
+        // Place the tooltip on the opposite half from the highlighted control so
+        // the card never covers what it's pointing at. Targets in the lower half
+        // (the control panel) push the card to the top.
+        val placeCardAtTop = spotlightRect != null &&
+            spotlightRect.center.y > constraints.maxHeight / 2f
         // ── Semi-transparent overlay with cutout spotlight ──────────────────
         Canvas(
             modifier = Modifier
@@ -112,12 +117,14 @@ fun TutorialOverlay(
             }
         }
 
-        // ── Tooltip card ────────────────────────────────────────────────────
+        // ── Tooltip card (flips to the opposite half from the target) ────────
         Card(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .align(if (placeCardAtTop) Alignment.TopCenter else Alignment.BottomCenter)
+                .then(if (placeCardAtTop) Modifier.statusBarsPadding() else Modifier.navigationBarsPadding())
                 .padding(horizontal = 20.dp, vertical = 24.dp)
+                // Clear the progress dots when sitting at the top.
+                .padding(top = if (placeCardAtTop) 28.dp else 0.dp)
                 .fillMaxWidth(),
             shape    = RoundedCornerShape(20.dp),
             colors   = CardDefaults.cardColors(

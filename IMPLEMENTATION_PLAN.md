@@ -250,18 +250,26 @@ E2 ✅ DONE (4K, transparent PNG, set-as-wallpaper). E3 deferred — see below.
 Consistent-pipeline improvements that benefit all users immediately.
 
 ### F1. More attractors — ✅ DONE
-Added 4 new 3-D attractors on the existing C++ histogram pipeline (12 → 16 total),
-each with 3 curated presets (36 → 48). Ordinals 12–15 are appended after Pickover so
-existing saved-preset palette/attractor ordinals stay stable. Equations were validated
-in the Python host port (`prototype/`) before porting to confirm convergence and tune
-defaults/cameras.
+Added 3 new 3-D attractors on the existing C++ histogram pipeline (12 → 15 total),
+each with 3 curated presets (36 → 45). Ordinals 12–14 are appended after Pickover.
 - **Halvorsen** (ord 12) — cyclically symmetric; interlocking torus-knot loops. `a, dt`
 - **Burke-Shaw** (ord 13) — fast galaxy-like double-spiral. `s, v, dt`
-- **Chen-Lee** (ord 14) — wing-like double-lobe butterfly. `a, b, c, dt` (small dt — diverges easily)
-- **Sprott-B** (ord 15) — minimal two-term system; broad swirling disc. `a, b, dt`
-Dadras was dropped — it already ships as "Chaotic Flow". Nosé-Hoover was evaluated but
-dropped (too diffuse vs. the others).
-**Files:** `attractors.h`, `attractors.cpp`, `AttractorDefs.kt` (enum + `CURATED_PRESETS`).
+- **Sprott-B** (ord 14) — minimal two-term system; broad swirling disc. `a, b, dt`
+
+**Validation lesson:** equations must be validated against the engine's *actual* seeding
+(±0.05 near the origin), not `iterate_attractor_batch`'s default ±0.5. **Chen-Lee** was
+initially added but later removed: from ±0.05 its orbit collapses onto an attracting
+x-axis line (degenerate) instead of the chaotic butterfly — the earlier "validation" had
+used the wrong initial conditions. **Nosé-Hoover** was then evaluated as a replacement but
+also dropped: it's only weakly mixing, so the short dot-preview can't cover the attractor
+and the preview never matches the render. The three shipped attractors all mix fast enough
+that the preview matches the render (verified in the host port). Dadras was skipped — it
+already ships as "Chaotic Flow".
+
+Also: the dot-preview warm-up was raised 100 → 500 (`getProjectedPoints*` in
+`renderer.cpp`) so slow-transient attractors (notably Sprott-B) settle onto the attractor
+before sampling, so the preview matches the render.
+**Files:** `attractors.h`, `attractors.cpp`, `AttractorDefs.kt`, `renderer.cpp`.
 
 ### F2. Preset thumbnail previews — ✅ DONE
 Curated presets now show a 64dp rendered thumbnail (image + name) instead of a text

@@ -229,7 +229,7 @@ fun SplashScreen(
                 letterSpacing = 1.sp,
             )
             Text(
-                text          = "v0.1.4",
+                text          = "v${com.chaoscope.BuildConfig.VERSION_NAME}",
                 fontSize      = 11.sp,
                 color         = Color(0xFF6677AA),
                 letterSpacing = 1.sp,
