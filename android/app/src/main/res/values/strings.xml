@@ -6,6 +6,8 @@
     <string name="export_saved">Saved to Pictures/Chaoscope</string>
     <string name="export_failed">Could not save: %1$s</string>
     <string name="export_share">Share</string>
+    <string name="export_open">Open</string>
+    <string name="video_done_title">Video saved!</string>
     <string name="share_render_chooser">Share render</string>
 
     <!-- Top-bar actions -->

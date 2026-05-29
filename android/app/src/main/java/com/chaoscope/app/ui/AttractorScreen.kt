@@ -158,6 +158,8 @@ fun AttractorScreen(
     }
 
     var showSavePresetDialog by remember { mutableStateOf(false) }
+    // Non-null while the "video saved" dialog (Open / Share) is showing.
+    var videoDoneUri by remember { mutableStateOf<String?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope             = rememberCoroutineScope()
@@ -175,7 +177,6 @@ fun AttractorScreen(
     val wallpaperOkMsg  = stringResource(R.string.msg_wallpaper_ok)
     val wallpaperErrMsg = state.wallpaperError?.let { stringResource(R.string.msg_wallpaper_failed, it) }
     val retryingMsg     = stringResource(R.string.msg_retrying)
-    val videoSavedMsg   = stringResource(R.string.msg_video_saved)
     val videoFailedMsgFmt = state.videoExportError?.let { stringResource(R.string.msg_video_failed, it) }
     val shareVideoChooser = stringResource(R.string.share_video_chooser)
 
@@ -251,21 +252,8 @@ fun AttractorScreen(
             }
             state.videoExportUri != null -> {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                val result = snackbarHostState.showSnackbar(
-                    message     = videoSavedMsg,
-                    actionLabel = shareLabel,
-                    duration    = SnackbarDuration.Short,
-                )
-                if (result == SnackbarResult.ActionPerformed) {
-                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                        type = "video/mp4"
-                        putExtra(android.content.Intent.EXTRA_STREAM,
-                                 android.net.Uri.parse(state.videoExportUri))
-                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    context.startActivity(
-                        android.content.Intent.createChooser(intent, shareVideoChooser))
-                }
+                // Show a completion dialog offering both Open and Share.
+                videoDoneUri = state.videoExportUri
                 vm.clearVideoExportFlag()
             }
         }
@@ -563,6 +551,44 @@ fun AttractorScreen(
                 showSavePresetDialog = false
             },
             onDismiss   = { showSavePresetDialog = false },
+        )
+    }
+
+    // ── Video-export complete: offer both Open and Share ──────────────────────
+    videoDoneUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { videoDoneUri = null },
+            title   = { Text(stringResource(R.string.video_done_title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    videoDoneUri = null
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(Uri.parse(uri), "video/mp4")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                        )
+                    }
+                }) { Text(stringResource(R.string.export_open)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    videoDoneUri = null
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).apply {
+                                    type = "video/mp4"
+                                    putExtra(Intent.EXTRA_STREAM, Uri.parse(uri))
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                },
+                                shareVideoChooser,
+                            )
+                        )
+                    }
+                }) { Text(stringResource(R.string.export_share)) }
+            },
         )
     }
 }
