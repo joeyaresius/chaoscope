@@ -71,8 +71,9 @@
     <string name="btn_copy_caption">📋  Copy Caption</string>
     <string name="btn_export_video">🎬  Export Video</string>
     <string name="btn_cancel_export">Cancel export</string>
-    <string name="btn_randomize_params">🎲 Params</string>
+    <string name="btn_randomize_params">🎲 Shuffle Params</string>
     <string name="btn_randomize_all">🎲 Attractor</string>
+    <string name="btn_surprise_me">🎲  Surprise Me</string>
     <string name="btn_save_preset">+ Save current</string>
     <string name="btn_apply">Apply</string>
     <string name="btn_cancel">Cancel</string>

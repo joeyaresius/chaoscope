@@ -308,3 +308,18 @@ camera-axis depth through a palette LUT:
   (2-D, or head-on views) fall back to the palette midpoint so dots stay visible.
 **Files:** `renderer.cpp/.h`, `chaoscope_jni.cpp`, `ChaoscopeEngine.kt`,
 `ChaoscopeViewModel.kt`, `ui/AttractorScreen.kt`.
+
+### G3. "Surprise Me" discovery button — ✅ DONE
+Promoted the full randomize (`randomize()` — random attractor + palette + params +
+camera) to a prominent full-width **"Surprise Me"** button at the top of the Shape tab
+(under the attractor selector, above presets) as a zero-thought discovery entry point.
+It shows the dot preview only — no auto-render, matching [[feedback_explicit_render]].
+The contextual **"Shuffle Params"** (current attractor only) stays beside the parameter
+sliders. Both randomize paths now `rebuildPaletteLut()` so the recoloured dots reflect
+the new palette. **Files:** `ChaoscopeViewModel.kt`, `ui/AttractorScreen.kt`.
+
+### G4. Video export survives screen-off — ✅ DONE
+`VideoExportService` holds a `PARTIAL_WAKE_LOCK` (with a 60-min safety timeout) for the
+export's duration so encoding continues when the screen turns off; released in
+`onDestroy` (covers both completion and Cancel). Added the `WAKE_LOCK` permission.
+**Files:** `VideoExportService.kt`, `AndroidManifest.xml`.

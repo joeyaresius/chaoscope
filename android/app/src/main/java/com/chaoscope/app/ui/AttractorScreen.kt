@@ -757,6 +757,20 @@ private fun ControlPanel(
                             }
                         }
 
+                        // Surprise me — random attractor + palette + params + camera.
+                        // A zero-thought discovery entry point for new users; shows the
+                        // dot preview (no render) so they can tap play when they like it.
+                        Button(
+                            onClick  = onRandomizeAll,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors   = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                            ),
+                        ) {
+                            Text(stringResource(R.string.btn_surprise_me),
+                                 color = MaterialTheme.colorScheme.onSecondary)
+                        }
+
                         // Curated presets
                         val presets = state.attractorType.presets
                         if (presets.isNotEmpty()) {
@@ -831,31 +845,18 @@ private fun ControlPanel(
                             )
                         }
 
-                        // Randomize
-                        Row(
-                            modifier              = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        // Shuffle just this attractor's parameters (contextual — sits
+                        // with the sliders it acts on). "Surprise Me" up top randomizes
+                        // everything including the attractor type.
+                        Button(
+                            onClick  = onRandomizeParams,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors   = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                            ),
                         ) {
-                            Button(
-                                onClick  = onRandomizeParams,
-                                modifier = Modifier.weight(1f),
-                                colors   = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondary,
-                                ),
-                            ) {
-                                Text(stringResource(R.string.btn_randomize_params),
-                                     color = MaterialTheme.colorScheme.onSecondary)
-                            }
-                            Button(
-                                onClick  = onRandomizeAll,
-                                modifier = Modifier.weight(1f),
-                                colors   = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondary,
-                                ),
-                            ) {
-                                Text(stringResource(R.string.btn_randomize_all),
-                                     color = MaterialTheme.colorScheme.onSecondary)
-                            }
+                            Text(stringResource(R.string.btn_randomize_params),
+                                 color = MaterialTheme.colorScheme.onSecondary)
                         }
 
                         Spacer(Modifier.height(8.dp))

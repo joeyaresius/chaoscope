@@ -826,6 +826,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 roll          = 0f,
             )
         }
+        rebuildPaletteLut()   // palette changed — recolour the dot preview
         fetchDotPoints()
     }
 
@@ -841,6 +842,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 palette = PaletteType.entries.filter { p -> p != PaletteType.CUSTOM }.random(),
             )
         }
+        rebuildPaletteLut()   // palette changed — recolour the dot preview
         fetchDotPoints()
     }
 
