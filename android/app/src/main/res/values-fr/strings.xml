@@ -126,4 +126,26 @@
     <string name="notif_export_cancel">Annuler</string>
     <string name="notif_channel_name">Export Vidéo</string>
     <string name="notif_channel_desc">Affiche la progression de l\'export d\'une animation en MP4.</string>
+
+    <!-- Newer keys -->
+    <string name="export_open">Ouvrir</string>
+    <string name="video_done_title">Vidéo enregistrée !</string>
+    <string name="btn_copy_caption">📋  Copier la Légende</string>
+    <string name="btn_surprise_me">🎲  Surprends-moi</string>
+    <string name="msg_caption_copied">Légende copiée dans le presse-papiers</string>
+
+    <!-- Tutorial coach marks -->
+    <string name="tutorial_welcome_title">Bienvenue dans Chaoscope</string>
+    <string name="tutorial_welcome_body">Faites glisser n\'importe où sur le canevas pour faire pivoter l\'attracteur en 3D. Pincez pour zoomer.</string>
+    <string name="tutorial_pick_title">Choisissez un attracteur</string>
+    <string name="tutorial_pick_body">Faites défiler la rangée de puces pour choisir parmi 15 attracteurs étranges — ou touchez Surprends-moi pour un attracteur aléatoire.</string>
+    <string name="tutorial_tune_title">Réglez les paramètres</string>
+    <string name="tutorial_tune_body">Faites glisser n\'importe quel curseur pour remodeler l\'orbite en temps réel. De petits changements peuvent transformer complètement l\'image.</string>
+    <string name="tutorial_render_title">Touchez pour lancer le rendu</string>
+    <string name="tutorial_render_body">Le bouton ▶ au centre effectue le rendu de votre attracteur. Pour une image en pleine résolution, utilisez HD ou 4K dans l\'onglet Exporter.</string>
+    <string name="tutorial_palette_title">Changez la palette</string>
+    <string name="tutorial_palette_body">Changez les puces de palette pour recolorer instantanément — l\'aperçu en direct se met à jour aussitôt. Touchez Modifier pour créer votre propre dégradé.</string>
+    <string name="tutorial_next">Suivant</string>
+    <string name="tutorial_done">Terminé</string>
+    <string name="tutorial_skip">Passer le tutoriel</string>
 </resources>

@@ -60,7 +60,12 @@ android {
     bundle {
         abi      { enableSplit = true }
         density  { enableSplit = true }
-        language { enableSplit = true }
+        // Do NOT split by language. The in-app language picker (LangPrefs) switches
+        // the locale at runtime, but with language splits enabled Play only delivers
+        // the split matching the *device* system language — so switching the app to
+        // French/Chinese on an English phone falls back to English ("nothing shows").
+        // Keeping all locales in the base module costs only a few KB.
+        language { enableSplit = false }
     }
 
     externalNativeBuild {

@@ -141,4 +141,26 @@
     <string name="notif_export_cancel">Cancelar</string>
     <string name="notif_channel_name">Exportação de Vídeo</string>
     <string name="notif_channel_desc">Mostra o progresso ao exportar uma animação para MP4.</string>
+
+    <!-- Newer keys -->
+    <string name="export_open">Abrir</string>
+    <string name="video_done_title">Vídeo salvo!</string>
+    <string name="btn_copy_caption">📋  Copiar Legenda</string>
+    <string name="btn_surprise_me">🎲  Surpreenda-me</string>
+    <string name="msg_caption_copied">Legenda copiada para a área de transferência</string>
+
+    <!-- Tutorial coach marks -->
+    <string name="tutorial_welcome_title">Bem-vindo ao Chaoscope</string>
+    <string name="tutorial_welcome_body">Arraste em qualquer lugar do canvas para girar o atrator em 3D. Pince para dar zoom.</string>
+    <string name="tutorial_pick_title">Escolha um atrator</string>
+    <string name="tutorial_pick_body">Deslize a fileira de chips para escolher entre 15 atratores estranhos — ou toque em Surpreenda-me para um aleatório.</string>
+    <string name="tutorial_tune_title">Ajuste os parâmetros</string>
+    <string name="tutorial_tune_body">Arraste qualquer controle para remodelar a órbita em tempo real. Pequenas mudanças podem transformar completamente a imagem.</string>
+    <string name="tutorial_render_title">Toque para renderizar</string>
+    <string name="tutorial_render_body">O botão ▶ no centro renderiza seu atrator. Para uma imagem em resolução total, use HD ou 4K na aba Exportar.</string>
+    <string name="tutorial_palette_title">Mude a paleta</string>
+    <string name="tutorial_palette_body">Troque os chips de paleta para recolorir na hora — a pré-visualização atualiza imediatamente. Toque em Editar para criar seu próprio gradiente.</string>
+    <string name="tutorial_next">Próximo</string>
+    <string name="tutorial_done">Concluir</string>
+    <string name="tutorial_skip">Pular tutorial</string>
 </resources>

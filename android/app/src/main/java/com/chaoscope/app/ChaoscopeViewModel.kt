@@ -597,14 +597,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             // Pre-compute the full orbit point cloud once for ORBIT_TRACE so that
             // every frame is a prefix of the same orbit (true cumulative trace).
-            // maxPts scales with render quality so the final frame is noticeably dense.
+            // The final frame draws previewIterations points, matching the per-frame
+            // density used by the Morph/Sweep render path so all video modes reach the
+            // same point budget at the selected render quality.
             val orbitPts: FloatArray? = if (s.animMode == AnimMode.ORBIT_TRACE) {
-                val maxPts = when (s.renderQuality) {
-                    RenderQuality.DRAFT    -> 100_000
-                    RenderQuality.STANDARD -> 200_000
-                    RenderQuality.HIGH     -> 350_000
-                    RenderQuality.ULTRA    -> 500_000
-                }
+                val maxPts = s.renderQuality.previewIterations.toInt()
                 ChaoscopeEngine.nativeGetPoints(
                     attractorType = s.attractorType.ordinal,
                     params        = s.params.toFloatArray(),

@@ -126,4 +126,26 @@
     <string name="notif_export_cancel">取消</string>
     <string name="notif_channel_name">视频导出</string>
     <string name="notif_channel_desc">导出 MP4 动画时显示进度。</string>
+
+    <!-- Newer keys -->
+    <string name="export_open">打开</string>
+    <string name="video_done_title">视频已保存！</string>
+    <string name="btn_copy_caption">📋  复制说明文字</string>
+    <string name="btn_surprise_me">🎲  给我惊喜</string>
+    <string name="msg_caption_copied">说明文字已复制到剪贴板</string>
+
+    <!-- Tutorial coach marks -->
+    <string name="tutorial_welcome_title">欢迎使用 Chaoscope</string>
+    <string name="tutorial_welcome_body">在画布上任意拖动即可在 3D 中旋转吸引子。双指捏合可缩放。</string>
+    <string name="tutorial_pick_title">选择一个吸引子</string>
+    <string name="tutorial_pick_body">滑动标签行从 15 种奇异吸引子中选择 — 或点击「给我惊喜」随机选一个。</string>
+    <string name="tutorial_tune_title">调整参数</string>
+    <string name="tutorial_tune_body">拖动任意滑块即可实时重塑轨道。微小的改变就能彻底改变画面。</string>
+    <string name="tutorial_render_title">点击渲染</string>
+    <string name="tutorial_render_body">中间的 ▶ 按钮可渲染你的吸引子。如需全分辨率图像，请在「导出」标签页使用 HD 或 4K。</string>
+    <string name="tutorial_palette_title">更换调色板</string>
+    <string name="tutorial_palette_body">切换调色板标签即可即时重新着色 — 实时预览会立即更新。点击「编辑」可创建自己的渐变。</string>
+    <string name="tutorial_next">下一步</string>
+    <string name="tutorial_done">完成</string>
+    <string name="tutorial_skip">跳过教程</string>
 </resources>

@@ -1,0 +1,46 @@
+name: Build Chaoscope iOS
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'zulu'
+
+    - name: Setup Gradle Cache
+      uses: actions/setup-gradle@v4
+
+    # This runs the Kotlin Native compiler to link your attractor math logic into iOS binaries
+    - name: Compile Kotlin iOS Target
+      run: ./gradlew :composeApp:compileReleaseKotlinIosArm64
+
+    # Builds the .app bundle using Xcode's built-in command-line tools
+    - name: Build Xcode Project
+      run: |
+        cd iosApp
+        xcodebuild -project iosApp.xcodeproj \
+                   -scheme iosApp \
+                   -configuration Release \
+                   -sdk iphoneos \
+                   CODE_SIGNING_ALLOWED=NO \
+                   BUILD_DIR=../build/ios-outputs
+
+    # Bundles and uploads the output folder so you can download it from your browser
+    - name: Upload Compiled App
+      uses: actions/upload-artifact@v4
+      with:
+        name: chaoscope-ios-app
+        path: build/ios-outputs/Release-iphoneos/iosApp.app

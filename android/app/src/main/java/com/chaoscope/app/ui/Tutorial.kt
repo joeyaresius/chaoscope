@@ -18,43 +18,17 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaoscope.R
 
 data class TutorialStepData(
     val targetRect: Rect?,
     val title: String,
     val body: String,
     val nextLabel: String,
-)
-
-private val STEPS = listOf(
-    TutorialStepData(null,
-        title     = "Welcome to Chaoscope",
-        body      = "Drag anywhere on the canvas to rotate the attractor in 3D. Pinch to zoom.",
-        nextLabel = "Next",
-    ),
-    TutorialStepData(null,
-        title     = "Pick an attractor",
-        body      = "Scroll the chip row to choose from 15 strange attractors — or tap Surprise Me for a random one.",
-        nextLabel = "Next",
-    ),
-    TutorialStepData(null,
-        title     = "Tune the parameters",
-        body      = "Drag any slider to reshape the orbit in real time. Small changes can completely transform the picture.",
-        nextLabel = "Next",
-    ),
-    TutorialStepData(null,
-        title     = "Tap to render",
-        body      = "The ▶ button in the centre renders your attractor. For a full-resolution image, use HD or 4K in the Export tab.",
-        nextLabel = "Next",
-    ),
-    TutorialStepData(null,
-        title     = "Change the palette",
-        body      = "Switch palette chips to recolour instantly — the live preview updates right away. Tap Edit to build your own gradient.",
-        nextLabel = "Done",
-    ),
 )
 
 /** Spotlight overlay with step-by-step coach marks. */
@@ -65,7 +39,37 @@ fun TutorialOverlay(
     onNext: () -> Unit,
     onSkip: () -> Unit,
 ) {
-    val stepData = STEPS.getOrNull(step) ?: return
+    // Built here (not as a top-level constant) so the copy is pulled from the
+    // localized string resources for the active language.
+    val nextLabel = stringResource(R.string.tutorial_next)
+    val steps = listOf(
+        TutorialStepData(null,
+            title     = stringResource(R.string.tutorial_welcome_title),
+            body      = stringResource(R.string.tutorial_welcome_body),
+            nextLabel = nextLabel,
+        ),
+        TutorialStepData(null,
+            title     = stringResource(R.string.tutorial_pick_title),
+            body      = stringResource(R.string.tutorial_pick_body),
+            nextLabel = nextLabel,
+        ),
+        TutorialStepData(null,
+            title     = stringResource(R.string.tutorial_tune_title),
+            body      = stringResource(R.string.tutorial_tune_body),
+            nextLabel = nextLabel,
+        ),
+        TutorialStepData(null,
+            title     = stringResource(R.string.tutorial_render_title),
+            body      = stringResource(R.string.tutorial_render_body),
+            nextLabel = nextLabel,
+        ),
+        TutorialStepData(null,
+            title     = stringResource(R.string.tutorial_palette_title),
+            body      = stringResource(R.string.tutorial_palette_body),
+            nextLabel = stringResource(R.string.tutorial_done),
+        ),
+    )
+    val stepData = steps.getOrNull(step) ?: return
 
     // Resolve the spotlight rect for the current step
     val spotlightRect: Rect? = when (step) {
@@ -107,7 +111,7 @@ fun TutorialOverlay(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment     = Alignment.CenterVertically,
         ) {
-            repeat(STEPS.size) { i ->
+            repeat(steps.size) { i ->
                 val alpha = if (i == step) 1f else 0.35f
                 Surface(
                     modifier = Modifier.size(if (i == step) 8.dp else 6.dp),
@@ -156,7 +160,7 @@ fun TutorialOverlay(
                 ) {
                     TextButton(onClick = onSkip) {
                         Text(
-                            text  = "Skip tutorial",
+                            text  = stringResource(R.string.tutorial_skip),
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                         )
                     }

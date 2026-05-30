@@ -165,4 +165,21 @@
     <string name="notif_export_cancel">Cancel</string>
     <string name="notif_channel_name">Video Export</string>
     <string name="notif_channel_desc">Shows progress while exporting an animation to MP4.</string>
+
+    <!-- ====================================================================
+         Tutorial coach marks
+         ==================================================================== -->
+    <string name="tutorial_welcome_title">Welcome to Chaoscope</string>
+    <string name="tutorial_welcome_body">Drag anywhere on the canvas to rotate the attractor in 3D. Pinch to zoom.</string>
+    <string name="tutorial_pick_title">Pick an attractor</string>
+    <string name="tutorial_pick_body">Scroll the chip row to choose from 15 strange attractors — or tap Surprise Me for a random one.</string>
+    <string name="tutorial_tune_title">Tune the parameters</string>
+    <string name="tutorial_tune_body">Drag any slider to reshape the orbit in real time. Small changes can completely transform the picture.</string>
+    <string name="tutorial_render_title">Tap to render</string>
+    <string name="tutorial_render_body">The ▶ button in the centre renders your attractor. For a full-resolution image, use HD or 4K in the Export tab.</string>
+    <string name="tutorial_palette_title">Change the palette</string>
+    <string name="tutorial_palette_body">Switch palette chips to recolour instantly — the live preview updates right away. Tap Edit to build your own gradient.</string>
+    <string name="tutorial_next">Next</string>
+    <string name="tutorial_done">Done</string>
+    <string name="tutorial_skip">Skip tutorial</string>
 </resources>
