@@ -14,6 +14,7 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    # The gradle action needs to know where to find the build configuration files
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
@@ -22,12 +23,15 @@ jobs:
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
+      with:
+        build-root-directory: ./android
 
-    # This runs the Kotlin Native compiler to link your attractor math logic into iOS binaries
+    # Added 'working-directory: ./android' so it runs inside your folder
     - name: Compile Kotlin iOS Target
       run: ./gradlew :composeApp:compileReleaseKotlinIosArm64
+      working-directory: ./android
 
-    # Builds the .app bundle using Xcode's built-in command-line tools
+    # Adjusted paths so Xcode finds the iosApp shell project inside the android folder
     - name: Build Xcode Project
       run: |
         cd iosApp
@@ -37,10 +41,11 @@ jobs:
                    -sdk iphoneos \
                    CODE_SIGNING_ALLOWED=NO \
                    BUILD_DIR=../build/ios-outputs
+      working-directory: ./android
 
-    # Bundles and uploads the output folder so you can download it from your browser
+    # Uploads the final app bundle out of the android subdirectory targets
     - name: Upload Compiled App
       uses: actions/upload-artifact@v4
       with:
         name: chaoscope-ios-app
-        path: build/ios-outputs/Release-iphoneos/iosApp.app
+        path: android/build/ios-outputs/Release-iphoneos/iosApp.app
