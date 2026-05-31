@@ -873,12 +873,14 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             paletteIndex   = s.palette.ordinal,
             gamma          = s.gamma,
             renderStyle    = s.renderStyle.ordinal,
-            bgColor        = s.effectiveBgArgb,
+            // For themed backgrounds the Compose layer draws the art; the native
+            // bitmap renders with a transparent background so the theme shows through.
+            bgColor        = if (s.bgColor.isTheme) 0xFF000000.toInt() else s.effectiveBgArgb,
             boundsExtraPad = boundsExtraPad,
             depthCue       = if (s.attractorType.is3D) s.depthCue else 0f,
             fullRange      = if (s.fullRange) 1 else 0,
             customStops    = customStops,
-            transparentBg  = if (s.transparentBg) 1 else 0,
+            transparentBg  = if (s.transparentBg || s.bgColor.isTheme) 1 else 0,
         )
     }
 

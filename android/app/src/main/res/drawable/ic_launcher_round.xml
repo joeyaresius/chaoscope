@@ -1,32 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Round variant — same artwork, used by launchers that prefer circular icons -->
+<!--
+  Round variant of the Lorenz butterfly icon.
+  Identical artwork, clipped to a circle via a clip-path.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Circular background -->
-    <path
-        android:fillColor="#0D0D0D"
-        android:pathData="M54,0 A54,54 0 1,1 53.9,0 Z" />
+    <!-- Circular clip -->
+    <clip-path android:pathData="M0,54 A54,54 0 1,0 108,54 A54,54 0 1,0 0,54"/>
 
-    <!-- Outer ring -->
+    <!-- Dark navy background -->
     <path
-        android:strokeColor="#4FC3F7"
-        android:strokeWidth="3"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M54,18 A36,36 0 1,1 53.9,18 Z" />
+        android:fillColor="#080818"
+        android:pathData="M0,0h108v108H0z"/>
 
-    <!-- Inner ring -->
+    <!-- Faint central glow -->
     <path
-        android:strokeColor="#9C27B0"
-        android:strokeWidth="2.5"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M54,30 A24,24 0 1,1 53.9,30 Z" />
+        android:fillColor="#12182F"
+        android:pathData="M18,54 A36,18 0 1,0 90,54 A36,18 0 1,0 18,54"/>
 
-    <!-- Centre dot -->
-    <path
-        android:fillColor="#4FC3F7"
-        android:pathData="M54,48 A6,6 0 1,1 53.9,48 Z" />
+    <!-- ── LEFT LOBE (cyan) ────── -->
+    <path android:strokeColor="#801A3A6A" android:strokeWidth="3.0"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M14,54 A20,15 0 1,0 54,54 A20,15 0 1,0 14,54"/>
+    <path android:strokeColor="#A61565C0" android:strokeWidth="2.4"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M19,54 A15,11 0 1,0 49,54 A15,11 0 1,0 19,54"/>
+    <path android:strokeColor="#CC1E88E5" android:strokeWidth="1.8"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M24,54 A10,7 0 1,0 44,54 A10,7 0 1,0 24,54"/>
+    <path android:strokeColor="#FF4FC3F7" android:strokeWidth="1.3"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M29,54 A5,4 0 1,0 39,54 A5,4 0 1,0 29,54"/>
+
+    <!-- ── RIGHT LOBE (violet) ─── -->
+    <path android:strokeColor="#804A1270" android:strokeWidth="3.0"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M54,54 A20,15 0 1,0 94,54 A20,15 0 1,0 54,54"/>
+    <path android:strokeColor="#A66A1B9A" android:strokeWidth="2.4"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M59,54 A15,11 0 1,0 89,54 A15,11 0 1,0 59,54"/>
+    <path android:strokeColor="#CC8E24AA" android:strokeWidth="1.8"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M64,54 A10,7 0 1,0 84,54 A10,7 0 1,0 64,54"/>
+    <path android:strokeColor="#FFCE93D8" android:strokeWidth="1.3"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M69,54 A5,4 0 1,0 79,54 A5,4 0 1,0 69,54"/>
+
+    <!-- Glow ring + centre dot -->
+    <path android:strokeColor="#554FC3F7" android:strokeWidth="1.0"
+          android:fillColor="@android:color/transparent"
+          android:pathData="M47,54 A7,7 0 1,0 61,54 A7,7 0 1,0 47,54"/>
+    <path android:fillColor="#FFFFFFFF"
+          android:pathData="M51,54 A3,3 0 1,0 57,54 A3,3 0 1,0 51,54"/>
+
 </vector>

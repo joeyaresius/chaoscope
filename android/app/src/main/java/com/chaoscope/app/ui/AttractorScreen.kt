@@ -309,14 +309,13 @@ fun AttractorScreen(
         val offsetPx        = if (panelState.offset.isNaN()) screenH * 0.75f else panelState.offset
         val panelHeightDp   = with(density) { (screenH - offsetPx).toDp() }
         val contentHeightDp = (panelHeightDp - 28.dp).coerceAtLeast(0.dp)
-        val canvasBg        = Color(state.effectiveBgArgb.toLong() and 0xFFFFFFFFL)
-
         // ── Attractor canvas ─────────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = panelHeightDp)
-                .background(canvasBg)
+                // Background is handled by ThemedBackground as first child so themed
+                // procedural art shows through the transparent attractor bitmap.
                 .onGloballyPositioned { coords ->
                     vm.updateTutorialAnchor(TutorialTarget.Canvas, coords.boundsInWindow())
                 }
@@ -328,6 +327,29 @@ fun AttractorScreen(
                 },
             contentAlignment = Alignment.Center,
         ) {
+            // Background layer — solid colour or procedural theme art
+            ThemedBackground(
+                bgColor      = state.bgColor,
+                customBgArgb = state.customBgArgb,
+                modifier     = Modifier.fillMaxSize(),
+            )
+
+            // Loading state — shown for ~1-2 s while native lib initialises on first launch
+            if (dotPoints == null && state.bitmap == null && !state.isRendering) {
+                Column(
+                    modifier            = Modifier.align(Alignment.Center),
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                ) {
+                    ChaosSpinner(palette = paletteLut, modifier = Modifier.size(72.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text  = "Loading…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.45f),
+                    )
+                }
+            }
+
             if (dotPoints != null) {
                 val pts = dotPoints!!
                 val livePreviewCd = stringResource(
@@ -982,14 +1004,21 @@ private fun ControlPanel(
                                             verticalAlignment     = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(10.dp)
-                                                    .background(
-                                                        color = bgCompose,
-                                                        shape = MaterialTheme.shapes.extraSmall,
-                                                    )
-                                            )
+                                            if (bg.isTheme) {
+                                                // Star indicator for procedural backgrounds
+                                                Text("✦",
+                                                     style = MaterialTheme.typography.labelSmall,
+                                                     color = Color(0xFF4FC3F7))
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(10.dp)
+                                                        .background(
+                                                            color = bgCompose,
+                                                            shape = MaterialTheme.shapes.extraSmall,
+                                                        )
+                                                )
+                                            }
                                             Text(bg.displayName,
                                                  style = MaterialTheme.typography.labelSmall)
                                         }
