@@ -25,26 +25,28 @@ internal fun presetToString(p: Preset): String = listOf(
 internal fun presetsToString(presets: List<Preset>): String =
     presets.joinToString("\n") { presetToString(it) }
 
-private fun parsePreset(line: String): Preset? = try {
-    val f = line.split('|')
-    if (f.size < 10) return null
-    val type    = AttractorType.valueOf(f[1])
-    val params  = f[2].split(',').mapNotNull { it.toFloatOrNull() }
-    if (params.isEmpty()) return null
-    Preset(
-        name        = f[0],
-        type        = type,
-        params      = params,
-        yaw         = f[3].toFloat(),
-        pitch       = f[4].toFloat(),
-        roll        = f[5].toFloat(),
-        zoom        = f[6].toFloat(),
-        palette     = PaletteType.valueOf(f[7]),
-        renderStyle = RenderStyle.valueOf(f[8]),
-        bgColor     = BgColor.valueOf(f[9]),
-    )
-} catch (_: Exception) {
-    null
+private fun parsePreset(line: String): Preset? {
+    return try {
+        val f = line.split('|')
+        if (f.size < 10) return null
+        val type   = AttractorType.valueOf(f[1])
+        val params = f[2].split(',').mapNotNull { it.toFloatOrNull() }
+        if (params.isEmpty()) return null
+        Preset(
+            name        = f[0],
+            type        = type,
+            params      = params,
+            yaw         = f[3].toFloat(),
+            pitch       = f[4].toFloat(),
+            roll        = f[5].toFloat(),
+            zoom        = f[6].toFloat(),
+            palette     = PaletteType.valueOf(f[7]),
+            renderStyle = RenderStyle.valueOf(f[8]),
+            bgColor     = BgColor.valueOf(f[9]),
+        )
+    } catch (_: Exception) {
+        null
+    }
 }
 
 internal fun stringToPresets(raw: String): List<Preset> {

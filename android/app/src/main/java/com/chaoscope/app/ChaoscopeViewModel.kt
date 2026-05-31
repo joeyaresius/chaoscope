@@ -742,10 +742,15 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         val canvas = android.graphics.Canvas(bitmap)
         canvas.drawColor(s.effectiveBgArgb)
 
+        // ADD blend: overlapping dots accumulate toward white, just like the density
+        // histogram in the still renderer — dense regions glow brighter automatically.
         val paint = Paint().apply {
-            strokeWidth = 3f
+            strokeWidth = 1.5f   // finer dots; density does the brightening, not dot size
             strokeCap   = Paint.Cap.ROUND
             isAntiAlias = true
+            xfermode    = android.graphics.PorterDuffXfermode(
+                android.graphics.PorterDuff.Mode.ADD
+            )
         }
 
         val stops = if (s.palette == PaletteType.CUSTOM) s.customStops
@@ -755,6 +760,10 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         val halfW = size * 0.5f
         val halfH = size * 0.5f
 
+        // Alpha scaled down so a moderate pile-up of dots (~8–12) reaches full brightness.
+        // Too high → everywhere saturates immediately; too low → never gets bright.
+        val dotAlpha = 28
+
         var i     = 0
         var ptIdx = 0
         while (i + 1 < pts.size && ptIdx < nPts) {
@@ -763,7 +772,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             val t = ptIdx.toFloat() / nPts.coerceAtLeast(1)
             val (r, g, b) = samplePaletteRgb(sortedStops, t)
             paint.color = android.graphics.Color.argb(
-                230,
+                dotAlpha,
                 (r * 255f).toInt().coerceIn(0, 255),
                 (g * 255f).toInt().coerceIn(0, 255),
                 (b * 255f).toInt().coerceIn(0, 255),
