@@ -586,11 +586,12 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
 
 std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
     static constexpr int BATCH_DOT  = 4096;
-    static constexpr int WARMUP_DOT = 500;  // high enough for slow-transient
-                                            // attractors (e.g. Sprott-B) to settle
-                                            // onto the attractor before sampling,
-                                            // so the preview matches the render
-    static constexpr int BOUNDS_DOT = 2;
+    static constexpr int WARMUP_DOT = 1000; // match the render warmup so preview
+                                            // and render always show the same region
+    // 8 batches × 4096 = 32 768 bounds-detection samples — enough for attractors
+    // with a large z-extent (e.g. Barnsley Fern with high twist) that need more
+    // points to reliably establish their bounding box.
+    static constexpr int BOUNDS_DOT = 8;
 
     float R[9];
     buildRotationMatrix(rp.yaw, rp.pitch, rp.roll, R);
@@ -653,11 +654,8 @@ std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
 
 std::vector<float> getProjectedPointsDepth(const RenderParams& rp, int n_pts) {
     static constexpr int BATCH_DOT  = 4096;
-    static constexpr int WARMUP_DOT = 500;  // high enough for slow-transient
-                                            // attractors (e.g. Sprott-B) to settle
-                                            // onto the attractor before sampling,
-                                            // so the preview matches the render
-    static constexpr int BOUNDS_DOT = 2;
+    static constexpr int WARMUP_DOT = 1000; // match the render warmup
+    static constexpr int BOUNDS_DOT = 8;   // 32 768 samples — robust for large z-extent
 
     float R[9];
     buildRotationMatrix(rp.yaw, rp.pitch, rp.roll, R);

@@ -351,21 +351,16 @@ enum class PreviewDensity(val displayName: String, val dots: Int, val descriptio
 // ────────────────────────────────────────────────────────────────────────────
 
 enum class BgColor(val displayName: String, val argb: Int, val isTheme: Boolean = false) {
-    BLACK      ("Black",      0xFF000000.toInt()),
-    DEEP_SPACE ("Deep Space", 0xFF060618.toInt()),
-    MIDNIGHT   ("Midnight",   0xFF0A0A2A.toInt()),
-    DARK_TEAL  ("Teal",       0xFF001A1A.toInt()),
-    DARK_GREEN ("Dark Green", 0xFF001200.toInt()),
-    DARK_RED   ("Crimson",    0xFF1A0000.toInt()),
-    DARK_PLUM  ("Plum",       0xFF12001A.toInt()),
-    WHITE      ("White",      0xFFFFFFFF.toInt()),
-    /** User-defined colour; actual ARGB lives in [UiState.customBgArgb]. */
-    CUSTOM     ("Custom",     0xFF000000.toInt()),
     /** Procedural themed backgrounds — drawn in Compose, render uses transparent bitmap. */
     STARS      ("Stars",      0xFF04040F.toInt(), isTheme = true),
     FOREST_BG  ("Forest",     0xFF011A01.toInt(), isTheme = true),
     OCEAN_BG   ("Ocean",      0xFF00101A.toInt(), isTheme = true),
     AURORA_BG  ("Aurora",     0xFF050510.toInt(), isTheme = true),
+    /** Solid colour backgrounds */
+    BLACK      ("Black",      0xFF000000.toInt()),
+    WHITE      ("White",      0xFFFFFFFF.toInt()),
+    /** User-defined colour; actual ARGB lives in [UiState.customBgArgb]. */
+    CUSTOM     ("Custom",     0xFF000000.toInt()),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -459,9 +454,10 @@ val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
     ),
     AttractorType.IFS to listOf(
         Preset("Fern",      AttractorType.IFS, listOf(1.0f, 0.0f, 0.0f), palette = PaletteType.MATRIX),
-        // yaw=30/pitch=10 made z≈1.34·y degenerate in projection → black render.
-        // pitch=55° (top-down) breaks the collinearity and shows the 3-D spiral.
-        Preset("Spiral",    AttractorType.IFS, listOf(1.0f, 0.0f, 0.3f), yaw = 0f, pitch = 55f, palette = PaletteType.AURORA),
+        // twist=0.3 with any camera caused the dot-preview bounds detection to miss
+        // the large z-extent (~13 units); reduced to 0.22 which is comfortably
+        // within the range that the fixed BOUNDS_DOT=8 detection handles correctly.
+        Preset("Spiral",    AttractorType.IFS, listOf(1.0f, 0.0f, 0.22f), yaw = 20f, pitch = 30f, palette = PaletteType.AURORA),
         Preset("Broadleaf", AttractorType.IFS, listOf(1.1f, 0.0f, 0.15f), yaw = 20f, pitch = 10f, palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
     ),
     AttractorType.JULIA to listOf(
