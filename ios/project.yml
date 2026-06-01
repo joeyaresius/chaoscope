@@ -4,7 +4,7 @@ options:
   bundleIdPrefix: com.chaoscope
   deploymentTarget:
     iOS: "16.0"
-  xcodeVersion: "15.0"
+  xcodeVersion: "16.0"
   createIntermediateGroups: true
   groupSortPosition: top
 

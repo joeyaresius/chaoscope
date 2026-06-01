@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-14   # Apple Silicon, Xcode 15.x
+    runs-on: macos-15   # Apple Silicon, Xcode 16.x (format-77 project files)
 
     steps:
       - name: Checkout
