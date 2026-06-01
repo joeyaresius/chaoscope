@@ -116,7 +116,7 @@ fun AttractorScreen(
     onShowAbout: () -> Unit = {},
 ) {
     val state            by vm.uiState.collectAsStateWithLifecycle()
-    val dotPoints        by vm.dotPoints.collectAsStateWithLifecycle()
+    val bucketedDots     by vm.bucketedDots.collectAsStateWithLifecycle()
     val paletteLut       by vm.paletteLut.collectAsStateWithLifecycle()
     val recentExports    by vm.recentExports.collectAsStateWithLifecycle()
     val showTutorial     by vm.showTutorial.collectAsStateWithLifecycle()
@@ -334,8 +334,8 @@ fun AttractorScreen(
                 modifier     = Modifier.fillMaxSize(),
             )
 
-            // Loading state — shown for ~1-2 s while native lib initialises on first launch
-            if (dotPoints == null && state.bitmap == null && !state.isRendering) {
+            // Loading state — shown while GPU probe + dot preview are initialising
+            if (bucketedDots == null && state.bitmap == null && !state.isRendering) {
                 Column(
                     modifier            = Modifier.align(Alignment.Center),
                     horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
@@ -350,45 +350,40 @@ fun AttractorScreen(
                 }
             }
 
-            if (dotPoints != null) {
-                val pts = dotPoints!!
+            if (bucketedDots != null) {
+                val data = bucketedDots!!
                 val livePreviewCd = stringResource(
                     R.string.cd_live_preview, state.attractorType.displayName
                 )
-                val lut = paletteLut
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
                         .semantics { contentDescription = livePreviewCd },
                 ) {
-                    val halfW = size.width  / 2f
-                    val halfH = size.height / 2f
-                    val stroke = 1.0.dp.toPx()
-                    if (lut.isEmpty()) {
-                        // Fallback: single accent colour before the LUT is ready.
-                        val offsets = ArrayList<Offset>(pts.size / 3)
-                        var i = 0
-                        while (i < pts.size - 2) {
-                            offsets.add(Offset(halfW + pts[i] * halfW, halfH + pts[i + 1] * halfH))
-                            i += 3
+                    val halfW   = size.width  / 2f
+                    val halfH   = size.height / 2f
+                    val stroke  = 1.0.dp.toPx()
+                    // Use nativeCanvas.drawPoints(FloatArray) — no Offset boxing,
+                    // no ArrayList.  Main-thread work is one coord-scale pass per
+                    // bucket (two multiplies per float) and one drawPoints call.
+                    val nCanvas = drawContext.canvas.nativeCanvas
+                    val paint   = android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        strokeCap   = android.graphics.Paint.Cap.ROUND
+                        strokeWidth = stroke
+                    }
+                    for (b in data.buckets.indices) {
+                        val src = data.buckets[b]
+                        if (src.isEmpty()) continue
+                        val dst = FloatArray(src.size)
+                        var j = 0
+                        while (j < src.size) {
+                            dst[j]     = halfW + src[j]     * halfW
+                            dst[j + 1] = halfH + src[j + 1] * halfH
+                            j += 2
                         }
-                        drawPoints(offsets, PointMode.Points, Color(0xFF4FC3F7), stroke, cap = StrokeCap.Round)
-                    } else {
-                        // Bucket dots by their depth-mapped palette colour, then one
-                        // drawPoints call per colour bucket.
-                        val buckets = Array(lut.size) { ArrayList<Offset>() }
-                        val lastIdx = lut.size - 1
-                        var i = 0
-                        while (i < pts.size - 2) {
-                            val off = Offset(halfW + pts[i] * halfW, halfH + pts[i + 1] * halfH)
-                            val d   = pts[i + 2].coerceIn(0f, 1f)
-                            buckets[(d * lastIdx).toInt()].add(off)
-                            i += 3
-                        }
-                        for (b in lut.indices) {
-                            if (buckets[b].isEmpty()) continue
-                            drawPoints(buckets[b], PointMode.Points, Color(lut[b]), stroke, cap = StrokeCap.Round)
-                        }
+                        paint.color = data.colors[b]
+                        nCanvas.drawPoints(dst, paint)
                     }
                 }
             } else if (state.bitmap != null) {

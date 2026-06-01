@@ -1,0 +1,71 @@
+name: Chaoscope
+
+options:
+  bundleIdPrefix: com.chaoscope
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  SWIFT_VERSION: "5.9"
+
+targets:
+  Chaoscope:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+
+    sources:
+      # Swift UI + app sources
+      - path: Sources
+      # C bridge (includes renderer.h via HEADER_SEARCH_PATHS)
+      - path: Core
+        compilerFlags: "-std=c++17 -ffast-math"
+      # Portable C++ engine — shared with Android.
+      # gpu_renderer and chaoscope_jni are excluded (Android-only).
+      - path: ../android/app/src/main/cpp
+        compilerFlags: "-std=c++17 -ffast-math"
+        excludes:
+          - chaoscope_jni.cpp
+          - gpu_renderer.cpp
+          - gpu_renderer.h
+          - CMakeLists.txt
+
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.chaoscope.app
+      SWIFT_OBJC_BRIDGING_HEADER: Sources/BridgingHeader.h
+      CLANG_CXX_LANGUAGE_STANDARD: c++17
+      CLANG_CXX_LIBRARY: libc++
+      GCC_OPTIMIZATION_LEVEL: "3"
+      OTHER_CFLAGS: "-ffast-math"
+      HEADER_SEARCH_PATHS:
+        - "$(SRCROOT)/Core"
+        - "$(SRCROOT)/../android/app/src/main/cpp"
+      IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+      TARGETED_DEVICE_FAMILY: "1,2"   # iPhone + iPad
+      ENABLE_BITCODE: "NO"            # not required since Xcode 14
+      ASSETCATALOG_COMPILER_APPICON_NAME: ""
+
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleName: Chaoscope
+        CFBundleDisplayName: Chaoscope
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSRequiresIPhoneOS: true
+        UIRequiredDeviceCapabilities:
+          - armv7
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight

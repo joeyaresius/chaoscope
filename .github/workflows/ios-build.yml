@@ -2,48 +2,72 @@ name: Build Chaoscope iOS
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main]
   pull_request:
-    branches: [ main, master ]
+    branches: [main]
 
 jobs:
-  build:
-    runs-on: macos-latest
+  build-ios:
+    runs-on: macos-14   # Apple Silicon, Xcode 15.x
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'zulu'
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-    # Removed the invalid 'build-root-directory' input entirely
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
+      - name: Generate Xcode project
+        run: xcodegen generate
+        working-directory: ios
 
-    # Run the native compilation explicitly scoped inside the android directory
-    - name: Compile Kotlin iOS Target
-      run: ./gradlew :composeApp:compileReleaseKotlinIosArm64
-      working-directory: ./android
+      # ── Simulator build (fast compile check, no signing needed) ────────────
+      - name: Build for simulator
+        run: |
+          xcodebuild \
+            -project ios/Chaoscope.xcodeproj \
+            -scheme Chaoscope \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios-sim \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
-    # Build the structural Xcode container matching your directory mapping
-    - name: Build Xcode Project
-      run: |
-        cd iosApp
-        xcodebuild -project iosApp.xcodeproj \
-                   -scheme iosApp \
-                   -configuration Release \
-                   -sdk iphoneos \
-                   CODE_SIGNING_ALLOWED=NO \
-                   BUILD_DIR=../build/ios-outputs
-      working-directory: ./android
+      # ── Device build — produces the .app we'll package as an .ipa ──────────
+      - name: Build for device (unsigned)
+        run: |
+          xcodebuild \
+            -project ios/Chaoscope.xcodeproj \
+            -scheme Chaoscope \
+            -sdk iphoneos \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios-device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ARCHS=arm64
 
-    # Compress and upload the built framework artifact
-    - name: Upload Compiled App
-      uses: actions/upload-artifact@v4
-      with:
-        name: chaoscope-ios-app
-        path: android/build/ios-outputs/Release-iphoneos/iosApp.app
+      # ── Package unsigned .ipa ───────────────────────────────────────────────
+      # An unsigned .ipa can be re-signed locally with Sideloadly (Windows/Mac)
+      # or AltStore using a free Apple ID for 7-day sideloading to a real device.
+      - name: Package unsigned .ipa
+        run: |
+          APP=$(find build/ios-device/Build/Products -name "*.app" -type d | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: no .app found in derived data" && exit 1
+          fi
+          mkdir -p Payload
+          cp -r "$APP" Payload/
+          zip -r Chaoscope-unsigned.ipa Payload/
+          rm -rf Payload
+          echo "Packaged: $(du -sh Chaoscope-unsigned.ipa | cut -f1)"
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chaoscope-iOS-unsigned
+          path: Chaoscope-unsigned.ipa
+          retention-days: 14

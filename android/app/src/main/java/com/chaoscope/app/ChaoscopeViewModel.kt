@@ -57,16 +57,23 @@ data class TutorialAnchors(
 @OptIn(FlowPreview::class)
 class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val prefs    = ChaoscopePreferences(app)
-    val gpuSupported: Boolean = GlesCapabilities.supportsComputeShaders(app)
-    private val renderer: AttractorRenderer =
-        if (gpuSupported) GpuAttractorRenderer() else CpuAttractorRenderer()
+    private val prefs = ChaoscopePreferences(app)
+
+    // Starts as CpuAttractorRenderer (zero main-thread cost); upgraded to
+    // GpuAttractorRenderer on a background thread in init once the capability
+    // probe completes.  @Volatile ensures the swap is visible to all threads.
+    @Volatile private var renderer: AttractorRenderer = CpuAttractorRenderer()
+
+    private val _gpuSupported = MutableStateFlow(false)
+    val gpuSupported: StateFlow<Boolean> = _gpuSupported.asStateFlow()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val _dotPoints  = MutableStateFlow<FloatArray?>(null)
-    val dotPoints: StateFlow<FloatArray?> = _dotPoints.asStateFlow()
+    // Pre-bucketed dot cloud: heavy O(n) work done on Dispatchers.Default so
+    // the Canvas draw thread only does a fast coord-scale pass per bucket.
+    private val _bucketedDots = MutableStateFlow<BucketedDots?>(null)
+    val bucketedDots: StateFlow<BucketedDots?> = _bucketedDots.asStateFlow()
 
     // Palette colours for the dot preview, sampled across the active palette.
     // Rebuilt on palette / custom-stop changes; lets colour edits recolour the
@@ -111,6 +118,16 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private var videoExportJob:  Job? = null
 
     init {
+        // GPU capability probe + context init on a background thread so the main
+        // thread is never blocked and the loading spinner can animate freely.
+        // Runs in parallel with the data-load launch below.
+        viewModelScope.launch(Dispatchers.Default) {
+            if (GlesCapabilities.supportsComputeShaders(app)) {
+                renderer = GpuAttractorRenderer()
+                _gpuSupported.value = true
+            }
+        }
+
         viewModelScope.launch {
             // Restore last persisted parameters before the first dot-preview fetch.
             prefs.loadLastState()?.let { saved ->
@@ -377,9 +394,51 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         dotJob?.cancel()
         dotJob = viewModelScope.launch(Dispatchers.Default) {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
-            _dotPoints.value = computeDots(_uiState.value)
+            val pts = computeDots(_uiState.value)
+            // Bucket by depth here on the background thread so the Canvas draw
+            // thread only has to do a fast coord-scale pass — no Offset boxing.
+            _bucketedDots.value = bucketDots(pts, _paletteLut.value)
         }
         // No finishJob — dots stay visible until a render completes
+    }
+
+    /**
+     * Groups raw dot triples [u, v, depth, …] into per-palette-bucket float
+     * arrays [u0, v0, u1, v1, …] in normalised [-1, 1] space.
+     * Two linear passes (count then fill) with exact-size allocation avoids
+     * ArrayList resizing and Offset boxing entirely.
+     */
+    private fun bucketDots(pts: FloatArray, lut: IntArray): BucketedDots {
+        if (lut.isEmpty()) {
+            // Palette not ready yet — single white bucket, no depth colour
+            val uvs = FloatArray(pts.size / 3 * 2)
+            var si = 0; var di = 0
+            while (si < pts.size - 2) { uvs[di++] = pts[si++]; uvs[di++] = pts[si++]; si++ }
+            return BucketedDots(arrayOf(uvs), intArrayOf(0xFFFFFFFF.toInt()))
+        }
+        val n       = lut.size
+        val lastIdx = n - 1
+        // Pass 1: count per bucket
+        val counts = IntArray(n)
+        var i = 0
+        while (i < pts.size - 2) {
+            counts[((pts[i + 2].coerceIn(0f, 1f)) * lastIdx).toInt()]++
+            i += 3
+        }
+        // Allocate exact-size arrays — no wasted memory, no resizing
+        val buckets = Array(n) { b -> FloatArray(counts[b] * 2) }
+        val heads   = IntArray(n)
+        // Pass 2: fill
+        i = 0
+        while (i < pts.size - 2) {
+            val b = ((pts[i + 2].coerceIn(0f, 1f)) * lastIdx).toInt()
+            val h = heads[b]
+            buckets[b][h]     = pts[i]
+            buckets[b][h + 1] = pts[i + 1]
+            heads[b] = h + 2
+            i += 3
+        }
+        return BucketedDots(buckets, lut)
     }
 
     /** Compute the projected dot cloud (u,v,depth triples) for a state snapshot. */
@@ -421,14 +480,14 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     fun finishRotation() {
         finishJob?.cancel()
         _isDragging.value = false
-        _dotPoints.value  = null
+        _bucketedDots.value = null
     }
 
     /** Reset camera to default orientation and zoom — no render. */
     fun resetCamera() {
         finishJob?.cancel()
         _isDragging.value = false
-        _dotPoints.value  = null
+        _bucketedDots.value = null
         _uiState.update { it.copy(yaw = 0f, pitch = 0f, roll = 0f, zoom = 1f) }
     }
 
@@ -998,12 +1057,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         return@launch
                     }
                     val bitmap = Bitmap.createBitmap(retryPixels, size, size, Bitmap.Config.ARGB_8888)
-                    _dotPoints.value = null
+                    _bucketedDots.value = null
                     _uiState.update { it.copy(bitmap = bitmap) }
                     onActionCompleted()
                 } else {
                     val bitmap = Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
-                    _dotPoints.value = null
+                    _bucketedDots.value = null
                     _uiState.update { it.copy(bitmap = bitmap) }
                     onActionCompleted()
                 }
