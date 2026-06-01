@@ -5,7 +5,13 @@ import android.app.WallpaperManager
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Typeface
+import androidx.core.content.ContextCompat
+import com.chaoscope.R
+import com.chaoscope.ui.ThemeBackgroundRenderer
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.ui.geometry.Rect
@@ -51,7 +57,10 @@ data class TutorialAnchors(
 @OptIn(FlowPreview::class)
 class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val prefs = ChaoscopePreferences(app)
+    private val prefs    = ChaoscopePreferences(app)
+    val gpuSupported: Boolean = GlesCapabilities.supportsComputeShaders(app)
+    private val renderer: AttractorRenderer =
+        if (gpuSupported) GpuAttractorRenderer() else CpuAttractorRenderer()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -375,7 +384,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Compute the projected dot cloud (u,v,depth triples) for a state snapshot. */
     private fun computeDots(s: UiState): FloatArray =
-        ChaoscopeEngine.nativeGetPointsDepth(
+        renderer.getPointsDepth(
             attractorType = s.attractorType.ordinal,
             params        = s.params.toFloatArray(),
             nPts          = s.previewDensity.dots,
@@ -401,7 +410,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     /** Resample the dot-preview palette LUT for the current palette/custom stops. */
     private fun rebuildPaletteLut() {
         val s = _uiState.value
-        _paletteLut.value = ChaoscopeEngine.nativePaletteLut(
+        _paletteLut.value = renderer.paletteLut(
             paletteIndex = s.palette.ordinal,
             size         = DOT_LUT_SIZE,
             customStops  = customStopsArray(s),
@@ -455,7 +464,13 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Export PNG ──────────────────────────────────────────────────────────
 
     fun exportPng(context: Context) {
-        val bmp = _uiState.value.bitmap ?: return
+        val s   = _uiState.value
+        val raw = s.bitmap ?: return
+        // Composite themed art into the bitmap (live UI shows it via Compose layer,
+        // but the saved bitmap has transparent bg pixels — we fill them here).
+        val bmp = if (s.bgColor.isTheme)
+            ThemeBackgroundRenderer.compositeOnBitmap(s.bgColor, s.customBgArgb, raw)
+        else raw
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val values = ContentValues().apply {
@@ -497,7 +512,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Set as Wallpaper ────────────────────────────────────────────────────
 
     fun setWallpaper(context: Context) {
-        val bmp = _uiState.value.bitmap ?: return
+        val s   = _uiState.value
+        val raw = s.bitmap ?: return
+        val bmp = if (s.bgColor.isTheme)
+            ThemeBackgroundRenderer.compositeOnBitmap(s.bgColor, s.customBgArgb, raw)
+        else raw
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val wm = WallpaperManager.getInstance(context)
@@ -558,8 +577,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         val s = _uiState.value
 
         // Ping-pong appends the reverse (minus the duplicated last frame)
-        val baseFrames  = s.animFrames.coerceAtLeast(2)
-        val totalFrames = if (s.animPingPong) baseFrames * 2 - 1 else baseFrames
+        val baseFrames         = s.animFrames.coerceAtLeast(2)
+        val totalFrames        = if (s.animPingPong) baseFrames * 2 - 1 else baseFrames
+        val totalFramesWithOutro = totalFrames + OUTRO_FRAMES
 
         // Resolve keyframes for modes that need them
         val kfA: AnimKeyframe?
@@ -581,7 +601,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 isExportingVideo    = true,
                 videoExportProgress = 0,
-                videoExportTotal    = totalFrames,
+                videoExportTotal    = totalFramesWithOutro,
                 videoExportError    = null,
                 videoExportUri      = null,
             )
@@ -590,7 +610,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         // Register the notification-cancel callback BEFORE starting the service so
         // it is always in place by the time the notification's Cancel button is live.
         VideoExportState.onCancelRequested = { cancelVideoExport() }
-        VideoExportState.status.value = ExportStatus.Running(0, totalFrames)
+        VideoExportState.status.value = ExportStatus.Running(0, totalFramesWithOutro)
         VideoExportService.start(getApplication())
 
         videoExportJob = viewModelScope.launch(Dispatchers.Default) {
@@ -602,7 +622,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             // same point budget at the selected render quality.
             val orbitPts: FloatArray? = if (s.animMode == AnimMode.ORBIT_TRACE) {
                 val maxPts = s.renderQuality.previewIterations.toInt()
-                ChaoscopeEngine.nativeGetPoints(
+                renderer.getPoints(
                     attractorType = s.attractorType.ordinal,
                     params        = s.params.toFloatArray(),
                     nPts          = maxPts,
@@ -617,11 +637,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 val uri = withContext(Dispatchers.IO) {
                     VideoExporter.export(
                         context    = context,
-                        frameCount = totalFrames,
+                        frameCount = totalFramesWithOutro,
                         fps        = 30,
                         frameSize  = PREVIEW_SIZE,
                         renderFrame = { frameIdx ->
                             if (!isActive) return@export null
+                            if (frameIdx >= totalFrames) return@export renderOutroFrame(context, frameIdx - totalFrames)
 
                             // t ∈ [0,1], mirrored in the second half for ping-pong
                             val t = if (frameIdx < baseFrames) {
@@ -649,8 +670,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                                s.renderQuality.previewIterations * 4, PREVIEW_SIZE,
                                                boundsExtraPad = 0.15f)
                                         ?: return@export null
-                                    Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
-                                                        Bitmap.Config.ARGB_8888)
+                                    val raw = Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
+                                                                  Bitmap.Config.ARGB_8888)
+                                    if (s.bgColor.isTheme)
+                                        ThemeBackgroundRenderer.compositeOnBitmap(
+                                            s.bgColor, s.customBgArgb, raw)
+                                    else raw
                                 }
 
                                 // ── Orbit Trace: cumulative coloured dot cloud ────────
@@ -666,7 +691,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         onProgress = { done, _ ->
                             _uiState.update { it.copy(videoExportProgress = done) }
                             VideoExportState.status.value =
-                                ExportStatus.Running(done, totalFrames)
+                                ExportStatus.Running(done, totalFramesWithOutro)
                         },
                     )
                 }
@@ -677,7 +702,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 _uiState.update {
                     it.copy(
                         isExportingVideo    = false,
-                        videoExportProgress = totalFrames,
+                        videoExportProgress = totalFramesWithOutro,
                         videoExportUri      = uri,
                     )
                 }
@@ -704,6 +729,46 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ── Video export helpers ──────────────────────────────────────────────────
+
+    private fun renderOutroFrame(context: Context, outroIdx: Int): Bitmap {
+        val size   = PREVIEW_SIZE
+        val bmp    = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        // Fade in over first 8 frames (~0.27 s at 30fps)
+        val alpha = if (outroIdx < 8) (outroIdx * 255 / 7).coerceIn(0, 255) else 255
+
+        canvas.drawColor(Color.parseColor("#FF080818"))
+
+        // Lorenz butterfly icon centred in the upper portion
+        val iconSize = (size * 0.35f).toInt()
+        val iconLeft = (size - iconSize) / 2
+        val iconTop  = (size * 0.20f).toInt()
+        ContextCompat.getDrawable(context, R.drawable.ic_launcher)?.apply {
+            setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize)
+            this.alpha = alpha
+            draw(canvas)
+        }
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+
+        // "Made with" — small muted label
+        paint.color    = Color.parseColor("#FFAAAAAA")
+        paint.alpha    = alpha
+        paint.textSize = size * 0.048f
+        paint.typeface = Typeface.DEFAULT
+        val labelY = iconTop + iconSize + size * 0.08f
+        canvas.drawText("Made with", size / 2f, labelY, paint)
+
+        // "Chaoscope" — large bold cyan
+        paint.color    = Color.parseColor("#FF4FC3F7")
+        paint.alpha    = alpha
+        paint.textSize = size * 0.10f
+        paint.typeface = Typeface.DEFAULT_BOLD
+        canvas.drawText("Chaoscope", size / 2f, labelY + size * 0.13f, paint)
+
+        return bmp
+    }
 
     /**
      * Generate an [AnimKeyframe] that varies every parameter by up to ±40 % of
@@ -739,8 +804,13 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         size:  Int,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        canvas.drawColor(s.effectiveBgArgb)
+        val canvas = Canvas(bitmap)
+        if (s.bgColor.isTheme) {
+            ThemeBackgroundRenderer.drawTo(canvas, s.bgColor, s.customBgArgb,
+                                           size.toFloat(), size.toFloat())
+        } else {
+            canvas.drawColor(s.effectiveBgArgb)
+        }
 
         // ADD blend: overlapping dots accumulate toward white, just like the density
         // histogram in the still renderer — dense regions glow brighter automatically.
@@ -860,7 +930,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private fun nativeRenderCall(s: UiState, iterations: Long, size: Int,
                                   boundsExtraPad: Float = 0f): IntArray? {
         val customStops = customStopsArray(s)
-        return ChaoscopeEngine.nativeRender(
+        return renderer.render(
             attractorType  = s.attractorType.ordinal,
             params         = s.params.toFloatArray(),
             width          = size,
@@ -943,10 +1013,18 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        renderer.close()
+    }
+
     companion object {
         private const val DEBOUNCE_MS         = 80L
         private const val LOOK_DEBOUNCE_MS    = 300L
         private const val PERSIST_DEBOUNCE_MS = 500L
+
+        // Outro appended to every video export (1 s at 30 fps).
+        private const val OUTRO_FRAMES = 30
 
         // Iteration counts now come from RenderQuality; only the canvas sizes are fixed.
         const val PREVIEW_SIZE       = 768

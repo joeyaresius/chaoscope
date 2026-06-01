@@ -6,6 +6,7 @@ add_library(
     SHARED
     attractors.cpp
     renderer.cpp
+    gpu_renderer.cpp
     chaoscope_jni.cpp
 )
 
@@ -27,7 +28,9 @@ if(ANDROID_ABI STREQUAL "x86_64")
 endif()
 
 find_library(log-lib log)
-target_link_libraries(chaoscope ${log-lib})
+find_library(egl-lib  EGL)
+find_library(gles-lib GLESv3)
+target_link_libraries(chaoscope ${log-lib} ${egl-lib} ${gles-lib})
 
 # 16 KB page-size alignment (required for Android 15+ / Play Store Nov 2025)
 target_link_options(chaoscope PRIVATE -Wl,-z,max-page-size=16384)

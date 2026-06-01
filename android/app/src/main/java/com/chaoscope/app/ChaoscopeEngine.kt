@@ -86,4 +86,39 @@ object ChaoscopeEngine {
         size: Int,
         customStops: FloatArray? = null,
     ): IntArray
+
+    // ── GPU renderer ────────────────────────────────────────────────────────────
+
+    /** Create the EGL offscreen context. Returns false if GLES 3.1 is unavailable. */
+    external fun nativeGpuInit(): Boolean
+
+    /** Release EGL context and all GPU resources. */
+    external fun nativeGpuDestroy()
+
+    /**
+     * GPU render path — same contract as [nativeRender] but runs the histogram
+     * accumulation on the GPU via GLES 3.1 compute shaders.
+     * Returns null when the render produced no visible pixels or the GPU path
+     * is not yet implemented (stub returns null until Steps 4-6 are complete).
+     */
+    external fun nativeRenderGpu(
+        attractorType: Int,
+        params: FloatArray,
+        width: Int,
+        height: Int,
+        iterations: Long,
+        yaw: Float,
+        pitch: Float,
+        roll: Float,
+        zoom: Float,
+        paletteIndex: Int,
+        gamma: Float,
+        renderStyle: Int,
+        bgColor: Int,
+        boundsExtraPad: Float = 0f,
+        depthCue: Float = 0f,
+        fullRange: Int = 0,
+        customStops: FloatArray? = null,
+        transparentBg: Int = 0,
+    ): IntArray?
 }

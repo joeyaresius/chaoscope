@@ -1,6 +1,9 @@
 #include <jni.h>
 #include <cstring>
 #include "renderer.h"
+#include "gpu_renderer.h"
+
+static GpuContext g_gpuCtx;
 
 extern "C" {
 
@@ -188,6 +191,93 @@ Java_com_chaoscope_ChaoscopeEngine_nativePaletteLut(
                       reinterpret_cast<int*>(data), n, stopsPtr, numStops);
     env->ReleaseIntArrayElements(result, data, 0);
     return result;
+}
+
+// ── GPU renderer JNI ─────────────────────────────────────────────────────────
+
+JNIEXPORT jboolean JNICALL
+Java_com_chaoscope_ChaoscopeEngine_nativeGpuInit(
+    JNIEnv* /* env */, jobject /* this */
+) {
+    return gpuInit(g_gpuCtx) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_chaoscope_ChaoscopeEngine_nativeGpuDestroy(
+    JNIEnv* /* env */, jobject /* this */
+) {
+    gpuDestroy(g_gpuCtx);
+}
+
+JNIEXPORT jintArray JNICALL
+Java_com_chaoscope_ChaoscopeEngine_nativeRenderGpu(
+    JNIEnv*     env,
+    jobject     /* this */,
+    jint        attractorType,
+    jfloatArray jParams,
+    jint        width,
+    jint        height,
+    jlong       iterations,
+    jfloat      yaw,
+    jfloat      pitch,
+    jfloat      roll,
+    jfloat      zoom,
+    jint        paletteIndex,
+    jfloat      gamma,
+    jint        renderStyle,
+    jint        bgColor,
+    jfloat      boundsExtraPad,
+    jfloat      depthCue,
+    jint        fullRange,
+    jfloatArray jCustomStops,
+    jint        transparentBg
+) {
+    if (!g_gpuCtx.ready) return nullptr;
+
+    RenderParams rp{};
+    rp.attractorType  = static_cast<int>(attractorType);
+    rp.width          = static_cast<int>(width);
+    rp.height         = static_cast<int>(height);
+    rp.iterations     = static_cast<long long>(iterations);
+    rp.yaw            = yaw;
+    rp.pitch          = pitch;
+    rp.roll           = roll;
+    rp.zoom           = zoom;
+    rp.paletteIndex   = static_cast<int>(paletteIndex);
+    rp.gamma          = gamma;
+    rp.renderStyle    = static_cast<int>(renderStyle);
+    rp.bgColor        = static_cast<int>(bgColor);
+    rp.boundsExtraPad = boundsExtraPad;
+    rp.depthCue       = depthCue;
+    rp.fullRange      = static_cast<int>(fullRange);
+    rp.transparentBg  = static_cast<int>(transparentBg);
+
+    memset(rp.params, 0, sizeof(rp.params));
+    jsize   paramLen = env->GetArrayLength(jParams);
+    jfloat* pData    = env->GetFloatArrayElements(jParams, nullptr);
+    int     copyLen  = (paramLen < 8) ? (int)paramLen : 8;
+    for (int i = 0; i < copyLen; i++) rp.params[i] = pData[i];
+    env->ReleaseFloatArrayElements(jParams, pData, JNI_ABORT);
+
+    memset(rp.customStops, 0, sizeof(rp.customStops));
+    rp.numCustomStops = 0;
+    if (jCustomStops != nullptr) {
+        jsize   stopLen   = env->GetArrayLength(jCustomStops);
+        jfloat* sData     = env->GetFloatArrayElements(jCustomStops, nullptr);
+        int     copyStops = (stopLen / 4 < 8) ? (int)(stopLen / 4) : 8;
+        for (int i = 0; i < copyStops * 4; i++) rp.customStops[i] = sData[i];
+        rp.numCustomStops = copyStops;
+        env->ReleaseFloatArrayElements(jCustomStops, sData, JNI_ABORT);
+    }
+
+    jintArray result = env->NewIntArray(width * height);
+    if (result == nullptr) return nullptr;
+
+    jint* pixels    = env->GetIntArrayElements(result, nullptr);
+    bool  hasContent = gpuRenderAttractor(g_gpuCtx, rp, reinterpret_cast<int*>(pixels));
+    env->ReleaseIntArrayElements(result, pixels, hasContent ? 0 : JNI_ABORT);
+
+    return hasContent ? result : nullptr;
 }
 
 } // extern "C"
