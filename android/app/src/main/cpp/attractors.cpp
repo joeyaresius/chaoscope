@@ -1,6 +1,46 @@
 #include "attractors.h"
 #include <cmath>
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Fast polynomial sin / cos
+//
+// The transcendental maps (Clifford, de Jong, Pickover, Thomas) call sin/cos
+// per point — the dominant per-iteration cost. libm's sinf/cosf are accurate but
+// involve a function call, errno handling and a full range reduction, none of
+// which the compiler can vectorise.
+//
+// fastSin reduces the argument to a single π/2 quadrant (r ∈ [-π/4, π/4]) where
+// short Taylor polynomials are accurate to ~1e-7 — indistinguishable from libm
+// for a chaotic point cloud. Crucially it is branchless (the quadrant pick is a
+// select, not a branch) and a pure arithmetic leaf, so clang's loop vectoriser
+// turns the surrounding per-point loops into NEON under -O3 -ffast-math.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static inline float fastSin(float x) {
+    constexpr float TWO_OVER_PI = 0.63661977236758134f;
+    constexpr float PIO2        = 1.57079632679489662f;
+    float qf = rintf(x * TWO_OVER_PI);   // nearest quadrant index
+    int   qi = (int)qf;
+    float r  = x - qf * PIO2;            // r ∈ [-π/4, π/4]
+    float r2 = r * r;
+    // sin(r): degree-7 odd Taylor (≈2.6e-7 max error on [-π/4, π/4])
+    float sr = r * (1.f + r2*(-1.66666672e-01f + r2*(8.33333284e-03f
+                       - r2*1.98412698e-04f)));
+    // cos(r): degree-8 even Taylor (≈2e-8 max error on [-π/4, π/4])
+    float cr = 1.f + r2*(-0.5f + r2*(4.16666679e-02f
+                  + r2*(-1.38888889e-03f + r2*2.48015873e-05f)));
+    // sin(x) = ±sr or ±cr depending on the quadrant (q & 3):
+    //   0:+sr  1:+cr  2:-sr  3:-cr   (selects, not branches)
+    float val  = (qi & 1) ? cr : sr;
+    float sign = (qi & 2) ? -1.f : 1.f;
+    return sign * val;
+}
+
+static inline float fastCos(float x) {
+    constexpr float PIO2 = 1.57079632679489662f;
+    return fastSin(x + PIO2);
+}
+
 void attractorIterateN(
     int type, const float* p,
     float* xs, float* ys, float* zs,
@@ -15,9 +55,9 @@ void attractorIterateN(
     case ATTRACTOR_CLIFFORD: {
         const float a = p[0], b = p[1], c = p[2], d = p[3], e = p[4], f = p[5];
         for (int i = 0; i < n; i++) {
-            float xn = sinf(a * ys[i]) + c * cosf(a * xs[i]);
-            float yn = sinf(b * xs[i]) + d * cosf(b * ys[i]);
-            float zn = sinf(e * ys[i]) + f * cosf(e * zs[i]);
+            float xn = fastSin(a * ys[i]) + c * fastCos(a * xs[i]);
+            float yn = fastSin(b * xs[i]) + d * fastCos(b * ys[i]);
+            float zn = fastSin(e * ys[i]) + f * fastCos(e * zs[i]);
             xs[i] = xn; ys[i] = yn; zs[i] = zn;
         }
         break;
@@ -30,9 +70,9 @@ void attractorIterateN(
     case ATTRACTOR_PETER_DE_JONG: {
         const float a = p[0], b = p[1], c = p[2], d = p[3], e = p[4], f = p[5];
         for (int i = 0; i < n; i++) {
-            float xn = sinf(a * ys[i]) - cosf(b * xs[i]);
-            float yn = sinf(c * xs[i]) - cosf(d * ys[i]);
-            float zn = sinf(e * zs[i]) - cosf(f * ys[i]);
+            float xn = fastSin(a * ys[i]) - fastCos(b * xs[i]);
+            float yn = fastSin(c * xs[i]) - fastCos(d * ys[i]);
+            float zn = fastSin(e * zs[i]) - fastCos(f * ys[i]);
             xs[i] = xn; ys[i] = yn; zs[i] = zn;
         }
         break;
@@ -115,9 +155,9 @@ void attractorIterateN(
         const float b = p[0], dt = p[1];
         for (int i = 0; i < n; i++) {
             float x = xs[i], y = ys[i], z = zs[i];
-            xs[i] = x + dt * (sinf(y) - b * x);
-            ys[i] = y + dt * (sinf(z) - b * y);
-            zs[i] = z + dt * (sinf(x) - b * z);
+            xs[i] = x + dt * (fastSin(y) - b * x);
+            ys[i] = y + dt * (fastSin(z) - b * y);
+            zs[i] = z + dt * (fastSin(x) - b * z);
         }
         break;
     }
@@ -241,9 +281,9 @@ void attractorIterateN(
         const float a = p[0], b = p[1], c = p[2], d = p[3];
         for (int i = 0; i < n; i++) {
             float x = xs[i], y = ys[i], z = zs[i];
-            xs[i] = sinf(a*y) - z*cosf(b*x);
-            ys[i] = z*sinf(c*x) - cosf(d*y);
-            zs[i] = sinf(x);
+            xs[i] = fastSin(a*y) - z*fastCos(b*x);
+            ys[i] = z*fastSin(c*x) - fastCos(d*y);
+            zs[i] = fastSin(x);
         }
         break;
     }

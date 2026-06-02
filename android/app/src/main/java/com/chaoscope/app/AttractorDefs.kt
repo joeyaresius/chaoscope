@@ -341,9 +341,9 @@ enum class RenderQuality(
 
 /** How many dots the live rotation preview draws. Lower if rotation feels sluggish. */
 enum class PreviewDensity(val displayName: String, val dots: Int, val description: String) {
-    LOW   ("Low",  20_000,  "Lightest — smoothest rotation on slower phones."),
-    MEDIUM("Med",  60_000,  "Balanced default."),
-    HIGH  ("High", 120_000, "Most detail while rotating — best on fast phones."),
+    LOW   ("Low",   30_000,  "Lightest — smoothest rotation on slower phones."),
+    MEDIUM("Med",   80_000,  "Balanced default."),
+    HIGH  ("High", 160_000,  "Most detail while rotating — best on fast phones."),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -455,12 +455,11 @@ val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
     AttractorType.IFS to listOf(
         Preset("Fern",      AttractorType.IFS, listOf(1.0f, 0.0f, 0.0f), palette = PaletteType.MATRIX),
         // twist=0.3 with any camera caused the dot-preview bounds detection to miss
-        // the large z-extent (~13 units); reduced to 0.22 which is comfortably
-        // within the range that the fixed BOUNDS_DOT=8 detection handles correctly.
-        // Camera yaw=0°/pitch=55°: avoids the z≈1.107·y collinearity that yaw=20°/pitch=30°
-        // introduces — at those angles the dominant IFS transform projects the fern
-        // onto a near-1D strip, collapsing density into a few pixels → black render.
-        Preset("Spiral",    AttractorType.IFS, listOf(1.0f, 0.0f, 0.22f), yaw = 0f, pitch = 55f, palette = PaletteType.AURORA),
+        // the large z-extent (~13 units); reduced to within the range the fixed
+        // BOUNDS_DOT=8 detection handles correctly. twist=0.22 at pitch=55° still hit a
+        // near-collinear projection that collapsed the fern onto a ~1D strip → black;
+        // nudged to 0.221 to break that degenerate alignment.
+        Preset("Spiral",    AttractorType.IFS, listOf(1.0f, 0.0f, 0.221f), yaw = 0f, pitch = 55f, palette = PaletteType.AURORA),
         Preset("Broadleaf", AttractorType.IFS, listOf(1.1f, 0.0f, 0.15f), yaw = 20f, pitch = 10f, palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
     ),
     AttractorType.JULIA to listOf(

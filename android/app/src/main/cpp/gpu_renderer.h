@@ -37,6 +37,7 @@ struct GpuContext {
     GLuint histogramTex = 0;   // GL_R32UI,  width × height
     GLuint outputTex    = 0;   // GL_RGBA8,  width × height (Step 5)
     GLuint paletteTex   = 0;   // GL_RGBA8,  1024 × 1       (Step 5)
+    GLuint maxBuf       = 0;   // SSBO, 1× uint — running max bin via atomicMax
     int    texWidth     = 0;
     int    texHeight    = 0;
 };

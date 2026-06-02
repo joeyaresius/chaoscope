@@ -36,6 +36,9 @@ precision highp int;
 layout(local_size_x = 128) in;
 
 layout(r32ui, binding = 0) uniform uimage2D u_hist;
+// Running maximum bin count, updated via atomicMax during accumulation. Lets the
+// host read back a single uint instead of the whole histogram texture.
+layout(std430, binding = 1) buffer MaxBuf { uint u_maxCount; };
 
 uniform int   u_type;
 uniform float u_p[8];
@@ -177,8 +180,10 @@ void main() {
         float v = u_r3*x + u_r4*y + u_r5*z;
         int px = int((u - u_uMin)*scaleX);
         int py = int((v - u_vMin)*scaleY);
-        if (px>=0 && px<u_w && py>=0 && py<u_h)
-            imageAtomicAdd(u_hist, ivec2(px,py), 1u);
+        if (px>=0 && px<u_w && py>=0 && py<u_h) {
+            uint prev = imageAtomicAdd(u_hist, ivec2(px,py), 1u);
+            atomicMax(u_maxCount, prev + 1u);
+        }
     }
 }
 )GLSL";
@@ -400,7 +405,7 @@ static bool cpuBoundsDetect(const RenderParams& rp, const float R[9],
                              float& uMin, float& uMax,
                              float& vMin, float& vMax) {
     static constexpr int N       = 2048;
-    static constexpr int WARMUP  = 1000;
+    static constexpr int WARMUP  = 1000; // matches renderer.cpp WARMUP_STEPS
     static constexpr int BATCHES = 16;
 
     std::vector<float> xs(N), ys(N), zs(N);
@@ -444,26 +449,30 @@ static bool cpuBoundsDetect(const RenderParams& rp, const float R[9],
     return true;
 }
 
-// Reads the histogram texture into a CPU buffer via a temporary FBO and returns
-// the maximum bin value. Returns 0 if the histogram is empty (orbit diverged).
-// Overhead: ~2 ms for 768 px, ~12 ms for 2048 px — acceptable relative to the
-// GPU iteration time.
-static uint32_t readHistogramMax(GpuContext& ctx) {
-    const int n = ctx.texWidth * ctx.texHeight;
-    std::vector<uint32_t> buf(static_cast<size_t>(n), 0u);
+// Ensure the 1-uint SSBO that holds the running max bin count exists.
+static bool ensureMaxBuf(GpuContext& ctx) {
+    if (ctx.maxBuf) return true;
+    glGenBuffers(1, &ctx.maxBuf);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ctx.maxBuf);
+    GLuint zero = 0;
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint), &zero, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    if (glGetError() != GL_NO_ERROR) { ctx.maxBuf = 0; return false; }
+    return true;
+}
 
-    GLuint fbo = 0;
-    glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                           GL_TEXTURE_2D, ctx.histogramTex, 0);
-    glReadPixels(0, 0, ctx.texWidth, ctx.texHeight,
-                 GL_RED_INTEGER, GL_UNSIGNED_INT, buf.data());
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDeleteFramebuffers(1, &fbo);
-
+// Read back the max bin count the iteration shader accumulated via atomicMax —
+// a single 4-byte map instead of pulling the whole histogram texture to the CPU.
+static uint32_t readMaxCount(GpuContext& ctx) {
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ctx.maxBuf);
     uint32_t mx = 0;
-    for (int i = 0; i < n; i++) if (buf[i] > mx) mx = buf[i];
+    void* p = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, sizeof(uint32_t),
+                               GL_MAP_READ_BIT);
+    if (p) {
+        mx = *reinterpret_cast<uint32_t*>(p);
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    }
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     return mx;
 }
 
@@ -478,7 +487,7 @@ static void dispatchIter(GpuContext& ctx, const RenderParams& rp,
                           float uMin, float uMax, float vMin, float vMax) {
     static constexpr int LOCAL_SIZE    = 128;
     static constexpr int TARGET_THREADS = 65536;
-    static constexpr int WARMUP_STEPS  = 1000;
+    static constexpr int WARMUP_STEPS  = 1000; // matches renderer.cpp WARMUP_STEPS
 
     long long ipt = std::max(1LL, rp.iterations / (long long)TARGET_THREADS);
     int threads   = (int)((rp.iterations + ipt - 1) / ipt);
@@ -494,6 +503,14 @@ static void dispatchIter(GpuContext& ctx, const RenderParams& rp,
     glUseProgram(ctx.iterProgram);
     glBindImageTexture(0, ctx.histogramTex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 
+    // Reset the running-max SSBO to 0 and bind it to SSBO slot 1.
+    {
+        GLuint zero = 0;
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, ctx.maxBuf);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint), &zero);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, ctx.maxBuf);
+    }
+
     auto& L = ctx.iterLoc;
     glUniform1i (L.type,   rp.attractorType);
     glUniform1fv(L.params, 8, rp.params);
@@ -507,7 +524,9 @@ static void dispatchIter(GpuContext& ctx, const RenderParams& rp,
     glUniform1i (L.iters,  (int)ipt);
 
     glDispatchCompute(groups, 1, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
+                    GL_BUFFER_UPDATE_BARRIER_BIT       |
+                    GL_SHADER_STORAGE_BARRIER_BIT);
 
     LOGI("Iter: %d groups × %d threads × %lld iters ≈ %lld total",
          groups, LOCAL_SIZE, ipt, (long long)groups * LOCAL_SIZE * ipt);
@@ -667,6 +686,7 @@ void gpuDestroy(GpuContext& ctx) {
     if (ctx.histogramTex)   { glDeleteTextures(1, &ctx.histogramTex);  ctx.histogramTex   = 0; }
     if (ctx.outputTex)      { glDeleteTextures(1, &ctx.outputTex);     ctx.outputTex      = 0; }
     if (ctx.paletteTex)     { glDeleteTextures(1, &ctx.paletteTex);    ctx.paletteTex     = 0; }
+    if (ctx.maxBuf)         { glDeleteBuffers(1, &ctx.maxBuf);         ctx.maxBuf         = 0; }
 
     eglMakeCurrent(ctx.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroySurface(ctx.display, ctx.surface);
@@ -728,6 +748,7 @@ bool gpuRenderAttractor(GpuContext& ctx, const RenderParams& rp, int* outPixels)
     if (!buildPrograms(ctx)) return false;
     if (!ensureHistogram(ctx, rp.width, rp.height)) return false;
     if (!ensureOutputTex(ctx, rp.width, rp.height)) return false;
+    if (!ensureMaxBuf(ctx)) return false;
 
     float R[9];
     buildRotMatrix(rp.yaw, rp.pitch, rp.roll, R);
@@ -738,8 +759,8 @@ bool gpuRenderAttractor(GpuContext& ctx, const RenderParams& rp, int* outPixels)
     // ── Step 4: fill histogram ────────────────────────────────────────────────
     dispatchIter(ctx, rp, R, uMin, uMax, vMin, vMax);
 
-    // ── Step 5a: max bin count via CPU histogram readback ─────────────────────
-    uint32_t maxCount = readHistogramMax(ctx);
+    // ── Step 5a: max bin count via the atomicMax SSBO (4-byte readback) ───────
+    uint32_t maxCount = readMaxCount(ctx);
     if (maxCount == 0) return false; // orbit diverged, no visible points
 
     // ── Step 5b: tone-map histogram → RGBA8 output texture ───────────────────

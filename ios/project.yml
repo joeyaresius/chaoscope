@@ -69,3 +69,4 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        NSPhotoLibraryAddUsageDescription: "Chaoscope saves rendered attractor images to your photo library."

@@ -47,6 +47,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -363,27 +365,26 @@ fun AttractorScreen(
                     val halfW   = size.width  / 2f
                     val halfH   = size.height / 2f
                     val stroke  = 1.0.dp.toPx()
-                    // Use nativeCanvas.drawPoints(FloatArray) — no Offset boxing,
-                    // no ArrayList.  Main-thread work is one coord-scale pass per
-                    // bucket (two multiplies per float) and one drawPoints call.
-                    val nCanvas = drawContext.canvas.nativeCanvas
                     val paint   = android.graphics.Paint().apply {
                         isAntiAlias = true
                         strokeCap   = android.graphics.Paint.Cap.ROUND
                         strokeWidth = stroke
                     }
-                    for (b in data.buckets.indices) {
-                        val src = data.buckets[b]
-                        if (src.isEmpty()) continue
-                        val dst = FloatArray(src.size)
-                        var j = 0
-                        while (j < src.size) {
-                            dst[j]     = halfW + src[j]     * halfW
-                            dst[j + 1] = halfH + src[j + 1] * halfH
-                            j += 2
+                    drawIntoCanvas { canvas ->
+                        val nCanvas = canvas.nativeCanvas
+                        for (b in data.buckets.indices) {
+                            val src = data.buckets[b]
+                            if (src.isEmpty()) continue
+                            val dst = FloatArray(src.size)
+                            var j = 0
+                            while (j < src.size) {
+                                dst[j]     = halfW + src[j]     * halfW
+                                dst[j + 1] = halfH + src[j + 1] * halfH
+                                j += 2
+                            }
+                            paint.color = data.colors[b]
+                            nCanvas.drawPoints(dst, paint)
                         }
-                        paint.color = data.colors[b]
-                        nCanvas.drawPoints(dst, paint)
                     }
                 }
             } else if (state.bitmap != null) {

@@ -680,7 +680,10 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             // density used by the Morph/Sweep render path so all video modes reach the
             // same point budget at the selected render quality.
             val orbitPts: FloatArray? = if (s.animMode == AnimMode.ORBIT_TRACE) {
-                val maxPts = s.renderQuality.previewIterations.toInt()
+                val requested = s.renderQuality.previewIterations.toInt()
+                val maxPts = if (ORBIT_MAX_POINTS > 0)
+                                 requested.coerceAtMost(ORBIT_MAX_POINTS)
+                             else requested
                 renderer.getPoints(
                     attractorType = s.attractorType.ordinal,
                     params        = s.params.toFloatArray(),
@@ -691,6 +694,35 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     zoom          = s.zoom,
                 )
             } else null
+
+            // Orbit-Trace draw state. The LUT is sampled once; with incremental
+            // mode the accumulation bitmap persists across frames and only the new
+            // slice of dots is drawn onto it (see ORBIT_TRACE_INCREMENTAL).
+            val orbitLut: IntArray =
+                if (s.animMode == AnimMode.ORBIT_TRACE)
+                    renderer.paletteLut(s.palette.ordinal, DOT_LUT_SIZE, customStopsArray(s))
+                else IntArray(0)
+            val orbitStableColor = ORBIT_TRACE_INCREMENTAL
+            // Ping-pong's reverse half replays the forward frames in reverse (same t,
+            // identical images). When the frame count fits the budget we render the
+            // forward half incrementally, cache each frame, and re-emit the cache for
+            // the reverse half — making ping-pong ~2× faster instead of redrawing.
+            val orbitPingPongCache: Array<Bitmap?>? =
+                if (s.animMode == AnimMode.ORBIT_TRACE && ORBIT_TRACE_INCREMENTAL &&
+                    s.animPingPong && baseFrames <= MAX_PINGPONG_CACHE_FRAMES)
+                    arrayOfNulls(baseFrames)
+                else null
+            // Incremental forward accumulation: non-ping-pong, or ping-pong with cache.
+            val orbitIncremental = ORBIT_TRACE_INCREMENTAL &&
+                                   (!s.animPingPong || orbitPingPongCache != null)
+            // Density-normalised dot alpha — caps the finished trace's brightness so it
+            // can't blow out to white. Applies to whichever colour mode is active.
+            val orbitDotAlpha =
+                if (ORBIT_NORMALIZE_BRIGHTNESS && orbitPts != null)
+                    computeOrbitDotAlpha(orbitPts, PREVIEW_SIZE)
+                else ORBIT_DOT_ALPHA
+            var orbitAccum: Bitmap? = null
+            var orbitPrevNPts = 0
 
             try {
                 val uri = withContext(Dispatchers.IO) {
@@ -743,7 +775,45 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                     val maxPts = allPts.size / 2
                                     val nPts   = (maxPts * t).roundToInt()
                                                      .coerceIn(1, maxPts)
-                                    renderOrbitTraceBitmap(allPts, nPts, s, PREVIEW_SIZE)
+                                    // Colour denominator: full orbit (stable per-dot)
+                                    // or the visible trace (rescaling rainbow).
+                                    val colorDenom = if (orbitStableColor) maxPts else nPts
+                                    // Ping-pong reverse half = frames already drawn on
+                                    // the way up (forward frame totalFrames-1-frameIdx).
+                                    val isReverse  = orbitPingPongCache != null &&
+                                                     frameIdx >= baseFrames
+
+                                    if (isReverse) {
+                                        // Replay the cached forward frame — no redraw.
+                                        val f = totalFrames - 1 - frameIdx
+                                        orbitPingPongCache[f]
+                                            ?.copy(Bitmap.Config.ARGB_8888, false)
+                                            ?: makeOrbitBaseBitmap(s, PREVIEW_SIZE)
+                                    } else if (orbitIncremental) {
+                                        // Persistent accumulation: draw only the new
+                                        // dots [prevNPts, nPts) onto the kept bitmap.
+                                        val accum = orbitAccum
+                                            ?: makeOrbitBaseBitmap(s, PREVIEW_SIZE)
+                                                .also { orbitAccum = it }
+                                        drawOrbitDots(accum, allPts, orbitPrevNPts, nPts,
+                                                      colorDenom, orbitLut, orbitDotAlpha,
+                                                      PREVIEW_SIZE)
+                                        orbitPrevNPts = nPts
+                                        // Cache this forward frame for the reverse half,
+                                        // then hand the exporter its own copy to recycle.
+                                        if (orbitPingPongCache != null) {
+                                            orbitPingPongCache[frameIdx] =
+                                                accum.copy(Bitmap.Config.ARGB_8888, false)
+                                        }
+                                        accum.copy(Bitmap.Config.ARGB_8888, false)
+                                    } else {
+                                        // Full (but bucketed) redraw each frame.
+                                        val bmp = makeOrbitBaseBitmap(s, PREVIEW_SIZE)
+                                        drawOrbitDots(bmp, allPts, 0, nPts,
+                                                      colorDenom, orbitLut, orbitDotAlpha,
+                                                      PREVIEW_SIZE)
+                                        bmp
+                                    }
                                 }
                             }
                         },
@@ -782,6 +852,14 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                         isExportingVideo = false,
                         videoExportError = msg,
                     )
+                }
+            } finally {
+                // Free the persistent Orbit-Trace accumulation bitmap + ping-pong cache.
+                orbitAccum?.recycle()
+                orbitAccum = null
+                orbitPingPongCache?.forEachIndexed { i, bmp ->
+                    bmp?.recycle()
+                    orbitPingPongCache[i] = null
                 }
             }
         }
@@ -852,16 +930,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    /**
-     * Render [nPts] points from [pts] (a prefix of the full orbit) to a [Bitmap]
-     * with each dot coloured by its position in the current palette.
-     */
-    private fun renderOrbitTraceBitmap(
-        pts:   FloatArray,
-        nPts:  Int,
-        s:     UiState,
-        size:  Int,
-    ): Bitmap {
+    /** Fresh Orbit-Trace bitmap with just the background (theme or solid) drawn. */
+    private fun makeOrbitBaseBitmap(s: UiState, size: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         if (s.bgColor.isTheme) {
@@ -870,66 +940,101 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             canvas.drawColor(s.effectiveBgArgb)
         }
+        return bitmap
+    }
 
-        // ADD blend: overlapping dots accumulate toward white, just like the density
-        // histogram in the still renderer — dense regions glow brighter automatically.
+    /**
+     * Peak per-pixel dot count for the full orbit at [size] resolution, turned into
+     * a per-dot alpha so the finished (all-points) trace tops out near
+     * [ORBIT_PEAK_TARGET] instead of clamping to white. Binned at the draw
+     * resolution — the scale that actually governs ADD-blend saturation.
+     */
+    private fun computeOrbitDotAlpha(pts: FloatArray, size: Int): Int {
+        val n = pts.size / 2
+        if (n == 0) return ORBIT_DOT_ALPHA
+        val bins = IntArray(size * size)
+        val half = size * 0.5f
+        var maxBin = 0
+        var i = 0
+        while (i < n) {
+            val px = (half + pts[i * 2]     * half).toInt()
+            val py = (half + pts[i * 2 + 1] * half).toInt()
+            if (px in 0 until size && py in 0 until size) {
+                val c = ++bins[py * size + px]
+                if (c > maxBin) maxBin = c
+            }
+            i++
+        }
+        if (maxBin <= 0) return ORBIT_DOT_ALPHA
+        return (ORBIT_PEAK_TARGET / maxBin).coerceIn(1, ORBIT_DOT_ALPHA)
+    }
+
+    /**
+     * Draw the orbit dots in index range [[fromIdx], [toIdx]) onto [bitmap] with
+     * additive blending. Dots are bucketed by palette index ([lut]) so each colour
+     * is a single batched [Canvas.drawPoints] call instead of one Skia call per dot.
+     * Colour comes from `idx / colorDenom` — pass `maxPts` for a stable per-dot
+     * colour (incremental) or the visible `nPts` for the rescaling rainbow.
+     * [dotAlpha] is the additive weight per dot (see [computeOrbitDotAlpha]).
+     */
+    private fun drawOrbitDots(
+        bitmap:     Bitmap,
+        pts:        FloatArray,
+        fromIdx:    Int,
+        toIdx:      Int,
+        colorDenom: Int,
+        lut:        IntArray,
+        dotAlpha:   Int,
+        size:       Int,
+    ) {
+        if (toIdx <= fromIdx || lut.isEmpty()) return
+        val nb      = lut.size
+        val lastIdx = nb - 1
+        val denom   = colorDenom.coerceAtLeast(1).toFloat()
+
+        // Pass 1: count points per colour bucket.
+        val counts = IntArray(nb)
+        run {
+            var idx = fromIdx
+            while (idx < toIdx) {
+                val b = ((idx / denom).coerceIn(0f, 1f) * lastIdx).toInt()
+                counts[b]++
+                idx++
+            }
+        }
+        // Pass 2: fill exact-size per-bucket coordinate arrays (x0,y0,x1,y1,…).
+        val buckets = Array(nb) { FloatArray(counts[it] * 2) }
+        val heads   = IntArray(nb)
+        val halfW   = size * 0.5f
+        val halfH   = size * 0.5f
+        run {
+            var idx = fromIdx
+            while (idx < toIdx) {
+                val b = ((idx / denom).coerceIn(0f, 1f) * lastIdx).toInt()
+                val h = heads[b]
+                buckets[b][h]     = halfW + pts[idx * 2]     * halfW
+                buckets[b][h + 1] = halfH + pts[idx * 2 + 1] * halfH
+                heads[b] = h + 2
+                idx++
+            }
+        }
+
+        val canvas = Canvas(bitmap)
         val paint = Paint().apply {
-            strokeWidth = 1.5f   // finer dots; density does the brightening, not dot size
+            strokeWidth = 1.5f
             strokeCap   = Paint.Cap.ROUND
             isAntiAlias = true
             xfermode    = android.graphics.PorterDuffXfermode(
                 android.graphics.PorterDuff.Mode.ADD
             )
         }
-
-        val stops = if (s.palette == PaletteType.CUSTOM) s.customStops
-                    else builtInPaletteStops[s.palette] ?: builtInPaletteStops[PaletteType.NEBULA]!!
-        val sortedStops = stops.sortedBy { it.pos }
-
-        val halfW = size * 0.5f
-        val halfH = size * 0.5f
-
-        // Alpha scaled down so a moderate pile-up of dots (~8–12) reaches full brightness.
-        // Too high → everywhere saturates immediately; too low → never gets bright.
-        val dotAlpha = 28
-
-        var i     = 0
-        var ptIdx = 0
-        while (i + 1 < pts.size && ptIdx < nPts) {
-            val x = halfW + pts[i]     * halfW
-            val y = halfH + pts[i + 1] * halfH
-            val t = ptIdx.toFloat() / nPts.coerceAtLeast(1)
-            val (r, g, b) = samplePaletteRgb(sortedStops, t)
-            paint.color = android.graphics.Color.argb(
-                dotAlpha,
-                (r * 255f).toInt().coerceIn(0, 255),
-                (g * 255f).toInt().coerceIn(0, 255),
-                (b * 255f).toInt().coerceIn(0, 255),
-            )
-            canvas.drawPoint(x, y, paint)
-            i     += 2
-            ptIdx += 1
+        for (b in 0 until nb) {
+            val arr = buckets[b]
+            if (arr.isEmpty()) continue
+            // ADD blend with low alpha → dense pile-ups glow toward white.
+            paint.color = (dotAlpha shl 24) or (lut[b] and 0x00FFFFFF)
+            canvas.drawPoints(arr, paint)
         }
-        return bitmap
-    }
-
-    /** Linearly interpolate between palette colour stops. [stops] must be sorted by pos. */
-    private fun samplePaletteRgb(
-        stops: List<ColorStop>,
-        t:     Float,
-    ): Triple<Float, Float, Float> {
-        if (stops.isEmpty()) return Triple(1f, 1f, 1f)
-        val t01   = t.coerceIn(0f, 1f)
-        val hiIdx = stops.indexOfFirst { it.pos >= t01 }.takeIf { it >= 0 } ?: stops.lastIndex
-        val loIdx = (hiIdx - 1).coerceAtLeast(0)
-        if (hiIdx == loIdx) {
-            val c = stops[loIdx]; return Triple(c.r, c.g, c.b)
-        }
-        val lo    = stops[loIdx]
-        val hi    = stops[hiIdx]
-        val range = hi.pos - lo.pos
-        val f     = if (range < 1e-6f) 0f else (t01 - lo.pos) / range
-        return Triple(lo.r + f * (hi.r - lo.r), lo.g + f * (hi.g - lo.g), lo.b + f * (hi.b - lo.b))
     }
 
     fun cancelVideoExport() {
@@ -1092,6 +1197,43 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
         // Number of colour samples in the dot-preview palette LUT.
         private const val DOT_LUT_SIZE = 64
+
+        // Per-dot alpha cap for the Orbit-Trace cloud (ADD blend → density glow).
+        // When ORBIT_NORMALIZE_BRIGHTNESS is on, the actual alpha is scaled down from
+        // this toward the measured peak density so the trace can't blow out to white.
+        private const val ORBIT_DOT_ALPHA = 28
+
+        // Target accumulated value (0–255) for the single densest pixel once the full
+        // orbit is drawn. < 255 leaves a little colour headroom in the brightest core.
+        // Raise toward 255 for punchier output, lower for a softer finish.
+        private const val ORBIT_PEAK_TARGET = 220
+
+        // ── Orbit-Trace tuning ─────────────────────────────────────────────────
+        // Colour mode:
+        //   false → ORIGINAL look: the gradient rescales to the visible trace
+        //           (t = idx / nPts) so the full rainbow always spans it and the
+        //           leading edge stays bright — the "building sweep". Every frame is
+        //           a full (but bucketed) redraw, sped up instead by ORBIT_MAX_POINTS.
+        //   true  → colour each dot by its absolute orbit position (t = idx / maxPts).
+        //           Stable per-dot colour → unlocks incremental accumulation + the
+        //           ping-pong frame cache (fastest), but the palette's dark start
+        //           reads dim and the building sweep is lost.
+        private const val ORBIT_TRACE_INCREMENTAL = false
+
+        // Cap on the number of orbit points the trace draws (0 = use previewIterations
+        // uncapped). Fewer points → less ADD-blend pile-up (tames end-of-trace
+        // brightness) and a faster per-frame redraw. The lever behind the original look.
+        private const val ORBIT_MAX_POINTS = 2_000_000
+
+        // Scale per-dot alpha to the measured peak density so the finished trace tops
+        // out near ORBIT_PEAK_TARGET instead of clipping to white. Safe to combine with
+        // either colour mode; turn off for the exact legacy fixed-alpha brightness.
+        private const val ORBIT_NORMALIZE_BRIGHTNESS = true
+
+        // Max ping-pong base frame count to cache for reverse-half replay (incremental
+        // mode only). Each cached frame is PREVIEW_SIZE² ARGB (~2.3 MB at 768). 64
+        // covers all UI options (15/30/60); above this, ping-pong redraws each frame.
+        private const val MAX_PINGPONG_CACHE_FRAMES = 64
 
         const val TUTORIAL_STEPS          = 5 // Canvas, AttractorRow, ParamSlider, RenderHD, Palette
         private const val REVIEW_TRIGGER_COUNT = 20

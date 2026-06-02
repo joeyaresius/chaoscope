@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <cfloat>
+#include <thread>
 
 // ────────────────────────────────────────────────────────────────────────────
 // Camera / orthographic projection
@@ -156,37 +157,41 @@ static void buildLUT(int palIdx, RGB* lut, int size,
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Histogram accumulation
+// Parallel helper
+//
+// The BATCH_SIZE independent trajectories never interact, so warmup, bounds and
+// histogram accumulation are embarrassingly parallel across trajectory slices.
+// runParallel runs fn(0..T-1); fn(0) executes on the calling thread so a 1-wide
+// run carries no thread-spawn overhead.
 // ────────────────────────────────────────────────────────────────────────────
 
-static void accumulateBatch(const float* us, const float* vs, int n,
-                             uint32_t* hist, int width, int height,
-                             float xMin, float xMax, float yMin, float yMax) {
-    float xScale = (float)(width  - 1) / (xMax - xMin);
-    float yScale = (float)(height - 1) / (yMax - yMin);
-    for (int i = 0; i < n; i++) {
-        int px = (int)((us[i] - xMin) * xScale);
-        int py = (int)((vs[i] - yMin) * yScale);
-        if ((unsigned)px < (unsigned)width && (unsigned)py < (unsigned)height) {
-            hist[py * width + px]++;
-        }
-    }
+template <typename F>
+static void runParallel(int T, F&& fn) {
+    if (T <= 1) { fn(0); return; }
+    std::vector<std::thread> pool;
+    pool.reserve(static_cast<size_t>(T - 1));
+    for (int t = 1; t < T; t++) pool.emplace_back([&fn, t] { fn(t); });
+    fn(0);
+    for (auto& th : pool) th.join();
 }
 
-static void accumulateBatchDepth(const float* us, const float* vs, const float* ws, int n,
-                                  uint32_t* hist, float* depthAccum, int width, int height,
-                                  float xMin, float xMax, float yMin, float yMax) {
-    float xScale = (float)(width  - 1) / (xMax - xMin);
-    float yScale = (float)(height - 1) / (yMax - yMin);
-    for (int i = 0; i < n; i++) {
-        int px = (int)((us[i] - xMin) * xScale);
-        int py = (int)((vs[i] - yMin) * yScale);
-        if ((unsigned)px < (unsigned)width && (unsigned)py < (unsigned)height) {
-            int idx = py * width + px;
-            hist[idx]++;
-            depthAccum[idx] += ws[i];
-        }
-    }
+// Pick a worker count bounded by hardware concurrency (≤ 8) and a memory budget
+// for the per-thread private accumulation buffers. Large canvases (HD / 4K) fall
+// back to fewer threads so transient memory stays bounded; tiny jobs run 1-wide.
+static int chooseThreadCount(long long perThreadBytes, long long iterations) {
+    unsigned hw = std::thread::hardware_concurrency();
+    int t = (hw == 0) ? 4 : static_cast<int>(hw);
+    if (t > 8) t = 8;
+
+    constexpr long long budget = 96LL * 1024 * 1024; // 96 MB for private buffers
+    long long denom = (perThreadBytes > 0) ? perThreadBytes : 1;
+    int maxByMem = static_cast<int>(budget / denom);
+    if (maxByMem < 1) maxByMem = 1;
+    if (t > maxByMem) t = maxByMem;
+
+    if (iterations < 200000) t = 1; // thread-spawn overhead not worth it
+    if (t < 1) t = 1;
+    return t;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -194,30 +199,32 @@ static void accumulateBatchDepth(const float* us, const float* vs, const float* 
 // ────────────────────────────────────────────────────────────────────────────
 
 static constexpr int BATCH_SIZE   = 65536;
-static constexpr int WARMUP_STEPS = 1000;
-static constexpr int BOUNDS_STEPS = 16; // × BATCH_SIZE pts used for auto-bounds
+static constexpr int WARMUP_STEPS = 1000; // discard transients. Slow-settling
+                                          // attractors (Aizawa, Thomas, Halvorsen,
+                                          // Barnsley IFS) need this many to converge
+                                          // before bounds detection — fewer breaks
+                                          // their bounds on small (preview) renders.
+                                          // Multithreading parallelises this cost.
+static constexpr int BOUNDS_STEPS = 16;   // × BATCH_SIZE pts used for auto-bounds
 
 bool renderAttractor(const RenderParams& rp, int* outPixels) {
     const int W = rp.width, H = rp.height;
+    const size_t NPX = static_cast<size_t>(W) * static_cast<size_t>(H);
 
     // ── Rotation matrix ─────────────────────────────────────────────────────
     float R[9];
     buildRotationMatrix(rp.yaw, rp.pitch, rp.roll, R);
 
-    // ── Work buffers ─────────────────────────────────────────────────────────
     // LIQUID (style 2) always uses depth regardless of the depthCue slider.
     const bool isLiquid = (rp.renderStyle == 2);
     const bool isLight  = (rp.renderStyle == 5);
     const bool useDepth = (rp.depthCue > 0.f) || isLiquid;
 
-    std::vector<float>    xs(BATCH_SIZE), ys(BATCH_SIZE), zs(BATCH_SIZE);
-    std::vector<float>    us(BATCH_SIZE), vs(BATCH_SIZE);
-    std::vector<float>    ws(useDepth || isLight ? BATCH_SIZE : 0);
-    std::vector<uint32_t> hist(static_cast<size_t>(W * H), 0u);
-    std::vector<float>    depthAccum(useDepth ? static_cast<size_t>(W * H) : 0, 0.f);
-    float wMin = FLT_MAX, wMax = -FLT_MAX;
+    // ── Shared trajectory state (each worker owns a contiguous slice) ────────
+    std::vector<float> xs(BATCH_SIZE), ys(BATCH_SIZE), zs(BATCH_SIZE);
 
-    // ── Seed initial positions (deterministic LCG) ───────────────────────────
+    // Seed initial positions (deterministic LCG; single-threaded so the seed
+    // sequence — and therefore the render — is reproducible run to run).
     uint32_t seed = 0xDEADBEEFu;
     auto lcg = [&]() -> float {
         seed = seed * 1664525u + 1013904223u;
@@ -229,64 +236,84 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         zs[i] = lcg() * 0.1f;
     }
 
-    // ── Warm-up: discard transients ──────────────────────────────────────────
-    for (int w = 0; w < WARMUP_STEPS; w++) {
-        attractorIterateN(rp.attractorType, rp.params,
-                          xs.data(), ys.data(), zs.data(), BATCH_SIZE);
-    }
+    // ── Worker count + partition ─────────────────────────────────────────────
+    // Private per-thread accumulation buffers: histogram (uint32) + depth (float)
+    // for the standard path; r/g/b (float×3) + count (uint32) for LIGHT.
+    const long long perThreadBytes = isLight
+        ? static_cast<long long>(NPX) * 16
+        : static_cast<long long>(NPX) * (4 + (useDepth ? 4 : 0));
+    const int T = chooseThreadCount(perThreadBytes, rp.iterations);
+    auto sliceLo = [&](int t) -> int {
+        return static_cast<int>(static_cast<long long>(t) * BATCH_SIZE / T);
+    };
 
-    // ── Auto-bounds + (for LIGHT) mean speed estimation ─────────────────────
-    float uMin = FLT_MAX, uMax = -FLT_MAX;
-    float vMin = FLT_MAX, vMax = -FLT_MAX;
+    // ── Phase A: warmup + auto-bounds (parallel over trajectory slices) ──────
+    struct Stat {
+        float uMin = FLT_MAX, uMax = -FLT_MAX;
+        float vMin = FLT_MAX, vMax = -FLT_MAX;
+        float wMin = FLT_MAX, wMax = -FLT_MAX;
+        double speedSum = 0.0; long long speedCount = 0; // LIGHT only
+    };
+    std::vector<Stat> stats(static_cast<size_t>(T));
 
-    // For LIGHT: accumulate mean 3-D step length to normalise speed later.
-    double speedSum   = 0.0;
-    int    speedCount = 0;
-    std::vector<float> bprev_xs, bprev_ys, bprev_zs;
-    if (isLight) {
-        bprev_xs.assign(xs.begin(), xs.end());
-        bprev_ys.assign(ys.begin(), ys.end());
-        bprev_zs.assign(zs.begin(), zs.end());
-    }
+    runParallel(T, [&](int t) {
+        const int lo = sliceLo(t), hi = sliceLo(t + 1), n = hi - lo;
+        if (n <= 0) return;
+        float* X = xs.data() + lo;
+        float* Y = ys.data() + lo;
+        float* Z = zs.data() + lo;
 
-    for (int s = 0; s < BOUNDS_STEPS; s++) {
-        attractorIterateN(rp.attractorType, rp.params,
-                          xs.data(), ys.data(), zs.data(), BATCH_SIZE);
+        for (int w = 0; w < WARMUP_STEPS; w++)
+            attractorIterateN(rp.attractorType, rp.params, X, Y, Z, n);
 
-        if (isLight) {
-            for (int i = 0; i < BATCH_SIZE; i++) {
-                float dx = xs[i] - bprev_xs[i];
-                float dy = ys[i] - bprev_ys[i];
-                float dz = zs[i] - bprev_zs[i];
-                speedSum += sqrtf(dx*dx + dy*dy + dz*dz);
+        Stat st;
+        // LIGHT: mean 3-D step length, to normalise speed later.
+        std::vector<float> px, py, pz;
+        if (isLight) { px.assign(X, X + n); py.assign(Y, Y + n); pz.assign(Z, Z + n); }
+
+        for (int s = 0; s < BOUNDS_STEPS; s++) {
+            attractorIterateN(rp.attractorType, rp.params, X, Y, Z, n);
+            if (isLight) {
+                for (int i = 0; i < n; i++) {
+                    float dx = X[i] - px[i], dy = Y[i] - py[i], dz = Z[i] - pz[i];
+                    st.speedSum += sqrtf(dx*dx + dy*dy + dz*dz);
+                }
+                st.speedCount += n;
+                px.assign(X, X + n); py.assign(Y, Y + n); pz.assign(Z, Z + n);
             }
-            speedCount += BATCH_SIZE;
-            bprev_xs.assign(xs.begin(), xs.end());
-            bprev_ys.assign(ys.begin(), ys.end());
-            bprev_zs.assign(zs.begin(), zs.end());
-        }
-
-        projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), BATCH_SIZE,
-                     us.data(), vs.data());
-        for (int i = 0; i < BATCH_SIZE; i++) {
-            if (us[i] < uMin) uMin = us[i];
-            if (us[i] > uMax) uMax = us[i];
-            if (vs[i] < vMin) vMin = vs[i];
-            if (vs[i] > vMax) vMax = vs[i];
-        }
-        if (useDepth) {
-            for (int i = 0; i < BATCH_SIZE; i++) {
-                float w = R[6]*xs[i] + R[7]*ys[i] + R[8]*zs[i];
-                if (w < wMin) wMin = w;
-                if (w > wMax) wMax = w;
+            for (int i = 0; i < n; i++) {
+                float u = R[0]*X[i] + R[1]*Y[i] + R[2]*Z[i];
+                float v = R[3]*X[i] + R[4]*Y[i] + R[5]*Z[i];
+                if (u < st.uMin) st.uMin = u;
+                if (u > st.uMax) st.uMax = u;
+                if (v < st.vMin) st.vMin = v;
+                if (v > st.vMax) st.vMax = v;
+            }
+            if (useDepth) {
+                for (int i = 0; i < n; i++) {
+                    float w = R[6]*X[i] + R[7]*Y[i] + R[8]*Z[i];
+                    if (w < st.wMin) st.wMin = w;
+                    if (w > st.wMax) st.wMax = w;
+                }
             }
         }
+        stats[static_cast<size_t>(t)] = st;
+    });
+
+    // Reduce per-thread bounds (min/max are order-independent → identical to the
+    // single-threaded result for deterministic attractors).
+    float uMin = FLT_MAX, uMax = -FLT_MAX, vMin = FLT_MAX, vMax = -FLT_MAX;
+    float wMin = FLT_MAX, wMax = -FLT_MAX;
+    double speedSum = 0.0; long long speedCount = 0;
+    for (const Stat& st : stats) {
+        uMin = std::min(uMin, st.uMin); uMax = std::max(uMax, st.uMax);
+        vMin = std::min(vMin, st.vMin); vMax = std::max(vMax, st.vMax);
+        wMin = std::min(wMin, st.wMin); wMax = std::max(wMax, st.wMax);
+        speedSum += st.speedSum; speedCount += st.speedCount;
     }
 
-    // Mean 3-D step length — used as tanh scale for LIGHT speed normalisation.
-    // tanh(1) ≈ 0.76, so the mean speed maps near the 3/4 point of the palette.
-    float speedScale = (speedCount > 0)
-        ? (float)(speedSum / speedCount) : 1.f;
+    // Mean 3-D step length — tanh scale for LIGHT speed normalisation.
+    float speedScale = (speedCount > 0) ? (float)(speedSum / speedCount) : 1.f;
     if (speedScale < 1e-12f) speedScale = 1.f;
 
     float extraPad = (rp.boundsExtraPad > 0.f) ? rp.boundsExtraPad : 0.f;
@@ -303,6 +330,9 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         vMin = cv - hv; vMax = cv + hv;
     }
 
+    const float xScale = (uMax > uMin) ? (float)(W - 1) / (uMax - uMin) : 0.f;
+    const float yScale = (vMax > vMin) ? (float)(H - 1) / (vMax - vMin) : 0.f;
+
     // ── Build palette LUT (shared by all modes) ──────────────────────────────
     static constexpr int LUT_SIZE = 1024;
     RGB lut[LUT_SIZE];
@@ -311,134 +341,155 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
 
     const float gamma = (rp.gamma > 0.f) ? rp.gamma : 1.f;
 
+    // Per-trajectory step counts. Trajectories [0, rem) take one extra step so
+    // the total accumulated point count matches rp.iterations exactly.
+    const long long baseSteps = rp.iterations / BATCH_SIZE;
+    const int       rem       = static_cast<int>(rp.iterations % BATCH_SIZE);
+
+    auto pixelRange = [&](int t, size_t& lo, size_t& hi) {
+        lo = NPX * static_cast<size_t>(t) / static_cast<size_t>(T);
+        hi = NPX * static_cast<size_t>(t + 1) / static_cast<size_t>(T);
+    };
+
     // ════════════════════════════════════════════════════════════════════════
     // LIGHT mode (style 5) — per-point orbit-speed × curvature coloring
     // ════════════════════════════════════════════════════════════════════════
-    //
-    // Each accumulated point carries two properties:
-    //   speed     = 3-D step length (prev → current), normalised via tanh.
-    //               Maps to palette LUT index: slow = dark end, fast = bright end.
-    //   curvature = cos of the angle at the previous point formed by the two
-    //               consecutive displacement vectors.
-    //               Sharp bend → bright multiplier; straight path → dim.
-    //
-    // Per-pixel colour = palette_color(speed) × curvature_brightness × log_density.
+    //   speed     = 3-D step length (prev → current), tanh-normalised → LUT idx.
+    //   curvature = cos of the bend angle at prev; sharp turn = bright.
+    // Per-pixel colour = palette_color(speed) × curvature × log_density.
     if (isLight) {
-        std::vector<float>    rAccum(static_cast<size_t>(W * H), 0.f);
-        std::vector<float>    gAccum(static_cast<size_t>(W * H), 0.f);
-        std::vector<float>    bAccum(static_cast<size_t>(W * H), 0.f);
-        std::vector<uint32_t> lightCount(static_cast<size_t>(W * H), 0u);
+        std::vector<std::vector<float>>    tR(T), tG(T), tB(T);
+        std::vector<std::vector<uint32_t>> tCount(T);
 
-        // Previous and pre-previous positions for each parallel trajectory.
-        std::vector<float> prev_xs(xs), prev_ys(ys), prev_zs(zs);
-        std::vector<float> pprev_xs(xs), pprev_ys(ys), pprev_zs(zs);
+        runParallel(T, [&](int t) {
+            tR[t].assign(NPX, 0.f);
+            tG[t].assign(NPX, 0.f);
+            tB[t].assign(NPX, 0.f);
+            tCount[t].assign(NPX, 0u);
 
-        // Advance once so prev ≠ pprev from the start.
-        attractorIterateN(rp.attractorType, rp.params,
-                          xs.data(), ys.data(), zs.data(), BATCH_SIZE);
+            const int lo = sliceLo(t), hi = sliceLo(t + 1), n = hi - lo;
+            if (n <= 0) return;
+            float* X = xs.data() + lo;
+            float* Y = ys.data() + lo;
+            float* Z = zs.data() + lo;
+            float*    rAcc = tR[t].data();
+            float*    gAcc = tG[t].data();
+            float*    bAcc = tB[t].data();
+            uint32_t* cAcc = tCount[t].data();
 
-        const float xScale = (float)(W - 1) / (uMax - uMin);
-        const float yScale = (float)(H - 1) / (vMax - vMin);
+            // prev / pprev trajectories for this slice (pointer-rotated, no copy).
+            std::vector<float> a_x(X, X + n), a_y(Y, Y + n), a_z(Z, Z + n);
+            std::vector<float> b_x(X, X + n), b_y(Y, Y + n), b_z(Z, Z + n);
+            float* prev_x = a_x.data(); float* prev_y = a_y.data(); float* prev_z = a_z.data();
+            float* pprev_x = b_x.data(); float* pprev_y = b_y.data(); float* pprev_z = b_z.data();
 
-        long long accumulated = 0;
-        while (accumulated < rp.iterations) {
-            const int batchN = (int)std::min((long long)BATCH_SIZE,
-                                              rp.iterations - accumulated);
+            // Advance once so prev ≠ pprev from the start.
+            attractorIterateN(rp.attractorType, rp.params, X, Y, Z, n);
 
-            // pprev ← prev ← xs before this iteration
-            pprev_xs.assign(prev_xs.begin(), prev_xs.end());
-            pprev_ys.assign(prev_ys.begin(), prev_ys.end());
-            pprev_zs.assign(prev_zs.begin(), prev_zs.end());
-            prev_xs.assign(xs.begin(), xs.end());
-            prev_ys.assign(ys.begin(), ys.end());
-            prev_zs.assign(zs.begin(), zs.end());
+            auto lightStep = [&](int m) {
+                // pprev ← prev ← current  (rotate the two history buffers, then
+                // copy the live positions into prev — one memcpy instead of three
+                // vector assigns).
+                std::swap(prev_x, pprev_x); std::swap(prev_y, pprev_y); std::swap(prev_z, pprev_z);
+                std::memcpy(prev_x, X, sizeof(float) * static_cast<size_t>(n));
+                std::memcpy(prev_y, Y, sizeof(float) * static_cast<size_t>(n));
+                std::memcpy(prev_z, Z, sizeof(float) * static_cast<size_t>(n));
 
-            attractorIterateN(rp.attractorType, rp.params,
-                              xs.data(), ys.data(), zs.data(), batchN);
+                attractorIterateN(rp.attractorType, rp.params, X, Y, Z, m);
 
-            for (int i = 0; i < batchN; i++) {
-                // Step vectors in world space
-                const float ax = xs[i]     - prev_xs[i];
-                const float ay = ys[i]     - prev_ys[i];
-                const float az = zs[i]     - prev_zs[i];
-                const float bx = prev_xs[i] - pprev_xs[i];
-                const float by = prev_ys[i] - pprev_ys[i];
-                const float bz = prev_zs[i] - pprev_zs[i];
+                for (int i = 0; i < m; i++) {
+                    const float ax = X[i]      - prev_x[i];
+                    const float ay = Y[i]      - prev_y[i];
+                    const float az = Z[i]      - prev_z[i];
+                    const float bx = prev_x[i] - pprev_x[i];
+                    const float by = prev_y[i] - pprev_y[i];
+                    const float bz = prev_z[i] - pprev_z[i];
 
-                const float lenA = sqrtf(ax*ax + ay*ay + az*az);
-                const float lenB = sqrtf(bx*bx + by*by + bz*bz);
+                    const float lenA = sqrtf(ax*ax + ay*ay + az*az);
+                    const float lenB = sqrtf(bx*bx + by*by + bz*bz);
 
-                // ── Speed → LUT index ─────────────────────────────────────
-                // tanh(lenA / speedScale): mean speed ≈ 0.76 on the palette.
-                const float speedNorm = (lenA > 0.f)
-                    ? tanhf(lenA / speedScale)
-                    : 0.f;
-                const int lutIdx = (int)(speedNorm * (float)(LUT_SIZE - 1));
+                    const float speedNorm = (lenA > 0.f) ? tanhf(lenA / speedScale) : 0.f;
+                    const int lutIdx = (int)(speedNorm * (float)(LUT_SIZE - 1));
 
-                // ── Curvature → brightness multiplier ─────────────────────
-                // Sharp turn (cos → +1, 0°) = bright.
-                // Straight path (cos → −1, 180°) = dim.
-                // Range [0.08, 1.0] so even straight segments remain visible.
-                float curvatureBrightness = 0.08f;
-                if (lenA > 1e-12f && lenB > 1e-12f) {
-                    float cosA = (ax*bx + ay*by + az*bz) / (lenA * lenB);
-                    if (cosA >  1.f) cosA =  1.f;
-                    if (cosA < -1.f) cosA = -1.f;
-                    curvatureBrightness = 0.08f + 0.92f * (1.f + cosA) * 0.5f;
+                    float curvatureBrightness = 0.08f;
+                    if (lenA > 1e-12f && lenB > 1e-12f) {
+                        float cosA = (ax*bx + ay*by + az*bz) / (lenA * lenB);
+                        if (cosA >  1.f) cosA =  1.f;
+                        if (cosA < -1.f) cosA = -1.f;
+                        curvatureBrightness = 0.08f + 0.92f * (1.f + cosA) * 0.5f;
+                    }
+
+                    const float u = R[0]*prev_x[i] + R[1]*prev_y[i] + R[2]*prev_z[i];
+                    const float v = R[3]*prev_x[i] + R[4]*prev_y[i] + R[5]*prev_z[i];
+                    const int px = (int)((u - uMin) * xScale);
+                    const int py = (int)((v - vMin) * yScale);
+
+                    if ((unsigned)px < (unsigned)W && (unsigned)py < (unsigned)H) {
+                        const int idx = py * W + px;
+                        rAcc[idx] += (float)lut[lutIdx].r * curvatureBrightness;
+                        gAcc[idx] += (float)lut[lutIdx].g * curvatureBrightness;
+                        bAcc[idx] += (float)lut[lutIdx].b * curvatureBrightness;
+                        cAcc[idx]++;
+                    }
                 }
+            };
 
-                // ── Project prev position → pixel ────────────────────────
-                const float u = (R[0]*prev_xs[i] + R[1]*prev_ys[i] + R[2]*prev_zs[i]);
-                const float v = (R[3]*prev_xs[i] + R[4]*prev_ys[i] + R[5]*prev_zs[i]);
-                const int px = (int)((u - uMin) * xScale);
-                const int py = (int)((v - vMin) * yScale);
+            for (long long s = 0; s < baseSteps; s++) lightStep(n);
+            int exCount = std::min(hi, rem) - lo;   // extra step for global idx < rem
+            if (exCount > n) exCount = n;
+            if (exCount > 0) lightStep(exCount);
+        });
 
-                if ((unsigned)px < (unsigned)W && (unsigned)py < (unsigned)H) {
-                    const int idx = py * W + px;
-                    rAccum[idx] += (float)lut[lutIdx].r * curvatureBrightness;
-                    gAccum[idx] += (float)lut[lutIdx].g * curvatureBrightness;
-                    bAccum[idx] += (float)lut[lutIdx].b * curvatureBrightness;
-                    lightCount[idx]++;
+        // Merge per-thread buffers (parallel over pixel ranges).
+        std::vector<float>    rAccum(NPX, 0.f), gAccum(NPX, 0.f), bAccum(NPX, 0.f);
+        std::vector<uint32_t> lightCount(NPX, 0u);
+        runParallel(T, [&](int t) {
+            size_t lo, hi; pixelRange(t, lo, hi);
+            for (size_t i = lo; i < hi; i++) {
+                float fr = 0.f, fg = 0.f, fb = 0.f; uint32_t c = 0;
+                for (int k = 0; k < T; k++) {
+                    fr += tR[k][i]; fg += tG[k][i]; fb += tB[k][i]; c += tCount[k][i];
                 }
+                rAccum[i] = fr; gAccum[i] = fg; bAccum[i] = fb; lightCount[i] = c;
             }
-            accumulated += batchN;
-        }
+        });
 
-        // ── Tone-map: log-brightness × per-pixel mean colour ────────────────
         uint32_t maxHit = *std::max_element(lightCount.begin(), lightCount.end());
         if (maxHit == 0) {
             const int bg = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
-            for (int i = 0; i < W * H; i++) outPixels[i] = bg;
+            for (size_t i = 0; i < NPX; i++) outPixels[i] = bg;
             return false;
         }
         const float logMax = logf(1.f + (float)maxHit);
 
-        for (int i = 0; i < W * H; i++) {
-            if (lightCount[i] == 0) {
-                outPixels[i] = rp.transparentBg
-                    ? 0
-                    : ((rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u));
-                continue;
+        runParallel(T, [&](int t) {
+            size_t lo, hi; pixelRange(t, lo, hi);
+            for (size_t i = lo; i < hi; i++) {
+                if (lightCount[i] == 0) {
+                    outPixels[i] = rp.transparentBg
+                        ? 0
+                        : ((rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u));
+                    continue;
+                }
+                float bright = logf(1.f + (float)lightCount[i]) / logMax;
+                if (gamma != 1.f) bright = powf(bright, gamma);
+
+                const float inv = 1.f / (float)lightCount[i];
+                float fr = rAccum[i] * inv * bright;
+                float fg = gAccum[i] * inv * bright;
+                float fb = bAccum[i] * inv * bright;
+
+                auto clamp255 = [](float v) -> uint8_t {
+                    return (v < 0.f) ? 0u : (v > 255.f) ? 255u : (uint8_t)v;
+                };
+                outPixels[i] = static_cast<int>(
+                    (0xFFu << 24) |
+                    ((uint32_t)clamp255(fr) << 16) |
+                    ((uint32_t)clamp255(fg) <<  8) |
+                     (uint32_t)clamp255(fb)
+                );
             }
-            float bright = logf(1.f + (float)lightCount[i]) / logMax;
-            if (gamma != 1.f) bright = powf(bright, gamma);
-
-            const float inv = 1.f / (float)lightCount[i];
-            float fr = rAccum[i] * inv * bright;
-            float fg = gAccum[i] * inv * bright;
-            float fb = bAccum[i] * inv * bright;
-
-            // Clamp to [0, 255]
-            auto clamp255 = [](float v) -> uint8_t {
-                return (v < 0.f) ? 0u : (v > 255.f) ? 255u : (uint8_t)v;
-            };
-            outPixels[i] = static_cast<int>(
-                (0xFFu << 24) |
-                ((uint32_t)clamp255(fr) << 16) |
-                ((uint32_t)clamp255(fg) <<  8) |
-                 (uint32_t)clamp255(fb)
-            );
-        }
+        });
         return true;
     }
 
@@ -446,32 +497,76 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     // Histogram path (Standard, Sparse, Liquid, Plasma, Solid)
     // ════════════════════════════════════════════════════════════════════════
 
-    long long accumulated = 0;
-    while (accumulated < rp.iterations) {
-        int batchN = (int)std::min((long long)BATCH_SIZE,
-                                   rp.iterations - accumulated);
-        attractorIterateN(rp.attractorType, rp.params,
-                          xs.data(), ys.data(), zs.data(), batchN);
-        if (useDepth) {
-            projectBatchDepth(R, 1.0f, xs.data(), ys.data(), zs.data(), batchN,
-                              us.data(), vs.data(), ws.data());
-            accumulateBatchDepth(us.data(), vs.data(), ws.data(), batchN,
-                                 hist.data(), depthAccum.data(), W, H,
-                                 uMin, uMax, vMin, vMax);
-        } else {
-            projectBatch(R, 1.0f, xs.data(), ys.data(), zs.data(), batchN,
-                         us.data(), vs.data());
-            accumulateBatch(us.data(), vs.data(), batchN, hist.data(), W, H,
-                            uMin, uMax, vMin, vMax);
+    std::vector<std::vector<uint32_t>> tHist(T);
+    std::vector<std::vector<float>>    tDepth(T);
+
+    runParallel(T, [&](int t) {
+        tHist[t].assign(NPX, 0u);
+        if (useDepth) tDepth[t].assign(NPX, 0.f);
+
+        const int lo = sliceLo(t), hi = sliceLo(t + 1), n = hi - lo;
+        if (n <= 0) return;
+        float* X = xs.data() + lo;
+        float* Y = ys.data() + lo;
+        float* Z = zs.data() + lo;
+        uint32_t* HH = tHist[t].data();
+        float*    DD = useDepth ? tDepth[t].data() : nullptr;
+
+        auto stepAccum = [&](int m) {
+            attractorIterateN(rp.attractorType, rp.params, X, Y, Z, m);
+            if (useDepth) {
+                for (int i = 0; i < m; i++) {
+                    float u = R[0]*X[i] + R[1]*Y[i] + R[2]*Z[i];
+                    float v = R[3]*X[i] + R[4]*Y[i] + R[5]*Z[i];
+                    float w = R[6]*X[i] + R[7]*Y[i] + R[8]*Z[i];
+                    int px = (int)((u - uMin) * xScale);
+                    int py = (int)((v - vMin) * yScale);
+                    if ((unsigned)px < (unsigned)W && (unsigned)py < (unsigned)H) {
+                        int idx = py * W + px;
+                        HH[idx]++;
+                        DD[idx] += w;
+                    }
+                }
+            } else {
+                for (int i = 0; i < m; i++) {
+                    float u = R[0]*X[i] + R[1]*Y[i] + R[2]*Z[i];
+                    float v = R[3]*X[i] + R[4]*Y[i] + R[5]*Z[i];
+                    int px = (int)((u - uMin) * xScale);
+                    int py = (int)((v - vMin) * yScale);
+                    if ((unsigned)px < (unsigned)W && (unsigned)py < (unsigned)H)
+                        HH[py * W + px]++;
+                }
+            }
+        };
+
+        for (long long s = 0; s < baseSteps; s++) stepAccum(n);
+        int exCount = std::min(hi, rem) - lo;
+        if (exCount > n) exCount = n;
+        if (exCount > 0) stepAccum(exCount);
+    });
+
+    // Merge per-thread histograms (and depth) — parallel over pixel ranges.
+    std::vector<uint32_t> hist(NPX, 0u);
+    std::vector<float>    depthAccum(useDepth ? NPX : 0, 0.f);
+    runParallel(T, [&](int t) {
+        size_t lo, hi; pixelRange(t, lo, hi);
+        for (size_t i = lo; i < hi; i++) {
+            uint32_t s = 0;
+            for (int k = 0; k < T; k++) s += tHist[k][i];
+            hist[i] = s;
+            if (useDepth) {
+                float d = 0.f;
+                for (int k = 0; k < T; k++) d += tDepth[k][i];
+                depthAccum[i] = d;
+            }
         }
-        accumulated += batchN;
-    }
+    });
 
     // Per-pixel mean depth, from raw counts.
     std::vector<float> meanW;
     if (useDepth) {
-        meanW.assign(static_cast<size_t>(W * H), 0.f);
-        for (int i = 0; i < W * H; i++)
+        meanW.assign(NPX, 0.f);
+        for (size_t i = 0; i < NPX; i++)
             if (hist[i] > 0) meanW[i] = depthAccum[i] / (float)hist[i];
     }
 
@@ -479,50 +574,53 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
     uint32_t maxCount = *std::max_element(hist.begin(), hist.end());
     if (maxCount == 0) {
         int bgFill = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
-        for (int i = 0; i < W * H; i++) outPixels[i] = bgFill;
+        for (size_t i = 0; i < NPX; i++) outPixels[i] = bgFill;
         return false;
     }
     float logMax = logf(1.f + (float)maxCount);
 
-    // ── Pass 1: per-pixel density ─────────────────────────────────────────────
-    std::vector<float> dens(static_cast<size_t>(W * H), 0.f);
-    for (int i = 0; i < W * H; i++) {
-        if (hist[i] == 0) continue;
-        float density;
-        // SPARSE (style 1): 4th-root gives diffuse starfield / dust-cloud look.
-        if (rp.renderStyle == 1) {
-            density = powf((float)hist[i] / (float)maxCount, 0.25f);
-        } else {
-            density = logf(1.f + (float)hist[i]) / logMax;
-        }
+    // ── Pass 1: per-pixel density (parallel) ──────────────────────────────────
+    std::vector<float> dens(NPX, 0.f);
+    runParallel(T, [&](int t) {
+        size_t lo, hi; pixelRange(t, lo, hi);
+        for (size_t i = lo; i < hi; i++) {
+            if (hist[i] == 0) continue;
+            float density;
+            // SPARSE (style 1): 4th-root gives diffuse starfield / dust-cloud look.
+            if (rp.renderStyle == 1) {
+                density = powf((float)hist[i] / (float)maxCount, 0.25f);
+            } else {
+                density = logf(1.f + (float)hist[i]) / logMax;
+            }
 
-        switch (rp.renderStyle) {
-        case 1: // SPARSE — no extra transform after 4th-root
-            break;
-        case 2: // LIQUID — log density; depth modulation applied in Pass 2
-            if (gamma != 1.f) density = powf(density, gamma);
-            break;
-        case 3: // PLASMA — cyclic colour bands
-            density = fmodf(density * 4.0f, 1.0f);
-            break;
-        case 4: // SOLID — binary threshold
-            density = (density > 0.15f) ? 1.0f : 0.0f;
-            break;
-        default: // STANDARD (0) — log + gamma
-            if (gamma != 1.f) density = powf(density, gamma);
-            break;
+            switch (rp.renderStyle) {
+            case 1: // SPARSE — no extra transform after 4th-root
+                break;
+            case 2: // LIQUID — log density; depth modulation applied in Pass 2
+                if (gamma != 1.f) density = powf(density, gamma);
+                break;
+            case 3: // PLASMA — cyclic colour bands
+                density = fmodf(density * 4.0f, 1.0f);
+                break;
+            case 4: // SOLID — binary threshold
+                density = (density > 0.15f) ? 1.0f : 0.0f;
+                break;
+            default: // STANDARD (0) — log + gamma
+                if (gamma != 1.f) density = powf(density, gamma);
+                break;
+            }
+            dens[i] = density;
         }
-        dens[i] = density;
-    }
+    });
 
-    // ── Full-range equalisation ──────────────────────────────────────────────
+    // ── Full-range equalisation (CDF build is a reduction → single-threaded) ──
     static constexpr int CDF_BINS = 1024;
     const bool equalize = (rp.fullRange != 0);
     std::vector<float> cdf;
     if (equalize) {
         std::vector<double> bins(CDF_BINS, 0.0);
         double pop = 0.0;
-        for (int i = 0; i < W * H; i++) {
+        for (size_t i = 0; i < NPX; i++) {
             if (hist[i] == 0) continue;
             float d = dens[i];
             int b = (int)(d * (float)(CDF_BINS - 1));
@@ -537,46 +635,45 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         }
     }
 
-    // ── Pass 2: depth shade + colorize → ARGB_8888 ───────────────────────────
-    for (int i = 0; i < W * H; i++) {
-        if (hist[i] == 0) {
-            if (rp.transparentBg) {
-                outPixels[i] = 0;
-            } else {
-                outPixels[i] = (rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u);
+    // ── Pass 2: depth shade + colorize → ARGB_8888 (parallel) ────────────────
+    runParallel(T, [&](int t) {
+        size_t lo, hi; pixelRange(t, lo, hi);
+        for (size_t i = lo; i < hi; i++) {
+            if (hist[i] == 0) {
+                outPixels[i] = rp.transparentBg
+                    ? 0
+                    : ((rp.bgColor != 0) ? rp.bgColor : static_cast<int>(0xFF000000u));
+                continue;
             }
-            continue;
-        }
-        float density = dens[i];
-        if (equalize) {
-            int b = (int)(density * (float)(CDF_BINS - 1));
-            if (b < 0) b = 0; else if (b >= CDF_BINS) b = CDF_BINS - 1;
-            density = cdf[b];
-        }
-
-        // Depth shading.
-        if (useDepth && wMax > wMin) {
-            float dn = (meanW[i] - wMin) / (wMax - wMin);
-            if (dn < 0.f) dn = 0.f; else if (dn > 1.f) dn = 1.f;
-            if (isLiquid) {
-                // Original Liquid: z-buffer depth gives strong near-bright / far-dim.
-                // Near (dn=0) unchanged; far (dn=1) dimmed to ~22% brightness.
-                density *= 1.f - 0.78f * dn;
-            } else if (rp.depthCue > 0.f) {
-                density *= 1.f - rp.depthCue * 0.5f * dn;
+            float density = dens[i];
+            if (equalize) {
+                int b = (int)(density * (float)(CDF_BINS - 1));
+                if (b < 0) b = 0; else if (b >= CDF_BINS) b = CDF_BINS - 1;
+                density = cdf[b];
             }
-        }
 
-        if (density < 0.f) density = 0.f;
-        if (density > 1.f) density = 1.f;
-        int idx = (int)(density * (float)(LUT_SIZE - 1));
-        if (idx >= LUT_SIZE) idx = LUT_SIZE - 1;
-        const RGB& c = lut[idx];
-        outPixels[i] = static_cast<int>(
-            (0xFFu << 24) | ((uint32_t)c.r << 16) |
-            ((uint32_t)c.g << 8) | (uint32_t)c.b
-        );
-    }
+            // Depth shading.
+            if (useDepth && wMax > wMin) {
+                float dn = (meanW[i] - wMin) / (wMax - wMin);
+                if (dn < 0.f) dn = 0.f; else if (dn > 1.f) dn = 1.f;
+                if (isLiquid) {
+                    density *= 1.f - 0.78f * dn;
+                } else if (rp.depthCue > 0.f) {
+                    density *= 1.f - rp.depthCue * 0.5f * dn;
+                }
+            }
+
+            if (density < 0.f) density = 0.f;
+            if (density > 1.f) density = 1.f;
+            int idx = (int)(density * (float)(LUT_SIZE - 1));
+            if (idx >= LUT_SIZE) idx = LUT_SIZE - 1;
+            const RGB& c = lut[idx];
+            outPixels[i] = static_cast<int>(
+                (0xFFu << 24) | ((uint32_t)c.r << 16) |
+                ((uint32_t)c.g << 8) | (uint32_t)c.b
+            );
+        }
+    });
     return true;
 }
 
@@ -586,8 +683,8 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
 
 std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
     static constexpr int BATCH_DOT  = 4096;
-    static constexpr int WARMUP_DOT = 1000; // match the render warmup so preview
-                                            // and render always show the same region
+    static constexpr int WARMUP_DOT = WARMUP_STEPS; // match the render warmup so
+                                            // preview and render show the same region
     // 8 batches × 4096 = 32 768 bounds-detection samples — enough for attractors
     // with a large z-extent (e.g. Barnsley Fern with high twist) that need more
     // points to reliably establish their bounding box.
@@ -654,7 +751,7 @@ std::vector<float> getProjectedPoints(const RenderParams& rp, int n_pts) {
 
 std::vector<float> getProjectedPointsDepth(const RenderParams& rp, int n_pts) {
     static constexpr int BATCH_DOT  = 4096;
-    static constexpr int WARMUP_DOT = 1000; // match the render warmup
+    static constexpr int WARMUP_DOT = WARMUP_STEPS; // match the render warmup
     static constexpr int BOUNDS_DOT = 8;   // 32 768 samples — robust for large z-extent
 
     float R[9];

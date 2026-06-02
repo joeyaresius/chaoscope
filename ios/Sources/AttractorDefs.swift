@@ -1,9 +1,11 @@
-// Mirrors the Kotlin AttractorType / PaletteType enums.
-// Ordinals must stay in lockstep with attractors.h and renderer.h constants.
+import SwiftUI
+
+// ── Attractor definitions ─────────────────────────────────────────────────────
+// Ordinals must stay in lockstep with attractors.h constants.
 
 struct AttractorDef {
     let name: String
-    let params: [Float]  // up to 8; padded with 0s to match C array
+    let params: [Float]   // up to 8; pad with 0s to match C array
 }
 
 let attractors: [AttractorDef] = [
@@ -39,7 +41,47 @@ let attractors: [AttractorDef] = [
     AttractorDef(name: "Sprott-B",      params: [1, 1, 0.02, 0, 0, 0, 0, 0]),
 ]
 
-let paletteNames = [
-    "Nebula", "Fire", "Electric", "Aurora", "Matrix",
-    "Greyscale", "Spectrum", "Sunset", "Ice", "Neon",
+// ── Palette definitions ───────────────────────────────────────────────────────
+// Colors mirror renderer.cpp color stops exactly; used for gradient swatches.
+// Ordinals must match renderer.h PALETTE_* constants.
+
+struct PaletteDef {
+    let name: String
+    let stops: [Color]   // key colors left→right for gradient chip
+}
+
+let palettes: [PaletteDef] = [
+    // 0 NEBULA
+    PaletteDef(name: "Nebula",    stops: [.black, Color(r:0,g:20,b:80), Color(r:20,g:80,b:200), Color(r:120,g:180,b:255), .white]),
+    // 1 FIRE
+    PaletteDef(name: "Fire",      stops: [.black, Color(r:80,g:0,b:0), Color(r:200,g:60,b:0), Color(r:255,g:160,b:20), Color(r:255,g:255,b:200)]),
+    // 2 ELECTRIC
+    PaletteDef(name: "Electric",  stops: [.black, Color(r:0,g:40,b:60), Color(r:0,g:180,b:200), Color(r:80,g:240,b:255), .white]),
+    // 3 AURORA
+    PaletteDef(name: "Aurora",    stops: [.black, Color(r:20,g:0,b:60), Color(r:80,g:0,b:160), Color(r:180,g:80,b:240), Color(r:240,g:200,b:255)]),
+    // 4 MATRIX
+    PaletteDef(name: "Matrix",    stops: [.black, Color(r:0,g:40,b:0), Color(r:0,g:160,b:20), Color(r:80,g:240,b:80), Color(r:200,g:255,b:200)]),
+    // 5 GREYSCALE
+    PaletteDef(name: "Greyscale", stops: [.black, .white]),
+    // 6 SPECTRUM
+    PaletteDef(name: "Spectrum",  stops: [.black, Color(r:80,g:0,b:160), Color(r:0,g:40,b:220), Color(r:0,g:200,b:200), Color(r:220,g:220,b:0), Color(r:255,g:130,b:0)]),
+    // 7 SUNSET
+    PaletteDef(name: "Sunset",    stops: [.black, Color(r:60,g:0,b:80), Color(r:180,g:0,b:120), Color(r:255,g:80,b:20), Color(r:255,g:200,b:50)]),
+    // 8 ICE
+    PaletteDef(name: "Ice",       stops: [.black, Color(r:0,g:20,b:60), Color(r:0,g:80,b:140), Color(r:80,g:200,b:240), Color(r:200,g:240,b:255), .white]),
+    // 9 NEON
+    PaletteDef(name: "Neon",      stops: [.black, Color(r:60,g:0,b:60), Color(r:255,g:0,b:180), Color(r:0,g:255,b:120), Color(r:200,g:255,b:80), .white]),
 ]
+
+// ── Render styles ─────────────────────────────────────────────────────────────
+// Ordinals match renderer.h renderStyle values.
+let renderStyles = ["Standard", "Gas", "Liquid", "Plasma", "Solid", "Light"]
+
+// ── Color helper ──────────────────────────────────────────────────────────────
+
+extension Color {
+    /// Convenience initialiser from 0–255 integer channels.
+    init(r: Int, g: Int, b: Int) {
+        self.init(red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255)
+    }
+}
