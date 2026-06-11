@@ -21,6 +21,11 @@
          turns off (otherwise the device suspends and the encode stalls) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Live wallpaper is optional — don't shrink device compatibility over it -->
+    <uses-feature
+        android:name="android.software.live_wallpaper"
+        android:required="false" />
+
     <application
         android:name=".ChaoscopeApplication"
         android:label="Chaoscope"
@@ -44,6 +49,24 @@
             android:name=".VideoExportService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <service
+            android:name=".ChaoscopeWallpaperService"
+            android:exported="true"
+            android:label="@string/wp_settings_title"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper" />
+        </service>
+
+        <activity
+            android:name=".WallpaperSettingsActivity"
+            android:exported="true"
+            android:label="@string/wp_settings_title" />
 
     </application>
 </manifest>

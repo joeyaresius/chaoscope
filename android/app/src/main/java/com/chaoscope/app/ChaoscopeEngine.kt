@@ -87,6 +87,17 @@ object ChaoscopeEngine {
         customStops: FloatArray? = null,
     ): IntArray
 
+    /**
+     * Progress of the in-flight HD/4K render as a fraction in [0, 1], or -1
+     * when nothing is being tracked (preview and thumbnail renders never are;
+     * GPU renders complete in a single dispatch and never report). Poll from
+     * the UI while a render runs.
+     */
+    external fun nativeRenderProgress(): Float
+
+    /** Clear progress state before starting a render. */
+    external fun nativeRenderProgressReset()
+
     // ── GPU renderer ────────────────────────────────────────────────────────────
 
     /** Create the EGL offscreen context. Returns false if GLES 3.1 is unavailable. */

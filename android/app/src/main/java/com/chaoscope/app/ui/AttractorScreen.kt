@@ -2,12 +2,15 @@ package com.chaoscope.ui
 
 import android.Manifest
 import android.app.Activity
+import android.app.WallpaperManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.google.android.play.core.review.ReviewManagerFactory
@@ -24,6 +27,11 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -35,6 +43,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.*
@@ -55,6 +64,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
@@ -64,6 +74,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -82,12 +93,17 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -118,30 +134,49 @@ fun AttractorScreen(
     onShowAbout: () -> Unit = {},
 ) {
     val state            by vm.uiState.collectAsStateWithLifecycle()
+    val customBgBitmap   by vm.customBgBitmap.collectAsStateWithLifecycle()
     val bucketedDots     by vm.bucketedDots.collectAsStateWithLifecycle()
     val paletteLut       by vm.paletteLut.collectAsStateWithLifecycle()
-    val recentExports    by vm.recentExports.collectAsStateWithLifecycle()
+    val galleryEntries   by vm.galleryEntries.collectAsStateWithLifecycle()
     val showTutorial     by vm.showTutorial.collectAsStateWithLifecycle()
     val tutorialStep     by vm.tutorialStep.collectAsStateWithLifecycle()
     val tutorialAnchors  by vm.tutorialAnchors.collectAsStateWithLifecycle()
     val showPaletteEditor by vm.showPaletteEditor.collectAsStateWithLifecycle()
     val userPresets       by vm.userPresets.collectAsStateWithLifecycle()
+    val hasEverRendered   by vm.hasEverRendered.collectAsStateWithLifecycle()
+    val dailyPreset       by vm.dailyPreset.collectAsStateWithLifecycle()
     val context           = LocalContext.current
     val haptics           = LocalHapticFeedback.current
 
     // ── Notification permission (Android 13+) ────────────────────────────────
-    // Without POST_NOTIFICATIONS the export foreground notification is silently
-    // dropped.  We ask once on first launch; the user can deny — export still
-    // works, they just won't see the progress notification or Cancel button.
+    // Without POST_NOTIFICATIONS the video-export foreground notification is
+    // silently dropped.  We don't ask on launch — it's only relevant to video
+    // export, so we request it there (gated behind a "runs in background" warning
+    // dialog).  Whether granted or denied, the export the user asked for proceeds;
+    // they just won't see the progress notification / Cancel button if denied.
+    var pendingVideoExport by remember { mutableStateOf(false) }
     val notifPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* granted/denied — no action needed; service handles missing permission */ }
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val granted = ContextCompat.checkSelfPermission(
+    ) {
+        if (pendingVideoExport) {
+            pendingVideoExport = false
+            vm.exportVideo(context)
+        }
+    }
+    // Shown when the user taps "Export Video" — warns that it runs in the
+    // background before we kick off the (permission request +) export.
+    var showVideoExportWarning by remember { mutableStateOf(false) }
+    // Starts the video export, first requesting notification permission if needed.
+    val startVideoExport = {
+        val needsPerm = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
                 context, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-            if (!granted) notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            ) != PackageManager.PERMISSION_GRANTED
+        if (needsPerm) {
+            pendingVideoExport = true
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            vm.exportVideo(context)
         }
     }
 
@@ -163,13 +198,40 @@ fun AttractorScreen(
     // Non-null while the "video saved" dialog (Open / Share) is showing.
     var videoDoneUri by remember { mutableStateOf<String?>(null) }
 
+    // ── Gallery dialogs ───────────────────────────────────────────────────────
+    var showGalleryDialog    by remember { mutableStateOf(false) }
+    var selectedGalleryEntry by remember { mutableStateOf<GalleryEntry?>(null) }
+
+    // ── Settings sheet ────────────────────────────────────────────────────────
+    var showSettings by remember { mutableStateOf(false) }
+
+    // ── Preset-code import dialog ─────────────────────────────────────────────
+    var showImportDialog by remember { mutableStateOf(false) }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val scope             = rememberCoroutineScope()
     val clipboard         = LocalClipboardManager.current
 
+    // ── Undo snackbar (after randomize / preset apply) ────────────────────────
+    val shuffledMsg      = stringResource(R.string.msg_shuffled)
+    val presetAppliedMsg = stringResource(R.string.msg_preset_applied)
+    val undoLabel        = stringResource(R.string.btn_undo)
+    val showUndoSnackbar: (String) -> Unit = { msg ->
+        scope.launch {
+            // Replace any queued snackbar so rapid shuffles don't stack messages.
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message     = msg,
+                actionLabel = undoLabel,
+                duration    = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) vm.undoLastApply()
+        }
+    }
+
     // Auto-generated caption for the current attractor — rides along on shares
-    // and the copy-to-clipboard action.
-    val shareCaption    = buildShareCaption(state.attractorType, state.palette, state.params)
+    // and the copy-to-clipboard action. Includes the CHS1: recreate code.
+    val shareCaption    = buildShareCaption(state.toPreset())
     val captionCopedMsg = stringResource(R.string.msg_caption_copied)
 
     val savedMsg        = stringResource(R.string.export_saved)
@@ -181,6 +243,68 @@ fun AttractorScreen(
     val retryingMsg     = stringResource(R.string.msg_retrying)
     val videoFailedMsgFmt = state.videoExportError?.let { stringResource(R.string.msg_video_failed, it) }
     val shareVideoChooser = stringResource(R.string.share_video_chooser)
+
+    // ── Clipboard preset-code detection ───────────────────────────────────────
+    // When the window (re)gains focus — app opened, or back from WhatsApp etc. —
+    // peek at the clipboard; if it holds a CHS1: code, offer a one-tap Apply.
+    // Focus (not resume) is the trigger because Android 10+ only allows
+    // clipboard reads while focused. Each unique code is offered once, and our
+    // own current look is skipped so copying the caption doesn't self-offer.
+    val clipboardMsg = stringResource(R.string.msg_clipboard_preset)
+    val applyLabel   = stringResource(R.string.btn_apply)
+    val windowInfo   = LocalWindowInfo.current
+    var lastOfferedCode by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { windowInfo.isWindowFocused }.collect { focused ->
+            if (!focused) return@collect
+            val text   = clipboard.getText()?.text ?: return@collect
+            val preset = presetFromCode(text) ?: return@collect
+            val code   = presetToCode(preset)   // normalised for comparison
+            if (code == lastOfferedCode) return@collect
+            if (code == presetToCode(vm.uiState.value.toPreset())) return@collect
+            lastOfferedCode = code
+            val result = snackbarHostState.showSnackbar(
+                message     = clipboardMsg,
+                actionLabel = applyLabel,
+                duration    = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                vm.applyPreset(preset)
+                showUndoSnackbar(presetAppliedMsg)
+            }
+        }
+    }
+
+    // ── Gallery entry actions (shared by the panel row and the dialogs) ───────
+    val viewEntry: (GalleryEntry) -> Unit = { entry ->
+        runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(Uri.parse(entry.uri),
+                                   if (entry.isVideo) "video/mp4" else "image/png")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            )
+        }
+    }
+    val shareEntry: (GalleryEntry) -> Unit = { entry ->
+        runCatching {
+            // Caption from the entry's own preset when available, so a shared past
+            // render describes itself, not the current editor state.
+            val caption = entry.preset?.let { buildShareCaption(it) } ?: shareCaption
+            context.startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = if (entry.isVideo) "video/mp4" else "image/png"
+                        putExtra(Intent.EXTRA_STREAM, Uri.parse(entry.uri))
+                        putExtra(Intent.EXTRA_TEXT, caption)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    },
+                    if (entry.isVideo) shareVideoChooser else shareChooser,
+                )
+            )
+        }
+    }
 
     // Surface export feedback as a Snackbar with View / Share actions.
     LaunchedEffect(state.exportDone, state.exportError) {
@@ -331,9 +455,10 @@ fun AttractorScreen(
         ) {
             // Background layer — solid colour or procedural theme art
             ThemedBackground(
-                bgColor      = state.bgColor,
-                customBgArgb = state.customBgArgb,
-                modifier     = Modifier.fillMaxSize(),
+                bgColor        = state.bgColor,
+                customBgArgb   = state.customBgArgb,
+                modifier       = Modifier.fillMaxSize(),
+                customBgBitmap = customBgBitmap,
             )
 
             // Loading state — shown while GPU probe + dot preview are initialising
@@ -396,6 +521,31 @@ fun AttractorScreen(
                 )
             }
 
+            // Determinate HD/4K render progress (CPU path only — GPU renders
+            // finish in one dispatch and keep the spinner).
+            if (state.isRendering && state.renderProgress >= 0f) {
+                Row(
+                    modifier              = Modifier
+                        .align(Alignment.TopStart)
+                        .statusBarsPadding()
+                        .padding(start = 16.dp, top = 18.dp, end = 110.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    LinearProgressIndicator(
+                        progress  = { state.renderProgress },
+                        modifier  = Modifier.weight(1f),
+                        strokeCap = StrokeCap.Round,
+                    )
+                    Text(
+                        text  = "${(state.renderProgress * 100).roundToInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.8f),
+                    )
+                }
+            }
+
             // Top-right: rendering spinner + cancel; otherwise About.
             Row(
                 modifier              = Modifier
@@ -418,6 +568,13 @@ fun AttractorScreen(
                         )
                     }
                 } else {
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(
+                            imageVector        = Icons.Outlined.Settings,
+                            contentDescription = stringResource(R.string.settings_title),
+                            tint               = Color.White.copy(alpha = 0.7f),
+                        )
+                    }
                     IconButton(onClick = onShowAbout) {
                         Icon(
                             imageVector        = Icons.Outlined.Info,
@@ -444,11 +601,16 @@ fun AttractorScreen(
                 BottomSheetDragHandle()
                 ControlPanel(
                     state              = state,
-                    recentExports      = recentExports,
+                    gallery            = galleryEntries,
+                    dailyPreset        = dailyPreset,
                     onAttractor        = vm::setAttractorType,
-                    onApplyPreset      = vm::applyPreset,
+                    onApplyPreset      = { preset ->
+                        vm.applyPreset(preset)
+                        showUndoSnackbar(presetAppliedMsg)
+                    },
                     userPresets        = userPresets,
                     onSavePreset       = { showSavePresetDialog = true },
+                    onImportPreset     = { showImportDialog = true },
                     onDeletePreset     = vm::deleteUserPreset,
                     onParam            = vm::updateParam,
                     onPalette          = vm::setPalette,
@@ -459,59 +621,52 @@ fun AttractorScreen(
                     onGamma            = vm::setGamma,
                     onDepthCue         = vm::setDepthCue,
                     onFullRange        = vm::setFullRange,
-                    onRenderQuality    = vm::setRenderQuality,
-                    onPreviewDensity   = vm::setPreviewDensity,
                     onRenderStyle      = vm::setRenderStyle,
                     onRender           = vm::renderPreview,
                     onRenderHD         = vm::renderHD,
                     onRenderHD4K       = vm::renderHD4K,
                     onExport           = { vm.exportPng(context) },
                     onSetWallpaper     = { vm.setWallpaper(context) },
+                    onSetLiveWallpaper = {
+                        // System live-wallpaper preview for our service; some OEM
+                        // launchers lack the direct route — fall back to the chooser.
+                        val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                            putExtra(
+                                WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                                ComponentName(context, ChaoscopeWallpaperService::class.java),
+                            )
+                        }
+                        runCatching { context.startActivity(direct) }.recoverCatching {
+                            context.startActivity(
+                                Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+                        }
+                    },
                     onTransparentBg    = vm::setTransparentBg,
                     onAnimMode         = vm::setAnimMode,
                     onSetKeyframeA     = vm::setKeyframeA,
                     onSetKeyframeB     = vm::setKeyframeB,
                     onAnimFrames       = vm::setAnimFrames,
                     onAnimPingPong     = vm::setAnimPingPong,
-                    onExportVideo      = { vm.exportVideo(context) },
+                    onExportVideo      = { showVideoExportWarning = true },
                     onCancelVideoExport = vm::cancelVideoExport,
                     onRandomizeParams  = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         vm.randomizeParams()
+                        showUndoSnackbar(shuffledMsg)
                     },
                     onRandomizeAll     = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         vm.randomize()
+                        showUndoSnackbar(shuffledMsg)
                     },
                     onBgColor          = vm::setBgColor,
                     onCustomBgColor    = vm::setCustomBgColor,
+                    onPickImage        = vm::onPickBackgroundImage,
                     onEditPalette      = vm::openPaletteEditor,
                     onTutorialAnchor   = { target, rect -> vm.updateTutorialAnchor(target, rect) },
-                    onOpenRecent       = { uriString ->
-                        runCatching {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(Uri.parse(uriString), "image/png")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                            )
-                        }
-                    },
-                    onShareRecent      = { uriString ->
-                        runCatching {
-                            context.startActivity(
-                                Intent.createChooser(
-                                    Intent(Intent.ACTION_SEND).apply {
-                                        type = "image/png"
-                                        putExtra(Intent.EXTRA_STREAM, Uri.parse(uriString))
-                                        putExtra(Intent.EXTRA_TEXT, shareCaption)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    },
-                                    shareChooser,
-                                )
-                            )
-                        }
-                    },
+                    onGalleryEntry     = { entry -> selectedGalleryEntry = entry },
+                    onOpenGallery      = { showGalleryDialog = true },
+                    onShareEntry       = shareEntry,
                     onCopyCaption      = {
                         clipboard.setText(AnnotatedString(shareCaption))
                         scope.launch {
@@ -524,6 +679,8 @@ fun AttractorScreen(
                     isRendering        = state.isRendering,
                     paletteLut         = paletteLut,
                     panelContentHeight = contentHeightDp,
+                    tutorialStep       = tutorialStep,
+                    pulseRenderFab     = !hasEverRendered,
                 )
             }
         }
@@ -548,6 +705,26 @@ fun AttractorScreen(
         }
     }
 
+    // ── Video-export "runs in background" warning ─────────────────────────────
+    if (showVideoExportWarning) {
+        AlertDialog(
+            onDismissRequest = { showVideoExportWarning = false },
+            title   = { Text(stringResource(R.string.video_warning_title)) },
+            text    = { Text(stringResource(R.string.video_warning_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showVideoExportWarning = false
+                    startVideoExport()
+                }) { Text(stringResource(R.string.video_warning_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showVideoExportWarning = false }) {
+                    Text(stringResource(R.string.btn_cancel))
+                }
+            },
+        )
+    }
+
     // ── Palette editor dialog ─────────────────────────────────────────────────
     if (showPaletteEditor) {
         PaletteEditorDialog(
@@ -569,6 +746,63 @@ fun AttractorScreen(
                 showSavePresetDialog = false
             },
             onDismiss   = { showSavePresetDialog = false },
+        )
+    }
+
+    // ── Preset-code import dialog ─────────────────────────────────────────────
+    if (showImportDialog) {
+        ImportPresetDialog(
+            onApply   = { preset ->
+                showImportDialog = false
+                vm.applyPreset(preset)
+                showUndoSnackbar(presetAppliedMsg)
+            },
+            onDismiss = { showImportDialog = false },
+        )
+    }
+
+    // ── Settings sheet ────────────────────────────────────────────────────────
+    if (showSettings) {
+        SettingsSheet(
+            state            = state,
+            onRenderQuality  = vm::setRenderQuality,
+            onPreviewDensity = vm::setPreviewDensity,
+            onReplayTutorial = {
+                showSettings = false
+                vm.showTutorialAgain()
+            },
+            onDismiss        = { showSettings = false },
+        )
+    }
+
+    // ── Full-screen gallery grid ──────────────────────────────────────────────
+    if (showGalleryDialog) {
+        GalleryDialog(
+            entries   = galleryEntries,
+            onEntry   = { selectedGalleryEntry = it },
+            onDismiss = { showGalleryDialog = false },
+        )
+    }
+
+    // ── Gallery entry actions: open in editor / view / share / delete ────────
+    selectedGalleryEntry?.let { entry ->
+        GalleryEntryDialog(
+            entry        = entry,
+            onOpenEditor = entry.preset?.let { preset ->
+                {
+                    vm.applyPreset(preset)
+                    selectedGalleryEntry = null
+                    showGalleryDialog    = false
+                    showUndoSnackbar(presetAppliedMsg)
+                }
+            },
+            onView    = { viewEntry(entry) },
+            onShare   = { shareEntry(entry) },
+            onDelete  = { deleteFile ->
+                vm.deleteGalleryEntry(entry.uri, deleteFile)
+                selectedGalleryEntry = null
+            },
+            onDismiss = { selectedGalleryEntry = null },
         )
     }
 
@@ -668,11 +902,13 @@ private fun BottomSheetDragHandle() {
 @Composable
 private fun ControlPanel(
     state:              UiState,
-    recentExports:      List<String>,
+    gallery:            List<GalleryEntry>,
+    dailyPreset:        Preset?,
     onAttractor:        (AttractorType) -> Unit,
     onApplyPreset:      (Preset)        -> Unit,
     userPresets:        List<Preset>,
     onSavePreset:       ()              -> Unit,
+    onImportPreset:     ()              -> Unit,
     onDeletePreset:     (String)        -> Unit,
     onParam:            (Int, Float)    -> Unit,
     onPalette:          (PaletteType)   -> Unit,
@@ -683,14 +919,13 @@ private fun ControlPanel(
     onGamma:            (Float)         -> Unit,
     onDepthCue:         (Float)         -> Unit,
     onFullRange:        (Boolean)       -> Unit,
-    onRenderQuality:    (RenderQuality) -> Unit,
-    onPreviewDensity:   (PreviewDensity)-> Unit,
     onRenderStyle:      (RenderStyle)   -> Unit,
     onRender:           ()              -> Unit,
     onRenderHD:         ()              -> Unit,
     onRenderHD4K:       ()              -> Unit,
     onExport:           ()              -> Unit,
     onSetWallpaper:     ()              -> Unit,
+    onSetLiveWallpaper: ()              -> Unit,
     onTransparentBg:    (Boolean)       -> Unit,
     onAnimMode:         (AnimMode)      -> Unit,
     onSetKeyframeA:     ()              -> Unit,
@@ -703,17 +938,32 @@ private fun ControlPanel(
     onRandomizeAll:     ()              -> Unit,
     onBgColor:          (BgColor)       -> Unit,
     onCustomBgColor:    (Int)           -> Unit,
-    onOpenRecent:       (String)        -> Unit,
-    onShareRecent:      (String)        -> Unit,
+    onPickImage:        (Uri)           -> Unit,
+    onGalleryEntry:     (GalleryEntry)  -> Unit,
+    onOpenGallery:      ()              -> Unit,
+    onShareEntry:       (GalleryEntry)  -> Unit,
     onCopyCaption:      ()              -> Unit,
     onEditPalette:      ()              -> Unit,
     onTutorialAnchor:   (TutorialTarget, Rect) -> Unit,
     isRendering:        Boolean,
     paletteLut:         IntArray,
     panelContentHeight: Dp,
+    tutorialStep:       Int,
+    pulseRenderFab:     Boolean,
 ) {
     // Tab selection — survives rotation via rememberSaveable, not persisted to UiState
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+
+    // During the tutorial, surface the tab that hosts the highlighted control so
+    // its anchor is actually composed and measured. AnimatedContent only composes
+    // the active tab, so without this the palette step (4, in the Look tab) never
+    // resolves its anchor — leaving its coach-mark card unanchored and off-screen.
+    LaunchedEffect(tutorialStep) {
+        when (tutorialStep) {
+            1, 2 -> selectedTab = 0   // Shape — attractor row / param slider
+            4    -> selectedTab = 1   // Look  — palette row
+        }
+    }
 
     val tabTitles = listOf(
         stringResource(R.string.tab_shape),
@@ -749,15 +999,36 @@ private fun ControlPanel(
                          { selectedTab = 1 }, Modifier.weight(1f).fillMaxHeight())
                 Spacer(Modifier.width(64.dp))   // clear slot for the centred FAB
                 PanelTab(tabTitles[2], tabIcons[2], selectedTab == 2,
-                         { selectedTab = 2 }, Modifier.weight(1f).fillMaxHeight())
+                         { selectedTab = 2 }, Modifier.weight(1f).fillMaxHeight(),
+                         // Most camera controls need a 3-D attractor; dim the tab
+                         // (still tappable — it keeps Zoom and explains the rest).
+                         dimmed = !state.attractorType.is3D)
                 PanelTab(tabTitles[3], tabIcons[3], selectedTab == 3,
                          { selectedTab = 3 }, Modifier.weight(1f).fillMaxHeight())
             }
+            // Gentle pulse until the user's very first render — bridges the gap
+            // between the sparse dot preview and the real rendered image without
+            // auto-rendering. Stops permanently once a render completes.
+            val fabScale = if (pulseRenderFab && !isRendering) {
+                rememberInfiniteTransition(label = "fabPulse").animateFloat(
+                    initialValue  = 1f,
+                    targetValue   = 1.14f,
+                    animationSpec = infiniteRepeatable(
+                        animation  = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "fabScale",
+                ).value
+            } else 1f
             FloatingActionButton(
                 onClick        = onRender,
                 modifier       = Modifier
                     .align(Alignment.Center)
                     .size(48.dp)
+                    .graphicsLayer {
+                        scaleX = fabScale
+                        scaleY = fabScale
+                    }
                     .onGloballyPositioned { c ->
                         onTutorialAnchor(TutorialTarget.RenderButton, c.boundsInWindow())
                     },
@@ -797,25 +1068,35 @@ private fun ControlPanel(
 
                     // ── SHAPE ─────────────────────────────────────────────────
                     0 -> {
-                        // Attractor selector
+                        // Attractor of the Day — a fresh validated discovery,
+                        // same on every device for the same date.
+                        dailyPreset?.let { daily ->
+                            DailyCard(preset = daily, onClick = { onApplyPreset(daily) })
+                        }
+
+                        // Attractor selector — a browsable 2-row gallery of rendered
+                        // thumbnails (the catalogue's variety is the main asset;
+                        // text chips kept it invisible).
                         InfoSection(
                             title       = stringResource(R.string.section_attractor),
-                            description = state.attractorType.description,
+                            description = stringResource(state.attractorType.descriptionRes),
                         ) {
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.onGloballyPositioned { c ->
-                                    onTutorialAnchor(TutorialTarget.AttractorRow, c.boundsInWindow())
-                                },
+                            LazyHorizontalGrid(
+                                rows                  = GridCells.Fixed(2),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement   = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(196.dp)
+                                    .onGloballyPositioned { c ->
+                                        onTutorialAnchor(TutorialTarget.AttractorRow, c.boundsInWindow())
+                                    },
                             ) {
-                                items(AttractorType.entries) { type ->
-                                    FilterChip(
+                                gridItems(AttractorType.entries) { type ->
+                                    AttractorCell(
+                                        type     = type,
                                         selected = state.attractorType == type,
                                         onClick  = { onAttractor(type) },
-                                        label    = {
-                                            Text(type.displayName,
-                                                 style = MaterialTheme.typography.labelSmall)
-                                        },
                                     )
                                 }
                             }
@@ -856,9 +1137,15 @@ private fun ControlPanel(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             SectionLabel(stringResource(R.string.section_my_presets))
-                            TextButton(onClick = onSavePreset) {
-                                Text(stringResource(R.string.btn_save_preset),
-                                     style = MaterialTheme.typography.labelSmall)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = onImportPreset) {
+                                    Text(stringResource(R.string.btn_import_preset),
+                                         style = MaterialTheme.typography.labelSmall)
+                                }
+                                TextButton(onClick = onSavePreset) {
+                                    Text(stringResource(R.string.btn_save_preset),
+                                         style = MaterialTheme.typography.labelSmall)
+                                }
                             }
                         }
                         if (userPresets.isEmpty()) {
@@ -868,23 +1155,14 @@ private fun ControlPanel(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             )
                         } else {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Same rendered-thumbnail cards as the curated presets —
+                            // the user's own creations deserve the visual treatment.
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(userPresets, key = { it.name }) { preset ->
-                                    AssistChip(
-                                        onClick      = { onApplyPreset(preset) },
-                                        label        = {
-                                            Text(preset.name,
-                                                 style = MaterialTheme.typography.labelSmall)
-                                        },
-                                        trailingIcon = {
-                                            Icon(
-                                                imageVector        = Icons.Outlined.Close,
-                                                contentDescription = stringResource(R.string.cd_delete_preset, preset.name),
-                                                modifier           = Modifier
-                                                    .size(16.dp)
-                                                    .clickable { onDeletePreset(preset.name) },
-                                            )
-                                        },
+                                    PresetThumb(
+                                        preset   = preset,
+                                        onClick  = { onApplyPreset(preset) },
+                                        onDelete = { onDeletePreset(preset.name) },
                                     )
                                 }
                             }
@@ -895,7 +1173,8 @@ private fun ControlPanel(
                         state.attractorType.paramNames.forEachIndexed { idx, name ->
                             val range = state.attractorType.paramRanges[idx]
                             val value = state.params.getOrElse(idx) { 0f }
-                            val hint  = state.attractorType.paramHints.getOrNull(idx)
+                            val hint  = state.attractorType.paramHintsRes.getOrNull(idx)
+                                ?.let { stringResource(it) }
                             LabelledSlider(
                                 label         = "$name = ${"%.3f".format(value)}",
                                 value         = value,
@@ -931,7 +1210,7 @@ private fun ControlPanel(
                         // Palette
                         InfoSection(
                             title       = stringResource(R.string.section_palette),
-                            description = state.palette.description,
+                            description = stringResource(state.palette.descriptionRes),
                             extraAction = {
                                 Icon(
                                     imageVector        = Icons.Outlined.Edit,
@@ -965,7 +1244,7 @@ private fun ControlPanel(
                         // Render style
                         InfoSection(
                             title       = stringResource(R.string.section_render_style),
-                            description = state.renderStyle.description,
+                            description = stringResource(state.renderStyle.descriptionRes),
                         ) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(RenderStyle.entries) { style ->
@@ -984,29 +1263,43 @@ private fun ControlPanel(
                         // Background colour
                         SectionLabel(stringResource(R.string.section_background))
                         var showCustomBgPicker by remember { mutableStateOf(false) }
+                        val imagePicker = rememberLauncherForActivityResult(
+                            ActivityResultContracts.PickVisualMedia()
+                        ) { uri -> uri?.let(onPickImage) }
+                        val pickImage = {
+                            imagePicker.launch(
+                                PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
 
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(BgColor.entries) { bg ->
+                            items(BG_DISPLAY_ORDER) { bg ->
                                 val swatchArgb = if (bg == BgColor.CUSTOM) state.customBgArgb else bg.argb
                                 val bgCompose  = Color(swatchArgb.toLong() and 0xFFFFFFFFL)
                                 FilterChip(
                                     selected = state.bgColor == bg,
                                     onClick  = {
-                                        onBgColor(bg)
-                                        if (bg == BgColor.CUSTOM) showCustomBgPicker = true
+                                        when (bg) {
+                                            BgColor.CUSTOM -> { onBgColor(bg); showCustomBgPicker = true }
+                                            // First tap (no photo yet) opens the picker; once a
+                                            // photo exists, tapping just re-selects it.
+                                            BgColor.IMAGE  ->
+                                                if (state.customBgPath != null) onBgColor(bg) else pickImage()
+                                            else           -> onBgColor(bg)
+                                        }
                                     },
                                     label    = {
                                         Row(
                                             verticalAlignment     = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {
-                                            if (bg.isTheme) {
-                                                // Star indicator for procedural backgrounds
-                                                Text("✦",
-                                                     style = MaterialTheme.typography.labelSmall,
-                                                     color = Color(0xFF4FC3F7))
-                                            } else {
-                                                Box(
+                                            when {
+                                                bg.isTheme -> Text("✦",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF4FC3F7))
+                                                bg == BgColor.IMAGE -> Text("🖼",
+                                                    style = MaterialTheme.typography.labelSmall)
+                                                else -> Box(
                                                     modifier = Modifier
                                                         .size(10.dp)
                                                         .background(
@@ -1020,6 +1313,23 @@ private fun ControlPanel(
                                         }
                                     },
                                 )
+                            }
+                        }
+
+                        // Change-photo affordance when Image is selected
+                        if (state.bgColor == BgColor.IMAGE) {
+                            TextButton(
+                                onClick  = pickImage,
+                                modifier = Modifier.padding(top = 2.dp),
+                            ) {
+                                Icon(
+                                    imageVector        = Icons.Outlined.Edit,
+                                    contentDescription = null,
+                                    modifier           = Modifier.size(14.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.btn_change_photo),
+                                     style = MaterialTheme.typography.labelSmall)
                             }
                         }
 
@@ -1117,7 +1427,12 @@ private fun ControlPanel(
                                 onValueChange = onDepthCue,
                             )
                         } else {
-                            Spacer(Modifier.height(24.dp))
+                            // 2-D attractors: zoom still applies — keep it usable so
+                            // the tab is never a dead end; explain the missing rest.
+                            SectionLabel(stringResource(R.string.section_camera))
+                            LabelledSlider(stringResource(R.string.slider_zoom, "%.2f".format(state.zoom)),
+                                state.zoom,  0.1f..5f,    onValueChange = onZoom)
+                            Spacer(Modifier.height(8.dp))
                             Text(
                                 text  = stringResource(R.string.camera_3d_only),
                                 style = MaterialTheme.typography.bodySmall,
@@ -1180,19 +1495,33 @@ private fun ControlPanel(
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.btn_set_wallpaper)) }
                         OutlinedButton(
+                            onClick  = onSetLiveWallpaper,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.btn_set_live_wallpaper)) }
+                        OutlinedButton(
                             onClick  = onCopyCaption,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.btn_copy_caption)) }
 
-                        // Recent renders
-                        if (recentExports.isNotEmpty()) {
-                            SectionLabel(stringResource(R.string.section_recent_renders))
+                        // Gallery — past renders, tap for actions (reopen/view/share/delete)
+                        if (gallery.isNotEmpty()) {
+                            Row(
+                                modifier              = Modifier.fillMaxWidth(),
+                                verticalAlignment     = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                SectionLabel(stringResource(R.string.section_gallery))
+                                TextButton(onClick = onOpenGallery) {
+                                    Text(stringResource(R.string.gallery_view_all),
+                                         style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(recentExports) { uri ->
-                                    RecentThumb(
-                                        uri    = uri,
-                                        onOpen  = { onOpenRecent(uri) },
-                                        onShare = { onShareRecent(uri) },
+                                items(gallery, key = { it.uri }) { entry ->
+                                    GalleryThumb(
+                                        entry   = entry,
+                                        onOpen  = { onGalleryEntry(entry) },
+                                        onShare = { onShareEntry(entry) },
                                     )
                                 }
                             }
@@ -1210,41 +1539,8 @@ private fun ControlPanel(
                             onCancelVideoExport = onCancelVideoExport,
                         )
 
-                        // Performance
-                        InfoSection(
-                            title       = stringResource(R.string.section_render_detail),
-                            description = state.renderQuality.description,
-                        ) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(RenderQuality.entries) { q ->
-                                    FilterChip(
-                                        selected = state.renderQuality == q,
-                                        onClick  = { onRenderQuality(q) },
-                                        label    = {
-                                            Text(q.displayName,
-                                                 style = MaterialTheme.typography.labelSmall)
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                        InfoSection(
-                            title       = stringResource(R.string.section_preview_density),
-                            description = state.previewDensity.description,
-                        ) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(PreviewDensity.entries) { d ->
-                                    FilterChip(
-                                        selected = state.previewDensity == d,
-                                        onClick  = { onPreviewDensity(d) },
-                                        label    = {
-                                            Text(d.displayName,
-                                                 style = MaterialTheme.typography.labelSmall)
-                                        },
-                                    )
-                                }
-                            }
-                        }
+                        // Render Detail / Preview Density moved to the settings
+                        // sheet (gear icon) — set-once values, not export actions.
 
                         Spacer(Modifier.height(8.dp))
                     }
@@ -1324,9 +1620,13 @@ private fun PanelTab(
     selected: Boolean,
     onClick:  () -> Unit,
     modifier: Modifier = Modifier,
+    dimmed:   Boolean  = false,
 ) {
-    val tint = if (selected) MaterialTheme.colorScheme.primary
-               else MaterialTheme.colorScheme.onSurfaceVariant
+    val tint = when {
+        selected -> MaterialTheme.colorScheme.primary
+        dimmed   -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        else     -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Column(
         modifier            = modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1351,10 +1651,14 @@ private fun SectionLabel(text: String) {
 /**
  * A tappable preset card: a rendered thumbnail with the preset name underneath.
  * The thumbnail is rendered + cached lazily by [PresetThumbnails]; a spinner
- * shows until it is ready.
+ * shows until it is ready. Pass [onDelete] (user presets) for a ✕ overlay.
  */
 @Composable
-private fun PresetThumb(preset: Preset, onClick: () -> Unit) {
+private fun PresetThumb(
+    preset:   Preset,
+    onClick:  () -> Unit,
+    onDelete: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val thumb by produceState<android.graphics.Bitmap?>(initialValue = null, preset) {
         value = PresetThumbnails.get(context, preset)
@@ -1387,6 +1691,20 @@ private fun PresetThumb(preset: Preset, onClick: () -> Unit) {
                     strokeWidth = 2.dp,
                 )
             }
+            if (onDelete != null) {
+                Icon(
+                    imageVector        = Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.cd_delete_preset, preset.name),
+                    tint               = Color.White,
+                    modifier           = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(2.dp)
+                        .size(16.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(4.dp))
+                        .clickable(onClick = onDelete)
+                        .padding(2.dp),
+                )
+            }
         }
         Text(
             text     = preset.name,
@@ -1395,6 +1713,186 @@ private fun PresetThumb(preset: Preset, onClick: () -> Unit) {
             modifier = Modifier.padding(top = 2.dp),
         )
     }
+}
+
+/**
+ * One cell of the attractor gallery: the attractor's signature look (its first
+ * curated preset) as a thumbnail, name underneath, accent border when selected.
+ */
+@Composable
+private fun AttractorCell(
+    type:     AttractorType,
+    selected: Boolean,
+    onClick:  () -> Unit,
+) {
+    val context = LocalContext.current
+    val signature = remember(type) {
+        type.presets.firstOrNull()
+            ?: Preset(type.displayName, type, type.defaultParams.toList())
+    }
+    val thumb by produceState<android.graphics.Bitmap?>(initialValue = null, signature) {
+        value = PresetThumbnails.get(context, signature)
+    }
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier            = Modifier
+            .width(72.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black)
+                .then(
+                    if (selected) Modifier.border(2.dp, accent, RoundedCornerShape(8.dp))
+                    else Modifier
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            val bmp = thumb
+            if (bmp != null) {
+                Image(
+                    bitmap             = bmp.asImageBitmap(),
+                    contentDescription = type.displayName,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.fillMaxSize(),
+                )
+            } else {
+                CircularProgressIndicator(
+                    modifier    = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
+        }
+        // Long names ("Peter de Jong", "Gumowski-Mira") wrap to a second
+        // centred line instead of truncating.
+        Text(
+            text      = type.displayName,
+            style     = MaterialTheme.typography.labelSmall.copy(
+                fontSize   = 10.sp,
+                lineHeight = 12.sp,
+            ),
+            color     = if (selected) accent else MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines  = 2,
+            overflow  = TextOverflow.Ellipsis,
+            modifier  = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+/**
+ * "Attractor of the Day" card: validated thumbnail + what it is; tapping
+ * applies the preset to the dot preview (no render — explicit-render rule).
+ */
+@Composable
+private fun DailyCard(preset: Preset, onClick: () -> Unit) {
+    val context = LocalContext.current
+    // Cached by DailyAttractor's validation render — loads instantly.
+    val thumb by produceState<android.graphics.Bitmap?>(initialValue = null, preset) {
+        value = PresetThumbnails.get(context, preset)
+    }
+    Surface(
+        shape    = RoundedCornerShape(12.dp),
+        color    = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier              = Modifier.padding(10.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier         = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center,
+            ) {
+                val bmp = thumb
+                if (bmp != null) {
+                    Image(
+                        bitmap             = bmp.asImageBitmap(),
+                        contentDescription = stringResource(R.string.daily_title),
+                        contentScale       = ContentScale.Crop,
+                        modifier           = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    CircularProgressIndicator(
+                        modifier    = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            }
+            Column {
+                Text(
+                    text  = "✦ " + stringResource(R.string.daily_title),
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text  = "${preset.type.displayName} · ${preset.palette.displayName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Paste-a-code import dialog — the fallback path when the clipboard offer was
+ * missed. Accepts a bare CHS1: code or a whole caption containing one.
+ */
+@Composable
+private fun ImportPresetDialog(
+    onApply:   (Preset) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text    by remember { mutableStateOf("") }
+    var invalid by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.import_preset_title)) },
+        text  = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value         = text,
+                    onValueChange = { text = it; invalid = false },
+                    label         = { Text(PRESET_CODE_PREFIX + "…") },
+                    minLines      = 2,
+                    modifier      = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text  = stringResource(R.string.import_preset_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+                if (invalid) {
+                    Text(
+                        text  = stringResource(R.string.import_invalid),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val preset = presetFromCode(text)
+                if (preset == null) invalid = true else onApply(preset)
+            }) { Text(stringResource(R.string.btn_apply)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) }
+        },
+    )
 }
 
 /** A SectionLabel with an info-icon toggle and optional extra action slot. */
@@ -1822,50 +2320,189 @@ private fun AnimationSection(
     }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Settings sheet — set-once preferences, reached from the canvas gear icon
+// ────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RecentThumb(
-    uri:     String,
-    onOpen:  () -> Unit,
-    onShare: () -> Unit,
+private fun SettingsSheet(
+    state:            UiState,
+    onRenderQuality:  (RenderQuality)  -> Unit,
+    onPreviewDensity: (PreviewDensity) -> Unit,
+    onReplayTutorial: () -> Unit,
+    onDismiss:        () -> Unit,
 ) {
     val context = LocalContext.current
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, uri) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                context.contentResolver.openInputStream(Uri.parse(uri))?.use { input ->
-                    val opts = BitmapFactory.Options().apply {
-                        inSampleSize = 8 // recents only need ~256px max
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text  = stringResource(R.string.settings_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            InfoSection(
+                title       = stringResource(R.string.section_render_detail),
+                description = stringResource(state.renderQuality.descriptionRes),
+            ) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(RenderQuality.entries) { q ->
+                        FilterChip(
+                            selected = state.renderQuality == q,
+                            onClick  = { onRenderQuality(q) },
+                            label    = {
+                                Text(q.displayName,
+                                     style = MaterialTheme.typography.labelSmall)
+                            },
+                        )
                     }
-                    BitmapFactory.decodeStream(input, null, opts)?.asImageBitmap()
                 }
-            }.getOrNull()
+            }
+            InfoSection(
+                title       = stringResource(R.string.section_preview_density),
+                description = stringResource(state.previewDensity.descriptionRes),
+            ) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(PreviewDensity.entries) { d ->
+                        FilterChip(
+                            selected = state.previewDensity == d,
+                            onClick  = { onPreviewDensity(d) },
+                            label    = {
+                                Text(d.displayName,
+                                     style = MaterialTheme.typography.labelSmall)
+                            },
+                        )
+                    }
+                }
+            }
+
+            // Language — duplicated from the splash so it's reachable after launch.
+            SectionLabel(stringResource(R.string.section_language))
+            var currentLang by remember { mutableStateOf(LangPrefs.get(context)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LANGUAGES.forEach { lang ->
+                    val selected = currentLang == lang.code
+                    Box(
+                        modifier         = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                else Color.Transparent
+                            )
+                            .clickable {
+                                if (lang.code != currentLang) {
+                                    LangPrefs.set(context, lang.code)
+                                    currentLang = lang.code
+                                    (context as? Activity)?.recreate()
+                                }
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(lang.flag, style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+
+            OutlinedButton(
+                onClick  = onReplayTutorial,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.btn_replay_tutorial)) }
         }
     }
+}
 
-    Box(
-        modifier = Modifier
-            .size(width = 72.dp, height = 72.dp)
-            .clickable(onClick = onOpen),
-    ) {
+// ────────────────────────────────────────────────────────────────────────────
+// Gallery — exported renders that can be reopened in the editor
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Loads a thumbnail for an exported image *or* video from MediaStore. */
+private fun loadGalleryBitmap(
+    context:  android.content.Context,
+    uri:      String,
+    isVideo:  Boolean,
+    targetPx: Int,
+): android.graphics.Bitmap? = runCatching {
+    val parsed = Uri.parse(uri)
+    when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+            context.contentResolver.loadThumbnail(
+                parsed, android.util.Size(targetPx, targetPx), null)
+        isVideo -> android.media.MediaMetadataRetriever().run {
+            try {
+                setDataSource(context, parsed)
+                frameAtTime
+            } finally { release() }
+        }
+        else -> context.contentResolver.openInputStream(parsed)?.use { input ->
+            BitmapFactory.decodeStream(input, null,
+                BitmapFactory.Options().apply { inSampleSize = 8 })
+        }
+    }
+}.getOrNull()
+
+/** Async-loaded gallery thumbnail (image or video frame), placeholder while loading. */
+@Composable
+private fun GalleryImage(
+    entry:    GalleryEntry,
+    targetPx: Int,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, entry.uri, targetPx) {
+        value = withContext(Dispatchers.IO) {
+            loadGalleryBitmap(context, entry.uri, entry.isVideo, targetPx)?.asImageBitmap()
+        }
+    }
+    Box(modifier = modifier) {
         if (bitmap != null) {
             Image(
                 bitmap             = bitmap!!,
-                contentDescription = stringResource(R.string.cd_recent_open),
-                modifier           = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black, RoundedCornerShape(8.dp)),
+                contentDescription = stringResource(R.string.cd_gallery_entry),
+                modifier           = Modifier.fillMaxSize().background(Color.Black),
                 contentScale       = ContentScale.Crop,
             )
         } else {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        RoundedCornerShape(8.dp),
-                    ),
+                modifier = Modifier.fillMaxSize().background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                ),
             )
         }
+        if (entry.isVideo) {
+            Icon(
+                imageVector        = Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint               = Color.White.copy(alpha = 0.9f),
+                modifier           = Modifier
+                    .align(Alignment.Center)
+                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(50))
+                    .padding(2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GalleryThumb(
+    entry:   GalleryEntry,
+    onOpen:  () -> Unit,
+    onShare: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(72.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen),
+    ) {
+        GalleryImage(entry = entry, targetPx = 256, modifier = Modifier.fillMaxSize())
         IconButton(
             onClick  = onShare,
             modifier = Modifier
@@ -1881,6 +2518,175 @@ private fun RecentThumb(
                     .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(4.dp))
                     .padding(2.dp),
             )
+        }
+    }
+}
+
+/**
+ * Actions for a single gallery entry. "Open in editor" restores the preset
+ * captured at export time ([onOpenEditor] is null for legacy entries that
+ * predate preset capture — view/share/delete only).
+ */
+@Composable
+private fun GalleryEntryDialog(
+    entry:        GalleryEntry,
+    onOpenEditor: (() -> Unit)?,
+    onView:       () -> Unit,
+    onShare:      () -> Unit,
+    onDelete:     (deleteFile: Boolean) -> Unit,
+    onDismiss:    () -> Unit,
+) {
+    // Delete asks whether to also remove the exported file from the device.
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.gallery_delete_confirm_title)) },
+            text  = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick  = { confirmDelete = false; onDelete(false) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.gallery_delete_entry_only)) }
+                    OutlinedButton(
+                        onClick  = { confirmDelete = false; onDelete(true) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors   = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) { Text(stringResource(R.string.gallery_delete_with_file)) }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.btn_cancel))
+                }
+            },
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { entry.preset?.let { Text(it.name) } },
+        text  = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                GalleryImage(
+                    entry    = entry,
+                    targetPx = 512,
+                    modifier = Modifier
+                        .size(220.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                )
+                if (onOpenEditor != null) {
+                    Button(
+                        onClick  = onOpenEditor,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.gallery_open_editor)) }
+                }
+                OutlinedButton(
+                    onClick  = onView,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(
+                        if (entry.isVideo) R.string.export_open
+                        else R.string.gallery_view_image))
+                }
+                OutlinedButton(
+                    onClick  = onShare,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.export_share)) }
+                TextButton(
+                    onClick  = { confirmDelete = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors   = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) { Text(stringResource(R.string.gallery_delete)) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) }
+        },
+    )
+}
+
+/** Full-screen grid of every gallery entry; tap a cell for its actions. */
+@Composable
+private fun GalleryDialog(
+    entries:   List<GalleryEntry>,
+    onEntry:   (GalleryEntry) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties       = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color    = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+            ) {
+                Row(
+                    modifier              = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text  = stringResource(R.string.section_gallery),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector        = Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.cd_close_gallery),
+                        )
+                    }
+                }
+                if (entries.isEmpty()) {
+                    Box(
+                        modifier         = Modifier.fillMaxSize().padding(32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text      = stringResource(R.string.gallery_empty),
+                            style     = MaterialTheme.typography.bodyMedium,
+                            color     = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns               = GridCells.Fixed(3),
+                        modifier              = Modifier.fillMaxSize(),
+                        contentPadding        = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement   = Arrangement.spacedBy(8.dp),
+                    ) {
+                        gridItems(entries, key = { it.uri }) { entry ->
+                            GalleryImage(
+                                entry    = entry,
+                                targetPx = 384,
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onEntry(entry) },
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

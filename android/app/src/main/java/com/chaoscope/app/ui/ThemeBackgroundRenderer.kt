@@ -33,10 +33,13 @@ object ThemeBackgroundRenderer {
      * [src] composited on top via SRC_OVER, so the attractor's transparent pixels
      * reveal the procedural art underneath.
      */
-    fun compositeOnBitmap(bgColor: BgColor, customBgArgb: Int, src: Bitmap): Bitmap {
+    fun compositeOnBitmap(
+        bgColor: BgColor, customBgArgb: Int, src: Bitmap,
+        customBgBitmap: Bitmap? = null,
+    ): Bitmap {
         val result = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
-        drawTo(canvas, bgColor, customBgArgb, src.width.toFloat(), src.height.toFloat())
+        drawTo(canvas, bgColor, customBgArgb, src.width.toFloat(), src.height.toFloat(), customBgBitmap)
         canvas.drawBitmap(src, 0f, 0f, null)
         return result
     }
@@ -44,9 +47,13 @@ object ThemeBackgroundRenderer {
     /**
      * Draws the background art for [bgColor] onto [canvas].
      * For solid colours this is a plain rect fill; for themed entries it renders
-     * the same procedural art as the Compose [ThemedBackground] composable.
+     * the same procedural art as the Compose [ThemedBackground] composable; for
+     * [BgColor.IMAGE] it draws [customBgBitmap] centre-cropped to fill.
      */
-    fun drawTo(canvas: Canvas, bgColor: BgColor, customBgArgb: Int, w: Float, h: Float) {
+    fun drawTo(
+        canvas: Canvas, bgColor: BgColor, customBgArgb: Int, w: Float, h: Float,
+        customBgBitmap: Bitmap? = null,
+    ) {
         val baseArgb = if (bgColor == BgColor.CUSTOM) customBgArgb else bgColor.argb
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
         paint.color = baseArgb
@@ -56,8 +63,20 @@ object ThemeBackgroundRenderer {
             BgColor.FOREST_BG -> drawForestTheme(canvas, w, h, paint)
             BgColor.OCEAN_BG  -> drawOceanTheme(canvas, w, h, paint)
             BgColor.AURORA_BG -> drawAuroraTheme(canvas, w, h, paint)
+            BgColor.IMAGE     -> customBgBitmap?.let { drawImageCentreCrop(canvas, it, w, h) }
             else              -> { /* base rect already filled above */ }
         }
+    }
+
+    /** Draws [bmp] scaled to cover the w×h canvas, centre-cropped (no distortion). */
+    private fun drawImageCentreCrop(canvas: Canvas, bmp: Bitmap, w: Float, h: Float) {
+        val scale = maxOf(w / bmp.width, h / bmp.height)
+        val dw = bmp.width * scale
+        val dh = bmp.height * scale
+        val left = (w - dw) / 2f
+        val top  = (h - dh) / 2f
+        canvas.drawBitmap(bmp, null, RectF(left, top, left + dw, top + dh),
+                          Paint(Paint.FILTER_BITMAP_FLAG))
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

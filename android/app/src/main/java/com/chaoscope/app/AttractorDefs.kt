@@ -12,8 +12,8 @@ enum class AttractorType(
     val defaultParams: FloatArray,
     val paramNames: List<String>,
     val paramRanges: List<ClosedFloatingPointRange<Float>>,
-    val description: String,
-    val paramHints: List<String>,
+    val descriptionRes: Int,
+    val paramHintsRes: List<Int>,
 ) {
     CLIFFORD(
         displayName   = "Clifford",
@@ -21,14 +21,11 @@ enum class AttractorType(
         defaultParams = floatArrayOf(-1.4f, 1.6f, 1.0f, 0.7f, 1.5f, 0.5f),
         paramNames    = listOf("a", "b", "c", "d", "e", "f"),
         paramRanges   = listOf(-3f..3f, -3f..3f, -3f..3f, -3f..3f, -3f..3f, -3f..3f),
-        description   = "A classic 2-D iterative map lifted into 3-D. Six knobs warp how each step folds and stretches the orbit — small changes produce wildly different shapes.",
-        paramHints    = listOf(
-            "Horizontal sine drive — controls the main wave that bends the orbit left and right.",
-            "Vertical sine drive — controls how the orbit folds up and down.",
-            "Horizontal cosine drive — adds a perpendicular twist to the X axis.",
-            "Vertical cosine drive — adds a perpendicular twist to the Y axis.",
-            "Coupling between axes — higher values create tighter, more knotted patterns.",
-            "Secondary coupling — fine-tunes the overall texture density.",
+        descriptionRes = R.string.attr_clifford_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_clifford_hint0, R.string.attr_clifford_hint1,
+            R.string.attr_clifford_hint2, R.string.attr_clifford_hint3,
+            R.string.attr_clifford_hint4, R.string.attr_clifford_hint5,
         ),
     ),
     PETER_DE_JONG(
@@ -37,14 +34,11 @@ enum class AttractorType(
         defaultParams = floatArrayOf(-2.0f, -2.0f, -1.2f, 2.0f, 1.8f, -1.5f),
         paramNames    = listOf("a", "b", "c", "d", "e", "f"),
         paramRanges   = listOf(-3f..3f, -3f..3f, -3f..3f, -3f..3f, -3f..3f, -3f..3f),
-        description   = "Cousin of Clifford with stronger nonlinearity — produces dense filigree and shell-like layered patterns.",
-        paramHints    = listOf(
-            "Primary X stretch — wider values pull the orbit horizontally.",
-            "Primary Y stretch — wider values pull the orbit vertically.",
-            "Cross-coupling — bends the orbit diagonally.",
-            "Secondary X stretch — adds finer-grained horizontal detail.",
-            "Secondary Y stretch — adds finer-grained vertical detail.",
-            "Final twist — controls how tightly the shape spirals.",
+        descriptionRes = R.string.attr_peter_de_jong_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_peter_de_jong_hint0, R.string.attr_peter_de_jong_hint1,
+            R.string.attr_peter_de_jong_hint2, R.string.attr_peter_de_jong_hint3,
+            R.string.attr_peter_de_jong_hint4, R.string.attr_peter_de_jong_hint5,
         ),
     ),
     GUMOWSKI_MIRA(
@@ -53,10 +47,9 @@ enum class AttractorType(
         defaultParams = floatArrayOf(0.008f, -0.496f),
         paramNames    = listOf("a", "μ"),
         paramRanges   = listOf(-1f..1f, -1f..1f),
-        description   = "A 2-D map from plasma physics. Tends toward delicate, organic curves that look like seashells or jellyfish.",
-        paramHints    = listOf(
-            "Damping — close to 0 keeps orbits open; further from 0 tightens loops.",
-            "Nonlinearity — drives the curl. Negative values flip the spiral direction.",
+        descriptionRes = R.string.attr_gumowski_mira_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_gumowski_mira_hint0, R.string.attr_gumowski_mira_hint1,
         ),
     ),
     LORENZ(
@@ -65,12 +58,10 @@ enum class AttractorType(
         defaultParams = floatArrayOf(10f, 28f, 2.667f, 0.005f),
         paramNames    = listOf("σ", "ρ", "β", "dt"),
         paramRanges   = listOf(0f..20f, 0f..50f, 0f..5f, 0.001f..0.01f),
-        description   = "The famous butterfly. Edward Lorenz's 1963 weather model — the system that made \"chaos\" a household word.",
-        paramHints    = listOf(
-            "σ (Prandtl number) — fluid viscosity. Standard value is 10.",
-            "ρ (Rayleigh number) — drives the convection. Above ~24.74 the chaos kicks in.",
-            "β (aspect ratio) — controls the wing geometry. Standard is 8/3 ≈ 2.667.",
-            "dt — simulation step. Smaller = smoother trajectory but slower convergence.",
+        descriptionRes = R.string.attr_lorenz_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_lorenz_hint0, R.string.attr_lorenz_hint1,
+            R.string.attr_lorenz_hint2, R.string.attr_lorenz_hint3,
         ),
     ),
     ROSSLER(
@@ -79,12 +70,10 @@ enum class AttractorType(
         defaultParams = floatArrayOf(0.2f, 0.2f, 5.7f, 0.02f),
         paramNames    = listOf("a", "b", "c", "dt"),
         paramRanges   = listOf(0f..1f, 0f..1f, 0f..10f, 0.005f..0.05f),
-        description   = "A simpler cousin of Lorenz. Spirals slowly outward then snaps back — like a cosmic pinball.",
-        paramHints    = listOf(
-            "Inner spiral rate — how fast orbits expand on the flat plane.",
-            "Lift offset — small constant that nudges the orbit into 3-D.",
-            "Snap threshold — when the orbit reaches this, it folds violently. Higher = wider funnel.",
-            "dt — simulation step.",
+        descriptionRes = R.string.attr_rossler_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_rossler_hint0, R.string.attr_rossler_hint1,
+            R.string.attr_rossler_hint2, R.string.attr_rossler_hint3,
         ),
     ),
     AIZAWA(
@@ -93,15 +82,12 @@ enum class AttractorType(
         defaultParams = floatArrayOf(0.95f, 0.7f, 0.6f, 3.5f, 0.25f, 0.1f, 0.01f),
         paramNames    = listOf("a", "b", "c", "d", "e", "f", "dt"),
         paramRanges   = listOf(0f..2f, 0f..2f, 0f..2f, 0f..5f, 0f..1f, 0f..1f, 0.005f..0.02f),
-        description   = "A twisted torus. Loops wrap a central axis while drifting along it — produces shell or Möbius-like shapes.",
-        paramHints    = listOf(
-            "Drift along the central axis.",
-            "Vertical compression of the torus.",
-            "Radial pull toward the axis.",
-            "Twist rate around the axis — higher = tighter coil.",
-            "Asymmetry — breaks the perfect torus into more organic curls.",
-            "Vertical asymmetry — same idea on the up/down axis.",
-            "dt — simulation step.",
+        descriptionRes = R.string.attr_aizawa_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_aizawa_hint0, R.string.attr_aizawa_hint1,
+            R.string.attr_aizawa_hint2, R.string.attr_aizawa_hint3,
+            R.string.attr_aizawa_hint4, R.string.attr_aizawa_hint5,
+            R.string.attr_aizawa_hint6,
         ),
     ),
     THOMAS(
@@ -110,10 +96,9 @@ enum class AttractorType(
         defaultParams = floatArrayOf(0.208186f, 0.05f),
         paramNames    = listOf("b", "dt"),
         paramRanges   = listOf(0.05f..0.5f, 0.01f..0.1f),
-        description   = "Cyclically symmetric — the same equation in x, y, and z. Looks like a tangled ball of yarn.",
-        paramHints    = listOf(
-            "Damping — lower values make the orbit more chaotic. Below ~0.21 it becomes hyperchaotic.",
-            "dt — simulation step.",
+        descriptionRes = R.string.attr_thomas_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_thomas_hint0, R.string.attr_thomas_hint1,
         ),
     ),
     CHAOTIC_FLOW(
@@ -122,28 +107,23 @@ enum class AttractorType(
         defaultParams = floatArrayOf(3f, 2.7f, 1.7f, 2f, 9f, 0.01f),
         paramNames    = listOf("a", "b", "c", "d", "e", "dt"),
         paramRanges   = listOf(1f..5f, 1f..5f, 0.5f..3f, 1f..4f, 5f..15f, 0.001f..0.02f),
-        description   = "A generic chaotic flow with many control knobs — wide range of forms, from elegant ribbons to dense storms.",
-        paramHints    = listOf(
-            "Primary drive on the X axis.",
-            "Primary drive on the Y axis.",
-            "Coupling between axes.",
-            "Vertical lift.",
-            "Forcing strength — higher creates more violent dynamics.",
-            "dt — simulation step.",
+        descriptionRes = R.string.attr_chaotic_flow_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_chaotic_flow_hint0, R.string.attr_chaotic_flow_hint1,
+            R.string.attr_chaotic_flow_hint2, R.string.attr_chaotic_flow_hint3,
+            R.string.attr_chaotic_flow_hint4, R.string.attr_chaotic_flow_hint5,
         ),
     ),
     ICON(
         displayName   = "Icon",
-        is3D          = false,
+        is3D          = true,
         defaultParams = floatArrayOf(-2.5f, 5.0f, -1.8f, 1.0f),
         paramNames    = listOf("λ", "α", "β", "ω"),
         paramRanges   = listOf(-4f..-1f, 1f..8f, -3f..0.5f, 0.1f..2f),
-        description   = "Symmetric icons (Field & Golubitsky). Uses complex polynomials to produce mandala-like patterns with rotational symmetry.",
-        paramHints    = listOf(
-            "λ — overall contraction. More negative pulls orbits inward.",
-            "α — radial drive. Higher gives sharper rays.",
-            "β — angular distortion. Bends the symmetry axes.",
-            "ω — rotation rate. Sets the n-fold symmetry of the final pattern.",
+        descriptionRes = R.string.attr_icon_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_icon_hint0, R.string.attr_icon_hint1,
+            R.string.attr_icon_hint2, R.string.attr_icon_hint3,
         ),
     ),
     IFS(
@@ -152,11 +132,9 @@ enum class AttractorType(
         defaultParams = floatArrayOf(1.0f, 0.0f, 0.2f),
         paramNames    = listOf("width", "lean", "twist"),
         paramRanges   = listOf(0.7f..1.3f, -0.2f..0.2f, 0f..0.6f),
-        description   = "Iterated function system. Four affine maps applied at random produce a fractal fern; the twist knob spirals the fronds out of the plane into 3-D.",
-        paramHints    = listOf(
-            "Width — fattens or thins each leaflet.",
-            "Lean — biases the fern left or right of vertical.",
-            "Twist — rotates each frond out of plane. 0 is the flat 2-D fern; higher coils it into 3-D.",
+        descriptionRes = R.string.attr_ifs_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_ifs_hint0, R.string.attr_ifs_hint1, R.string.attr_ifs_hint2,
         ),
     ),
     JULIA(
@@ -165,11 +143,9 @@ enum class AttractorType(
         defaultParams = floatArrayOf(-0.2f, 0.6f, 0.3f),
         paramNames    = listOf("c_re", "c_im", "c_j"),
         paramRanges   = listOf(-2f..2f, -2f..2f, -1f..1f),
-        description   = "Quaternion Julia set for q² + c, rendered as a 3-D surface. The j-term (c_j) drives the depth — set it to 0 for the classic flat 2-D Julia.",
-        paramHints    = listOf(
-            "Real (scalar) part of c.",
-            "Imaginary (i) part of c. Values near the Mandelbrot edge give the richest detail.",
-            "j part of c — the third dimension. 0 collapses to a flat 2-D Julia; larger values open it into a 3-D body.",
+        descriptionRes = R.string.attr_julia_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_julia_hint0, R.string.attr_julia_hint1, R.string.attr_julia_hint2,
         ),
     ),
     PICKOVER(
@@ -178,12 +154,10 @@ enum class AttractorType(
         defaultParams = floatArrayOf(2.24f, 0.43f, -0.65f, -2.43f),
         paramNames    = listOf("a", "b", "c", "d"),
         paramRanges   = listOf(-3f..3f, -3f..3f, -3f..3f, -3f..3f),
-        description   = "Clifford Pickover's iconic strange attractor — produces wing- and shell-like 3-D forms with subtle layering.",
-        paramHints    = listOf(
-            "X stretch — how far the orbit reaches sideways.",
-            "Y stretch — vertical span of the shape.",
-            "Cross-coupling — bends the wings.",
-            "Final twist — sets the overall handedness.",
+        descriptionRes = R.string.attr_pickover_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_pickover_hint0, R.string.attr_pickover_hint1,
+            R.string.attr_pickover_hint2, R.string.attr_pickover_hint3,
         ),
     ),
     HALVORSEN(
@@ -192,10 +166,9 @@ enum class AttractorType(
         defaultParams = floatArrayOf(1.89f, 0.005f),
         paramNames    = listOf("a", "dt"),
         paramRanges   = listOf(1.0f..2.5f, 0.002f..0.01f),
-        description   = "Cyclically symmetric — the same equation cycled through x, y and z. Folds into interlocking torus-knot loops, like a 3-D pretzel.",
-        paramHints    = listOf(
-            "Damping — lower values loosen the loops; near 1.4 the orbit barely stays bound.",
-            "dt — simulation step. Smaller = smoother, slower convergence.",
+        descriptionRes = R.string.attr_halvorsen_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_halvorsen_hint0, R.string.attr_halvorsen_hint1,
         ),
     ),
     BURKE_SHAW(
@@ -204,11 +177,10 @@ enum class AttractorType(
         defaultParams = floatArrayOf(10f, 4.272f, 0.005f),
         paramNames    = listOf("s", "v", "dt"),
         paramRanges   = listOf(5f..15f, 1f..8f, 0.002f..0.01f),
-        description   = "A fast double-spiral that winds into a tight tornado of nested shells — dense, galaxy-like swirls.",
-        paramHints    = listOf(
-            "Coupling strength — drives the swirl rate. Higher winds the spiral tighter.",
-            "Vertical forcing — lifts and stretches the funnel along its axis.",
-            "dt — simulation step.",
+        descriptionRes = R.string.attr_burke_shaw_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_burke_shaw_hint0, R.string.attr_burke_shaw_hint1,
+            R.string.attr_burke_shaw_hint2,
         ),
     ),
     SPROTT_B(
@@ -217,11 +189,34 @@ enum class AttractorType(
         defaultParams = floatArrayOf(1f, 1f, 0.02f),
         paramNames    = listOf("a", "b", "dt"),
         paramRanges   = listOf(0.5f..2f, 0.5f..2f, 0.005f..0.04f),
-        description   = "One of Sprott's minimal chaotic systems — just two terms, yet it traces a broad swirling disc. Elegant and beginner-friendly.",
-        paramHints    = listOf(
-            "Coupling — scales the y·z drive that feeds the swirl.",
-            "Feedback — scales the x·y term that closes the loop. Reshapes the disc.",
-            "dt — simulation step.",
+        descriptionRes = R.string.attr_sprott_b_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_sprott_b_hint0, R.string.attr_sprott_b_hint1,
+            R.string.attr_sprott_b_hint2,
+        ),
+    ),
+    LORENZ_84(
+        displayName   = "Lorenz-84",
+        is3D          = true,
+        defaultParams = floatArrayOf(0.25f, 4.0f, 8.0f, 1.0f, 0.01f),
+        paramNames    = listOf("a", "b", "F", "G", "dt"),
+        paramRanges   = listOf(0f..1f, 0f..8f, 0f..12f, 0f..3f, 0.002f..0.02f),
+        descriptionRes = R.string.attr_lorenz_84_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_lorenz_84_hint0, R.string.attr_lorenz_84_hint1,
+            R.string.attr_lorenz_84_hint2, R.string.attr_lorenz_84_hint3,
+            R.string.attr_lorenz_84_hint4,
+        ),
+    ),
+    HENON(
+        displayName   = "Hénon",
+        is3D          = false,
+        defaultParams = floatArrayOf(1.4f, 0.3f),
+        paramNames    = listOf("a", "b"),
+        paramRanges   = listOf(1.0f..1.42f, 0.1f..0.35f),
+        descriptionRes = R.string.attr_henon_desc,
+        paramHintsRes  = listOf(
+            R.string.attr_henon_hint0, R.string.attr_henon_hint1,
         ),
     ),
 }
@@ -230,18 +225,18 @@ enum class AttractorType(
 // Palette definitions
 // ────────────────────────────────────────────────────────────────────────────
 
-enum class PaletteType(val displayName: String, val description: String) {
-    NEBULA   ("Nebula",    "Deep blues and purples — cosmic and quiet."),
-    FIRE     ("Fire",      "Warm reds, oranges and yellow — molten."),
-    ELECTRIC ("Electric",  "Cool cyan and bright blue — high-voltage."),
-    AURORA   ("Aurora",    "Greens, teals and violets — northern lights."),
-    MATRIX   ("Matrix",    "Mono-green on black — terminal nostalgia."),
-    GREYSCALE("Grey",      "Pure luminance — focus on form, not colour."),
-    SPECTRUM ("Spectrum",  "Full hue wheel — violet through cyan, green, yellow to orange, dark-to-bright."),
-    SUNSET   ("Sunset",    "Deep purple to magenta, orange and golden cream — warm and dramatic."),
-    ICE      ("Ice",       "Navy to steel blue, ice blue and white — cold and crystalline."),
-    NEON     ("Neon",      "Hot pink to electric green — high-contrast, vibrant."),
-    CUSTOM   ("Custom",    "Your own colour stops — tap Edit to customise."),
+enum class PaletteType(val displayName: String, val descriptionRes: Int) {
+    NEBULA   ("Nebula",    R.string.palette_nebula_desc),
+    FIRE     ("Fire",      R.string.palette_fire_desc),
+    ELECTRIC ("Electric",  R.string.palette_electric_desc),
+    AURORA   ("Aurora",    R.string.palette_aurora_desc),
+    MATRIX   ("Matrix",    R.string.palette_matrix_desc),
+    GREYSCALE("Grey",      R.string.palette_grey_desc),
+    SPECTRUM ("Spectrum",  R.string.palette_spectrum_desc),
+    SUNSET   ("Sunset",    R.string.palette_sunset_desc),
+    ICE      ("Ice",       R.string.palette_ice_desc),
+    NEON     ("Neon",      R.string.palette_neon_desc),
+    CUSTOM   ("Custom",    R.string.palette_custom_desc),
 }
 
 /** A gradient colour stop used by the custom palette. r/g/b are in 0..1. */
@@ -312,13 +307,13 @@ val builtInPaletteStops: Map<PaletteType, List<ColorStop>> = mapOf(
 // Render style
 // ────────────────────────────────────────────────────────────────────────────
 
-enum class RenderStyle(val displayName: String, val description: String) {
-    STANDARD("Gas",    "Log-histogram accumulation — the classic Chaoscope mode."),
-    GAS     ("Dust",   "4th-root sparse points — diffuse starfield or dust-cloud look."),
-    LIQUID  ("Liquid", "Gas with z-buffer depth — near points bright, far points dim."),
-    PLASMA  ("Plasma", "Cyclic colour bands — high-frequency striped patterns."),
-    SOLID   ("Solid",  "Hard threshold silhouette — bold, poster-like fills."),
-    LIGHT   ("Light",  "Per-point orbit speed × curvature — warm core, cool periphery, bright at bends."),
+enum class RenderStyle(val displayName: String, val descriptionRes: Int) {
+    STANDARD("Gas",    R.string.style_gas_desc),
+    GAS     ("Dust",   R.string.style_dust_desc),
+    LIQUID  ("Liquid", R.string.style_liquid_desc),
+    PLASMA  ("Plasma", R.string.style_plasma_desc),
+    SOLID   ("Solid",  R.string.style_solid_desc),
+    LIGHT   ("Light",  R.string.style_light_desc),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -331,19 +326,19 @@ enum class RenderQuality(
     val displayName: String,
     val previewIterations: Long,
     val hdIterations: Long,
-    val description: String,
+    val descriptionRes: Int,
 ) {
-    DRAFT   ("Draft",    1_000_000L,  15_000_000L, "Fastest — fewer points, rougher detail."),
-    STANDARD("Standard", 2_000_000L,  50_000_000L, "Balanced default."),
-    HIGH    ("High",     5_000_000L, 120_000_000L, "Denser and smoother — slower render."),
-    ULTRA   ("Ultra",   10_000_000L, 300_000_000L, "Maximum detail — an HD render can take a while."),
+    DRAFT   ("Draft",    1_000_000L,  15_000_000L, R.string.quality_draft_desc),
+    STANDARD("Standard", 2_000_000L,  50_000_000L, R.string.quality_standard_desc),
+    HIGH    ("High",     5_000_000L, 120_000_000L, R.string.quality_high_desc),
+    ULTRA   ("Ultra",   10_000_000L, 300_000_000L, R.string.quality_ultra_desc),
 }
 
 /** How many dots the live rotation preview draws. Lower if rotation feels sluggish. */
-enum class PreviewDensity(val displayName: String, val dots: Int, val description: String) {
-    LOW   ("Low",   30_000,  "Lightest — smoothest rotation on slower phones."),
-    MEDIUM("Med",   80_000,  "Balanced default."),
-    HIGH  ("High", 160_000,  "Most detail while rotating — best on fast phones."),
+enum class PreviewDensity(val displayName: String, val dots: Int, val descriptionRes: Int) {
+    LOW   ("Low",   30_000,  R.string.density_low_desc),
+    MEDIUM("Med",   80_000,  R.string.density_med_desc),
+    HIGH  ("High", 160_000,  R.string.density_high_desc),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -361,7 +356,23 @@ enum class BgColor(val displayName: String, val argb: Int, val isTheme: Boolean 
     WHITE      ("White",      0xFFFFFFFF.toInt()),
     /** User-defined colour; actual ARGB lives in [UiState.customBgArgb]. */
     CUSTOM     ("Custom",     0xFF000000.toInt()),
+    /** User-picked photo; the image file path lives in [UiState.customBgPath]. */
+    IMAGE      ("Image",      0xFF000000.toInt()),
 }
+
+/**
+ * True when the attractor must render onto a transparent bitmap and the
+ * background art (procedural theme or a picked photo) is drawn behind it,
+ * rather than the native renderer filling a solid colour.
+ */
+val BgColor.drawsArtBehind: Boolean get() = isTheme || this == BgColor.IMAGE
+
+/** Display order for the background selector: solids first, then themed, then custom/photo. */
+val BG_DISPLAY_ORDER: List<BgColor> = listOf(
+    BgColor.BLACK, BgColor.WHITE,
+    BgColor.STARS, BgColor.FOREST_BG, BgColor.OCEAN_BG, BgColor.AURORA_BG,
+    BgColor.CUSTOM, BgColor.IMAGE,
+)
 
 // ────────────────────────────────────────────────────────────────────────────
 // Curated presets
@@ -448,9 +459,9 @@ val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
         Preset("Mist",    AttractorType.CHAOTIC_FLOW, listOf(2.5f, 2.4f, 1.5f, 2f, 7f, 0.01f), yaw = 10f, pitch = 35f, palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.GAS),
     ),
     AttractorType.ICON to listOf(
-        Preset("Mandala",   AttractorType.ICON, listOf(-2.5f, 5.0f, -1.8f, 1.0f), palette = PaletteType.NEBULA),
-        Preset("Sunwheel",  AttractorType.ICON, listOf(-2.0f, 6.0f, -1.5f, 1.2f), palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
-        Preset("Snowflake", AttractorType.ICON, listOf(-2.34f, 2.0f, 0.2f, 0.1f), palette = PaletteType.ELECTRIC),
+        Preset("Mandala",   AttractorType.ICON, listOf(-2.5f, 5.0f, -1.8f, 1.0f), yaw = 25f, pitch = 30f, palette = PaletteType.NEBULA),
+        Preset("Sunwheel",  AttractorType.ICON, listOf(-2.0f, 6.0f, -1.5f, 1.2f), yaw = 35f, pitch = 20f, palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
+        Preset("Snowflake", AttractorType.ICON, listOf(-2.34f, 2.0f, 0.2f, 0.1f), yaw = 20f, pitch = 35f, palette = PaletteType.ELECTRIC),
     ),
     AttractorType.IFS to listOf(
         Preset("Fern",      AttractorType.IFS, listOf(1.0f, 0.0f, 0.0f), palette = PaletteType.MATRIX),
@@ -487,6 +498,16 @@ val CURATED_PRESETS: Map<AttractorType, List<Preset>> = mapOf(
         Preset("Halo",   AttractorType.SPROTT_B, listOf(1f, 1f, 0.02f), yaw = 0f,  pitch = 60f, palette = PaletteType.AURORA),
         Preset("Vortex", AttractorType.SPROTT_B, listOf(1f, 1f, 0.02f), yaw = 60f, pitch = 10f, palette = PaletteType.FIRE, renderStyle = RenderStyle.LIQUID),
     ),
+    AttractorType.LORENZ_84 to listOf(
+        Preset("Climate",  AttractorType.LORENZ_84, listOf(0.25f, 4.0f, 8.0f, 1.0f, 0.01f), yaw = 30f, pitch = 25f, palette = PaletteType.ELECTRIC),
+        Preset("Jet",      AttractorType.LORENZ_84, listOf(0.25f, 4.0f, 6.5f, 1.0f, 0.01f), yaw = 60f, pitch = 15f, palette = PaletteType.NEBULA, renderStyle = RenderStyle.LIQUID),
+        Preset("Monsoon",  AttractorType.LORENZ_84, listOf(0.3f,  4.0f, 9.5f, 1.3f, 0.01f), yaw = 15f, pitch = 35f, palette = PaletteType.AURORA, renderStyle = RenderStyle.GAS),
+    ),
+    AttractorType.HENON to listOf(
+        Preset("Banana",   AttractorType.HENON, listOf(1.4f, 0.3f), palette = PaletteType.NEBULA),
+        Preset("Filament", AttractorType.HENON, listOf(1.39f, 0.27f), palette = PaletteType.ELECTRIC, renderStyle = RenderStyle.GAS),
+        Preset("Crescent", AttractorType.HENON, listOf(1.4f, 0.2f), palette = PaletteType.FIRE, renderStyle = RenderStyle.PLASMA),
+    ),
 )
 
 /** Curated presets for this attractor (empty if none defined). */
@@ -516,13 +537,17 @@ data class UiState(
     val bitmap: Bitmap?              = null,
     val isRendering: Boolean         = false,
     val isRetrying: Boolean          = false,
+    /** HD/4K render progress in [0,1]; -1 = indeterminate (preview/GPU render). */
+    val renderProgress: Float        = -1f,
     val renderFailedMessage: String? = null,
-    val attractorType: AttractorType = AttractorType.CLIFFORD,
-    val params: List<Float>          = AttractorType.CLIFFORD.defaultParams.toList(),
-    val palette: PaletteType         = PaletteType.NEBULA,
+    // Fresh-install "first impression" look — the Burke-Shaw "Galaxy" preset.
+    // Returning users get their persisted state restored over these defaults.
+    val attractorType: AttractorType = AttractorType.BURKE_SHAW,
+    val params: List<Float>          = AttractorType.BURKE_SHAW.defaultParams.toList(),
+    val palette: PaletteType         = PaletteType.ELECTRIC,
     val customStops: List<ColorStop> = defaultCustomStops,
-    val yaw: Float                   = 0f,
-    val pitch: Float                 = 0f,
+    val yaw: Float                   = 25f,
+    val pitch: Float                 = 25f,
     val roll: Float                  = 0f,
     val zoom: Float                  = 1f,
     val gamma: Float                 = 1f,
@@ -534,6 +559,8 @@ data class UiState(
     val renderStyle: RenderStyle     = RenderStyle.STANDARD,
     val bgColor: BgColor             = BgColor.BLACK,
     val customBgArgb: Int            = 0xFF1A0028.toInt(),
+    /** Absolute path to the user-picked background photo (copied into app storage). */
+    val customBgPath: String?        = null,
     val renderQuality: RenderQuality = RenderQuality.STANDARD,
     val previewDensity: PreviewDensity = PreviewDensity.MEDIUM,
     val transparentBg: Boolean       = false,
@@ -555,6 +582,20 @@ data class UiState(
     val effectiveBgArgb: Int get() =
         if (bgColor == BgColor.CUSTOM) customBgArgb else bgColor.argb
 }
+
+/** The visual state captured as a [Preset]. */
+fun UiState.toPreset(name: String = attractorType.displayName) = Preset(
+    name        = name,
+    type        = attractorType,
+    params      = params,
+    yaw         = yaw,
+    pitch       = pitch,
+    roll        = roll,
+    zoom        = zoom,
+    palette     = palette,
+    renderStyle = renderStyle,
+    bgColor     = bgColor,
+)
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sharing
@@ -589,3 +630,11 @@ fun buildShareCaption(
         append(" — made with Chaoscope")
     }
 }
+
+/**
+ * Full share caption for [preset]: the human-readable line plus a `CHS1:` code
+ * a friend can paste back into Chaoscope to recreate the exact look.
+ */
+fun buildShareCaption(preset: Preset): String =
+    buildShareCaption(preset.type, preset.palette, preset.params) +
+        "\n\nRecreate it in Chaoscope: " + presetToCode(preset)

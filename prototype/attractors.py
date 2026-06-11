@@ -219,6 +219,84 @@ class ThomasAttractor:
         return x + self.dt * dx, y + self.dt * dy, z + self.dt * dz
 
 
+@dataclass
+class IconAttractor:
+    """
+    Symmetric icon (Field & Golubitsky, p=3) — a 2-D complex map lifted to 3-D.
+    t  = lam + alp*r^2 + bet*Re(z^3)
+    x' = t*x + omg*(x^2 - y^2)
+    y' = t*y - omg*2xy
+    z' = Re(z^3) = x^3 - 3xy^2   (depth lift — not fed back into x/y)
+    """
+    name: str = "Icon"
+    lam: float = -2.5
+    alp: float = 5.0
+    bet: float = -1.8
+    omg: float = 1.0
+
+    def iterate(
+        self,
+        x: NDArray[np.float64],
+        y: NDArray[np.float64],
+        z: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        r2 = x * x + y * y
+        rez3 = x * x * x - 3.0 * x * y * y
+        t = self.lam + self.alp * r2 + self.bet * rez3
+        xn = t * x + self.omg * (x * x - y * y)
+        yn = t * y - self.omg * (2.0 * x * y)
+        return xn, yn, rez3
+
+
+@dataclass
+class Lorenz84Attractor:
+    """
+    Lorenz-84 low-order atmospheric circulation model (3-D, Euler).
+    dx/dt = -a*x - y^2 - z^2 + a*F
+    dy/dt = -y + x*y - b*x*z + G
+    dz/dt = -z + b*x*y + x*z
+    """
+    name: str = "Lorenz-84"
+    a: float = 0.25
+    b: float = 4.0
+    F: float = 8.0
+    G: float = 1.0
+    dt: float = 0.01
+
+    def iterate(
+        self,
+        x: NDArray[np.float64],
+        y: NDArray[np.float64],
+        z: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        dx = -self.a * x - y * y - z * z + self.a * self.F
+        dy = -y + x * y - self.b * x * z + self.G
+        dz = -z + self.b * x * y + x * z
+        return x + self.dt * dx, y + self.dt * dy, z + self.dt * dz
+
+
+@dataclass
+class HenonAttractor:
+    """
+    Hénon map (2-D).
+    x' = 1 - a*x^2 + y
+    y' = b*x
+    """
+    name: str = "Hénon"
+    a: float = 1.4
+    b: float = 0.3
+
+    def iterate(
+        self,
+        x: NDArray[np.float64],
+        y: NDArray[np.float64],
+        z: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        xn = 1.0 - self.a * x * x + y
+        yn = self.b * x
+        return xn, yn, np.zeros_like(xn)
+
+
 # ---------------------------------------------------------------------------
 # Utility: run an attractor for N iterations (warm-up + collect)
 # ---------------------------------------------------------------------------
@@ -308,4 +386,7 @@ ATTRACTORS: dict[str, Attractor] = {
     "rossler":       RosslerAttractor(),
     "aizawa":        AizawaAttractor(),
     "thomas":        ThomasAttractor(),
+    "icon":          IconAttractor(),
+    "lorenz84":      Lorenz84Attractor(),
+    "henon":         HenonAttractor(),
 }

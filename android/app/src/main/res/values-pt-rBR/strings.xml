@@ -15,7 +15,6 @@
     <string name="cd_close">Fechar</string>
 
     <!-- Recents -->
-    <string name="cd_recent_open">Imagem recente — toque para abrir</string>
     <string name="cd_recent_share">Compartilhar esta imagem</string>
 
     <!-- Live preview -->
@@ -23,14 +22,16 @@
 
     <!-- Splash -->
     <string name="splash_tagline">Explorador de Atratores Estranhos</string>
-    <string name="splash_description">Visualize a ordem oculta dentro do caos.\nMilhões de iterações. Doze atratores.\nFormas infinitas esperando para serem descobertas.</string>
-    <string name="splash_tribute">✦  Uma homenagem ao Chaoscope original\nde Nicolas Desprez (anos 2000) — o app do Windows\nque primeiro tornou os atratores estranhos belos.</string>
+    <string name="splash_description">Visualize a ordem oculta dentro do caos.\nMilhões de iterações. Dezessete atratores.\nFormas infinitas esperando para serem descobertas.</string>
+    <string name="splash_tribute">✦  Uma homenagem ao Chaoscope original\nde Nicolas Desprez (anos 2000) — que primeiro\ntornou os atratores estranhos belos.</string>
+    <string name="splash_tribute_short">✦ Uma homenagem ao Chaoscope original de Nicolas Desprez</string>
     <string name="splash_btn_explore">Explorar Atratores</string>
     <string name="splash_btn_close">Fechar</string>
     <string name="splash_btn_tutorial">🎓  Mostrar tutorial</string>
     <string name="splash_btn_coffee">Me pague um café</string>
     <string name="splash_btn_feedback">Sugerir ou Criticar</string>
     <string name="splash_footer">Código aberto · Licença Apache 2.0</string>
+    <string name="splash_credits">Criado por Lucas Balancin e Thiago Sturiale · 2026</string>
     <string name="splash_feedback_subject">Chaoscope — Sugestão / Feedback</string>
 
     <!-- Tabs -->
@@ -52,7 +53,47 @@
     <string name="section_render_detail">Detalhe da Renderização</string>
     <string name="section_preview_density">Densidade da Pré-visualização</string>
     <string name="section_animation_export">Exportar Animação</string>
-    <string name="section_recent_renders">Renderizações Recentes</string>
+    <string name="section_gallery">Galeria</string>
+
+    <!-- Gallery -->
+    <string name="gallery_view_all">Ver tudo</string>
+    <string name="gallery_open_editor">Abrir no editor</string>
+    <string name="gallery_view_image">Ver imagem</string>
+    <string name="gallery_delete">Excluir</string>
+    <string name="gallery_delete_confirm_title">Excluir renderização?</string>
+    <string name="gallery_delete_entry_only">Remover apenas da galeria</string>
+    <string name="gallery_delete_with_file">Excluir também o arquivo do dispositivo</string>
+    <string name="gallery_empty">Suas renderizações exportadas aparecerão aqui.</string>
+    <string name="cd_gallery_entry">Renderização da galeria — toque para ver ações</string>
+    <string name="cd_close_gallery">Fechar galeria</string>
+
+    <!-- Undo -->
+    <string name="btn_undo">Desfazer</string>
+    <string name="msg_shuffled">Embaralhado</string>
+    <string name="msg_preset_applied">Predefinição aplicada</string>
+
+    <!-- Settings sheet -->
+    <string name="settings_title">Configurações</string>
+    <string name="section_language">Idioma</string>
+    <string name="btn_replay_tutorial">🎓  Rever o tutorial</string>
+
+    <!-- Attractor of the Day -->
+    <string name="daily_title">Atrator do dia</string>
+
+    <!-- Live wallpaper -->
+    <string name="wp_settings_title">Papel de parede animado</string>
+    <string name="wp_description">Um atrator estranho girando lentamente na sua tela inicial.</string>
+    <string name="wp_source_label">O papel de parede mostra</string>
+    <string name="wp_source_current">Minha criação atual</string>
+    <string name="wp_speed_label">Velocidade de rotação</string>
+    <string name="wp_hint">Gira apenas enquanto a tela inicial está visível; pausa no modo de economia de bateria.</string>
+
+    <!-- Preset codes (import / share) -->
+    <string name="btn_import_preset">Importar</string>
+    <string name="import_preset_title">Importar predefinição</string>
+    <string name="import_preset_hint">Cole um código de predefinição do Chaoscope (CHS1:…), por exemplo da legenda de uma imagem compartilhada.</string>
+    <string name="import_invalid">Código inválido ou de uma versão mais recente</string>
+    <string name="msg_clipboard_preset">Código de predefinição encontrado na área de transferência</string>
 
     <!-- Buttons -->
     <string name="btn_render">▶  Renderizar</string>
@@ -60,6 +101,7 @@
     <string name="btn_render_4k">4K</string>
     <string name="btn_export_png">Exportar PNG</string>
     <string name="btn_set_wallpaper">🖼  Definir como Papel de Parede</string>
+    <string name="btn_set_live_wallpaper">🌀  Definir como papel de parede animado</string>
     <string name="btn_export_video">🎬  Exportar Vídeo</string>
     <string name="btn_cancel_export">Cancelar exportação</string>
     <string name="btn_randomize_params">🎲 Parâmetros</string>
@@ -69,6 +111,7 @@
     <string name="btn_cancel">Cancelar</string>
     <string name="btn_save">Salvar</string>
     <string name="btn_edit_colour">Editar cor</string>
+    <string name="btn_change_photo">Alterar foto</string>
 
     <!-- Toggles & descriptions -->
     <string name="toggle_full_range">Paleta completa</string>
@@ -116,6 +159,9 @@
     <string name="anim_orbit_hint">Renderiza o atrator como pontos coloridos crescentes — cada quadro revela mais do caminho da órbita. Sem quadros-chave.</string>
     <string name="anim_sweep_hint">Varia automaticamente todos os parâmetros do estado atual até um alvo aleatório — um resultado diferente a cada exportação. Sem quadros-chave.</string>
     <string name="anim_exporting_frame">Exportando quadro %1$d / %2$d</string>
+    <string name="video_warning_title">Exporta em segundo plano</string>
+    <string name="video_warning_body">Renderizar o vídeo pode demorar um pouco. Ele continua em segundo plano, e mostraremos uma notificação de progresso para você acompanhar e cancelar se precisar. Permita as notificações na próxima tela para vê-la.</string>
+    <string name="video_warning_confirm">Iniciar exportação</string>
 
     <!-- Color dialog -->
     <string name="dialog_custom_bg">Fundo personalizado</string>
@@ -153,7 +199,7 @@
     <string name="tutorial_welcome_title">Bem-vindo ao Chaoscope</string>
     <string name="tutorial_welcome_body">Arraste em qualquer lugar do canvas para girar o atrator em 3D. Pince para dar zoom.</string>
     <string name="tutorial_pick_title">Escolha um atrator</string>
-    <string name="tutorial_pick_body">Deslize a fileira de chips para escolher entre 15 atratores estranhos — ou toque em Surpreenda-me para um aleatório.</string>
+    <string name="tutorial_pick_body">Deslize a galeria de miniaturas para escolher um atrator — ou toque em Surpreenda-me para um aleatório.</string>
     <string name="tutorial_tune_title">Ajuste os parâmetros</string>
     <string name="tutorial_tune_body">Arraste qualquer controle para remodelar a órbita em tempo real. Pequenas mudanças podem transformar completamente a imagem.</string>
     <string name="tutorial_render_title">Toque para renderizar</string>
@@ -163,4 +209,137 @@
     <string name="tutorial_next">Próximo</string>
     <string name="tutorial_done">Concluir</string>
     <string name="tutorial_skip">Pular tutorial</string>
+
+    <!-- ── Descrições dos atratores &amp; dicas de parâmetros ──────────────── -->
+    <string name="attr_clifford_desc">Um clássico mapa iterativo 2-D elevado a 3-D. Seis controles deformam como cada passo dobra e estica a órbita — pequenas mudanças produzem formas radicalmente diferentes.</string>
+    <string name="attr_clifford_hint0">Acionamento senoidal horizontal — controla a onda principal que curva a órbita para a esquerda e a direita.</string>
+    <string name="attr_clifford_hint1">Acionamento senoidal vertical — controla como a órbita se dobra para cima e para baixo.</string>
+    <string name="attr_clifford_hint2">Acionamento cossenoidal horizontal — adiciona uma torção perpendicular ao eixo X.</string>
+    <string name="attr_clifford_hint3">Acionamento cossenoidal vertical — adiciona uma torção perpendicular ao eixo Y.</string>
+    <string name="attr_clifford_hint4">Acoplamento entre eixos — valores maiores criam padrões mais apertados e emaranhados.</string>
+    <string name="attr_clifford_hint5">Acoplamento secundário — ajusta finamente a densidade geral da textura.</string>
+
+    <string name="attr_peter_de_jong_desc">Primo do Clifford com não linearidade mais forte — produz filigranas densas e padrões em camadas semelhantes a conchas.</string>
+    <string name="attr_peter_de_jong_hint0">Estiramento X primário — valores maiores puxam a órbita horizontalmente.</string>
+    <string name="attr_peter_de_jong_hint1">Estiramento Y primário — valores maiores puxam a órbita verticalmente.</string>
+    <string name="attr_peter_de_jong_hint2">Acoplamento cruzado — curva a órbita na diagonal.</string>
+    <string name="attr_peter_de_jong_hint3">Estiramento X secundário — adiciona detalhes horizontais mais finos.</string>
+    <string name="attr_peter_de_jong_hint4">Estiramento Y secundário — adiciona detalhes verticais mais finos.</string>
+    <string name="attr_peter_de_jong_hint5">Torção final — controla quão apertada a forma espirala.</string>
+
+    <string name="attr_gumowski_mira_desc">Um mapa 2-D da física de plasma. Tende a curvas delicadas e orgânicas que lembram conchas ou águas-vivas.</string>
+    <string name="attr_gumowski_mira_hint0">Amortecimento — perto de 0 mantém as órbitas abertas; longe de 0 aperta os laços.</string>
+    <string name="attr_gumowski_mira_hint1">Não linearidade — impulsiona a curvatura. Valores negativos invertem o sentido da espiral.</string>
+
+    <string name="attr_lorenz_desc">A famosa borboleta. O modelo climático de Edward Lorenz de 1963 — o sistema que tornou \"caos\" uma palavra popular.</string>
+    <string name="attr_lorenz_hint0">σ (número de Prandtl) — viscosidade do fluido. O valor padrão é 10.</string>
+    <string name="attr_lorenz_hint1">ρ (número de Rayleigh) — impulsiona a convecção. Acima de ~24,74 o caos começa.</string>
+    <string name="attr_lorenz_hint2">β (razão de aspecto) — controla a geometria das asas. O padrão é 8/3 ≈ 2,667.</string>
+    <string name="attr_lorenz_hint3">dt — passo da simulação. Menor = trajetória mais suave, mas convergência mais lenta.</string>
+
+    <string name="attr_rossler_desc">Um primo mais simples do Lorenz. Espirala lentamente para fora e então recua de golpe — como um fliperama cósmico.</string>
+    <string name="attr_rossler_hint0">Taxa da espiral interna — quão rápido as órbitas se expandem no plano.</string>
+    <string name="attr_rossler_hint1">Deslocamento de elevação — pequena constante que empurra a órbita para o 3-D.</string>
+    <string name="attr_rossler_hint2">Limiar de dobra — ao atingi-lo, a órbita se dobra violentamente. Maior = funil mais largo.</string>
+    <string name="attr_rossler_hint3">dt — passo da simulação.</string>
+
+    <string name="attr_aizawa_desc">Um toro torcido. Os laços envolvem um eixo central enquanto deslizam ao longo dele — produz formas de concha ou tipo Möbius.</string>
+    <string name="attr_aizawa_hint0">Deslizamento ao longo do eixo central.</string>
+    <string name="attr_aizawa_hint1">Compressão vertical do toro.</string>
+    <string name="attr_aizawa_hint2">Atração radial em direção ao eixo.</string>
+    <string name="attr_aizawa_hint3">Taxa de torção ao redor do eixo — maior = espiral mais apertada.</string>
+    <string name="attr_aizawa_hint4">Assimetria — quebra o toro perfeito em curvas mais orgânicas.</string>
+    <string name="attr_aizawa_hint5">Assimetria vertical — mesma ideia no eixo cima/baixo.</string>
+    <string name="attr_aizawa_hint6">dt — passo da simulação.</string>
+
+    <string name="attr_thomas_desc">Ciclicamente simétrico — a mesma equação em x, y e z. Parece um novelo de lã emaranhado.</string>
+    <string name="attr_thomas_hint0">Amortecimento — valores menores tornam a órbita mais caótica. Abaixo de ~0,21 torna-se hipercaótica.</string>
+    <string name="attr_thomas_hint1">dt — passo da simulação.</string>
+
+    <string name="attr_chaotic_flow_desc">Um fluxo caótico genérico com muitos controles — ampla variedade de formas, de fitas elegantes a tempestades densas.</string>
+    <string name="attr_chaotic_flow_hint0">Acionamento primário no eixo X.</string>
+    <string name="attr_chaotic_flow_hint1">Acionamento primário no eixo Y.</string>
+    <string name="attr_chaotic_flow_hint2">Acoplamento entre eixos.</string>
+    <string name="attr_chaotic_flow_hint3">Elevação vertical.</string>
+    <string name="attr_chaotic_flow_hint4">Força de excitação — maior cria dinâmicas mais violentas.</string>
+    <string name="attr_chaotic_flow_hint5">dt — passo da simulação.</string>
+
+    <string name="attr_icon_desc">Ícones simétricos (Field &amp; Golubitsky). Polinômios complexos produzem padrões tipo mandala com simetria rotacional, elevados a um relevo 3-D que você pode inclinar e girar.</string>
+    <string name="attr_icon_hint0">λ — contração geral. Mais negativo puxa as órbitas para dentro.</string>
+    <string name="attr_icon_hint1">α — acionamento radial. Maior dá raios mais nítidos.</string>
+    <string name="attr_icon_hint2">β — distorção angular. Curva os eixos de simetria e o relevo de profundidade.</string>
+    <string name="attr_icon_hint3">ω — taxa de rotação. Define a simetria de n dobras do padrão final.</string>
+
+    <string name="attr_ifs_desc">Sistema de funções iteradas. Quatro mapas afins aplicados aleatoriamente produzem uma samambaia fractal; o controle de torção espirala as folhas para fora do plano, em 3-D.</string>
+    <string name="attr_ifs_hint0">Largura — engrossa ou afina cada folíolo.</string>
+    <string name="attr_ifs_hint1">Inclinação — desvia a samambaia para a esquerda ou direita da vertical.</string>
+    <string name="attr_ifs_hint2">Torção — gira cada folha para fora do plano. 0 é a samambaia 2-D plana; maior a enrola em 3-D.</string>
+
+    <string name="attr_julia_desc">Conjunto de Julia quaterniônico para q² + c, renderizado como superfície 3-D. O termo j (c_j) controla a profundidade — defina como 0 para o clássico Julia 2-D plano.</string>
+    <string name="attr_julia_hint0">Parte real (escalar) de c.</string>
+    <string name="attr_julia_hint1">Parte imaginária (i) de c. Valores perto da borda de Mandelbrot dão os detalhes mais ricos.</string>
+    <string name="attr_julia_hint2">Parte j de c — a terceira dimensão. 0 colapsa em um Julia 2-D plano; valores maiores o abrem em um corpo 3-D.</string>
+
+    <string name="attr_pickover_desc">O icônico atrator estranho de Clifford Pickover — produz formas 3-D tipo asas e conchas com camadas sutis.</string>
+    <string name="attr_pickover_hint0">Estiramento X — quão longe a órbita alcança lateralmente.</string>
+    <string name="attr_pickover_hint1">Estiramento Y — extensão vertical da forma.</string>
+    <string name="attr_pickover_hint2">Acoplamento cruzado — curva as asas.</string>
+    <string name="attr_pickover_hint3">Torção final — define a lateralidade geral.</string>
+
+    <string name="attr_halvorsen_desc">Ciclicamente simétrico — a mesma equação alternada entre x, y e z. Dobra-se em laços entrelaçados tipo nó de toro, como um pretzel 3-D.</string>
+    <string name="attr_halvorsen_hint0">Amortecimento — valores menores afrouxam os laços; perto de 1,4 a órbita mal permanece presa.</string>
+    <string name="attr_halvorsen_hint1">dt — passo da simulação. Menor = mais suave, convergência mais lenta.</string>
+
+    <string name="attr_burke_shaw_desc">Uma espiral dupla rápida que se enrola em um tornado apertado de conchas aninhadas — redemoinhos densos, tipo galáxia.</string>
+    <string name="attr_burke_shaw_hint0">Força de acoplamento — impulsiona a taxa do redemoinho. Maior enrola a espiral mais apertada.</string>
+    <string name="attr_burke_shaw_hint1">Excitação vertical — eleva e estica o funil ao longo de seu eixo.</string>
+    <string name="attr_burke_shaw_hint2">dt — passo da simulação.</string>
+
+    <string name="attr_sprott_b_desc">Um dos sistemas caóticos mínimos de Sprott — apenas dois termos, mas traça um amplo disco rodopiante. Elegante e amigável para iniciantes.</string>
+    <string name="attr_sprott_b_hint0">Acoplamento — escala o acionamento y·z que alimenta o redemoinho.</string>
+    <string name="attr_sprott_b_hint1">Realimentação — escala o termo x·y que fecha o laço. Remodela o disco.</string>
+    <string name="attr_sprott_b_hint2">dt — passo da simulação.</string>
+
+    <!-- ── Descrições das paletas ─────────────────────────────────────────── -->
+    <string name="palette_nebula_desc">Azuis e roxos profundos — cósmico e tranquilo.</string>
+    <string name="palette_fire_desc">Vermelhos, laranjas e amarelo quentes — fundido.</string>
+    <string name="palette_electric_desc">Ciano frio e azul vivo — alta voltagem.</string>
+    <string name="palette_aurora_desc">Verdes, azuis-petróleo e violetas — luzes do norte.</string>
+    <string name="palette_matrix_desc">Verde monocromático no preto — nostalgia de terminal.</string>
+    <string name="palette_grey_desc">Luminância pura — foco na forma, não na cor.</string>
+    <string name="palette_spectrum_desc">Roda de matizes completa — do violeta ao ciano, verde, amarelo até laranja, do escuro ao claro.</string>
+    <string name="palette_sunset_desc">Roxo profundo a magenta, laranja e creme dourado — quente e dramático.</string>
+    <string name="palette_ice_desc">Azul-marinho a azul-aço, azul-gelo e branco — frio e cristalino.</string>
+    <string name="palette_neon_desc">Rosa-choque a verde elétrico — alto contraste, vibrante.</string>
+    <string name="palette_custom_desc">Suas próprias paradas de cor — toque em Editar para personalizar.</string>
+
+    <!-- ── Descrições dos estilos de renderização ─────────────────────────── -->
+    <string name="style_gas_desc">Acumulação log-histograma — o clássico modo Chaoscope.</string>
+    <string name="style_dust_desc">Pontos esparsos de raiz quarta — aparência de campo estelar difuso ou nuvem de poeira.</string>
+    <string name="style_liquid_desc">Gás com profundidade z-buffer — pontos próximos brilhantes, distantes esmaecidos.</string>
+    <string name="style_plasma_desc">Bandas cíclicas de cor — padrões listrados de alta frequência.</string>
+    <string name="style_solid_desc">Silhueta de limiar rígido — preenchimentos sólidos, estilo pôster.</string>
+    <string name="style_light_desc">Velocidade da órbita × curvatura por ponto — núcleo quente, periferia fria, brilhante nas curvas.</string>
+
+    <!-- ── Descrições da qualidade de renderização ────────────────────────── -->
+    <string name="quality_draft_desc">Mais rápido — menos pontos, detalhe mais grosseiro.</string>
+    <string name="quality_standard_desc">Padrão equilibrado.</string>
+    <string name="quality_high_desc">Mais denso e suave — renderização mais lenta.</string>
+    <string name="quality_ultra_desc">Detalhe máximo — uma renderização em HD pode demorar.</string>
+
+    <!-- ── Descrições da densidade de pré-visualização ────────────────────── -->
+    <string name="density_low_desc">Mais leve — rotação mais suave em telefones lentos.</string>
+    <string name="density_med_desc">Padrão equilibrado.</string>
+    <string name="density_high_desc">Mais detalhe ao girar — melhor em telefones rápidos.</string>
+
+    <string name="attr_lorenz_84_desc">Um modelo de ordem reduzida da circulação atmosférica — a \"meteorologia numa caixa\" de Edward Lorenz, de 1984. Traça fluxos em laços, tipo fita, que vagueiam entre regimes calmos e tempestuosos.</string>
+    <string name="attr_lorenz_84_hint0">Amortecimento do vento de oeste — quão rápido o fluxo principal decai.</string>
+    <string name="attr_lorenz_84_hint1">Força do acoplamento das ondas — liga as ondas de temperatura à corrente de jato.</string>
+    <string name="attr_lorenz_84_hint2">Forçamento térmico — o aquecimento do equador aos polos que impulsiona todo o sistema.</string>
+    <string name="attr_lorenz_84_hint3">Forçamento de assimetria — inclina o padrão de ondas, quebrando a simetria.</string>
+    <string name="attr_lorenz_84_hint4">dt — passo da simulação.</string>
+
+    <string name="attr_henon_desc">O atrator estranho canônico — o mapa de Michel Hénon, de 1976. Sua órbita assenta numa delicada curva em forma de banana que, ao ampliar, revela infinitas bandas fractais autossemelhantes.</string>
+    <string name="attr_henon_hint0">Dobra não linear — o termo quadrático que curva a forma. Perto de 1,4 dá a forma clássica; acima de ~1,42 a órbita escapa.</string>
+    <string name="attr_henon_hint1">Contração — quão fortemente cada passo encolhe em direção à linha. Define a espessura das bandas fractais.</string>
 </resources>

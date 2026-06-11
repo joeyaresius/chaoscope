@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace   = "com.chaoscope"
-    compileSdk  = 36
+    compileSdk  = 37
 
     defaultConfig {
         applicationId = "com.chaoscope"
         minSdk        = 26
         targetSdk     = 36
-        versionCode   = 11
-        versionName   = "0.1.9"
+        versionCode   = 13
+        versionName   = "0.2.1"
 
         externalNativeBuild {
             cmake {
@@ -34,6 +34,10 @@ android {
                 storePassword = System.getenv("CHAOSCOPE_KEYSTORE_PASSWORD") ?: ""
                 keyAlias      = System.getenv("CHAOSCOPE_KEY_ALIAS")        ?: "chaoscope"
                 keyPassword   = System.getenv("CHAOSCOPE_KEY_PASSWORD")     ?: ""
+            }
+            else {
+                // This helps you catch configuration errors early in a build log
+                project.logger.warn("Release keystore not found at ${ksFile.absolutePath}. Falling back to debug signing.")
             }
         }
     }
@@ -58,19 +62,14 @@ android {
     }
 
     bundle {
-        abi      { enableSplit = true }
-        density  { enableSplit = true }
-        // Do NOT split by language. The in-app language picker (LangPrefs) switches
-        // the locale at runtime, but with language splits enabled Play only delivers
-        // the split matching the *device* system language — so switching the app to
-        // French/Chinese on an English phone falls back to English ("nothing shows").
-        // Keeping all locales in the base module costs only a few KB.
-        language { enableSplit = false }
+        abi.enableSplit = true
+        density.enableSplit = true
+        language.enableSplit = false
     }
 
     externalNativeBuild {
         cmake {
-            path    = file("src/main/cpp/CMakeLists.txt")
+            path = file("src/main/cpp/CMakeLists.txt")
             version = "3.22.1"
         }
     }
@@ -94,7 +93,7 @@ kotlin {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
@@ -109,6 +108,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("com.google.android.play:review-ktx:2.0.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("androidx.fragment:fragment-ktx:1.8.9")
 
     testImplementation("junit:junit:4.13.2")
 }

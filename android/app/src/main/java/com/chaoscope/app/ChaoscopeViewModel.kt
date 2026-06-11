@@ -5,11 +5,15 @@ import android.app.WallpaperManager
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.net.Uri
 import androidx.core.content.ContextCompat
+import java.io.File
+import java.io.FileOutputStream
 import com.chaoscope.R
 import com.chaoscope.ui.ThemeBackgroundRenderer
 import android.os.Environment
@@ -84,11 +88,26 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private val _isDragging = MutableStateFlow(false)
     val isDragging: StateFlow<Boolean> = _isDragging.asStateFlow()
 
-    val recentExports: StateFlow<List<String>> = prefs.recentExports
+    // Decoded user-picked background photo (BgColor.IMAGE). Drawn behind the live
+    // preview and composited into rendered/exported bitmaps.
+    private val _customBgBitmap = MutableStateFlow<Bitmap?>(null)
+    val customBgBitmap: StateFlow<Bitmap?> = _customBgBitmap.asStateFlow()
+
+    val galleryEntries: StateFlow<List<GalleryEntry>> = prefs.galleryEntries
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val userPresets: StateFlow<List<Preset>> = prefs.userPresets
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // Initial value true so veterans never see the first-render FAB pulse flash
+    // while the persisted value loads; genuinely new users flip to false quickly.
+    val hasEverRendered: StateFlow<Boolean> = prefs.hasEverRendered
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    // Attractor of the Day — null until the date-seeded candidate is validated
+    // (a thumbnail render on a background thread; cached, so usually instant).
+    private val _dailyPreset = MutableStateFlow<Preset?>(null)
+    val dailyPreset: StateFlow<Preset?> = _dailyPreset.asStateFlow()
 
     // ── Session-level splash (resets every cold start via ViewModel lifecycle) ─
     private val _sessionSplashDone = MutableStateFlow(false)
@@ -117,6 +136,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private var dotJob:          Job? = null
     private var videoExportJob:  Job? = null
 
+    // State that produced the current bitmap, captured when a render completes.
+    // The gallery stores this (not the live state) so an export made after the
+    // user tweaks sliders without re-rendering still reopens the rendered look.
+    private var lastRenderedPreset: Preset? = null
+
     init {
         // GPU capability probe + context init on a background thread so the main
         // thread is never blocked and the loading spinner can animate freely.
@@ -128,10 +152,21 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // Resolve today's attractor off the main thread (validation render is
+        // thumbnail-sized and disk-cached after the first call of the day).
+        viewModelScope.launch(Dispatchers.Default) {
+            _dailyPreset.value = DailyAttractor.preset(app)
+        }
+
         viewModelScope.launch {
             // Restore last persisted parameters before the first dot-preview fetch.
             prefs.loadLastState()?.let { saved ->
                 _uiState.update { saved }
+                // Decode the persisted background photo, if any, off the main thread.
+                saved.customBgPath?.let { path ->
+                    val bmp = withContext(Dispatchers.Default) { decodeBgImage(path) }
+                    _customBgBitmap.value = bmp
+                }
             }
             rebuildPaletteLut()
             fetchDotPoints()
@@ -155,6 +190,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         bitmap               = null,
         isRendering          = false,
         isRetrying           = false,
+        renderProgress       = -1f,
         renderFailedMessage  = null,
         exportDone           = false,
         exportError          = null,
@@ -191,19 +227,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     fun saveCurrentAsPreset(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
-        val s = _uiState.value
-        val preset = Preset(
-            name        = trimmed,
-            type        = s.attractorType,
-            params      = s.params,
-            yaw         = s.yaw,
-            pitch       = s.pitch,
-            roll        = s.roll,
-            zoom        = s.zoom,
-            palette     = s.palette,
-            renderStyle = s.renderStyle,
-            bgColor     = s.bgColor,
-        )
+        val preset = _uiState.value.toPreset(trimmed)
         viewModelScope.launch { prefs.saveUserPreset(preset) }
     }
 
@@ -211,8 +235,27 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { prefs.deleteUserPreset(name) }
     }
 
+    /**
+     * Remove a gallery entry; with [deleteFile] also delete the exported file
+     * from MediaStore. Deleting media this app created needs no permission; a
+     * file contributed by an older install throws SecurityException — we drop
+     * the entry anyway and the file simply stays in Pictures/Movies.
+     */
+    fun deleteGalleryEntry(uri: String, deleteFile: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (deleteFile) {
+                runCatching {
+                    getApplication<Application>().contentResolver
+                        .delete(Uri.parse(uri), null, null)
+                }
+            }
+            prefs.deleteGalleryEntry(uri)
+        }
+    }
+
     /** Apply a curated preset: attractor + params + camera + look, then preview. */
     fun applyPreset(preset: Preset) {
+        snapshotForUndo()
         _uiState.update {
             it.copy(
                 attractorType = preset.type,
@@ -292,6 +335,38 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.update { it.copy(bgColor = BgColor.CUSTOM, customBgArgb = argb) }
         renderLookPreview()
     }
+
+    /**
+     * Copy a user-picked photo into app storage, decode it (capped at 2048 px),
+     * and switch the background to [BgColor.IMAGE]. Runs entirely off the main
+     * thread; the path persists so the choice survives restarts.
+     */
+    fun onPickBackgroundImage(uri: Uri) {
+        val app = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val dest = File(app.filesDir, "custom_bg.png")
+            val copied = runCatching {
+                app.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(dest).use { output -> input.copyTo(output) }
+                } != null
+            }.getOrDefault(false)
+            if (!copied) return@launch
+            val bmp = decodeBgImage(dest.absolutePath) ?: return@launch
+            _customBgBitmap.value = bmp
+            _uiState.update { it.copy(bgColor = BgColor.IMAGE, customBgPath = dest.absolutePath) }
+            renderLookPreview()
+        }
+    }
+
+    /** Decode a background photo from [path], down-sampled so its longest side is ≤ 2048 px. */
+    private fun decodeBgImage(path: String): Bitmap? = runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, bounds)
+        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+        var sample = 1
+        while (longest / sample > 2048) sample *= 2
+        BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+    }.getOrNull()
 
     fun setRenderQuality(quality: RenderQuality) {
         _uiState.update { it.copy(renderQuality = quality) }
@@ -527,8 +602,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         val raw = s.bitmap ?: return
         // Composite themed art into the bitmap (live UI shows it via Compose layer,
         // but the saved bitmap has transparent bg pixels — we fill them here).
-        val bmp = if (s.bgColor.isTheme)
-            ThemeBackgroundRenderer.compositeOnBitmap(s.bgColor, s.customBgArgb, raw)
+        val bmp = if (s.bgColor.drawsArtBehind)
+            ThemeBackgroundRenderer.compositeOnBitmap(
+                s.bgColor, s.customBgArgb, raw, _customBgBitmap.value)
         else raw
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -548,7 +624,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     if (!ok) throw IllegalStateException("PNG encoder reported failure.")
                 } ?: throw IllegalStateException("Could not open output stream.")
 
-                prefs.addRecentExport(uri.toString())
+                prefs.addGalleryEntry(GalleryEntry(
+                    uri       = uri.toString(),
+                    timestamp = System.currentTimeMillis(),
+                    preset    = lastRenderedPreset ?: s.toPreset(),
+                ))
                 _uiState.update {
                     it.copy(exportDone = true, exportError = null, lastExportUri = uri.toString())
                 }
@@ -573,8 +653,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     fun setWallpaper(context: Context) {
         val s   = _uiState.value
         val raw = s.bitmap ?: return
-        val bmp = if (s.bgColor.isTheme)
-            ThemeBackgroundRenderer.compositeOnBitmap(s.bgColor, s.customBgArgb, raw)
+        val bmp = if (s.bgColor.drawsArtBehind)
+            ThemeBackgroundRenderer.compositeOnBitmap(
+                s.bgColor, s.customBgArgb, raw, _customBgBitmap.value)
         else raw
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -763,9 +844,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                         ?: return@export null
                                     val raw = Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
                                                                   Bitmap.Config.ARGB_8888)
-                                    if (s.bgColor.isTheme)
+                                    if (s.bgColor.drawsArtBehind)
                                         ThemeBackgroundRenderer.compositeOnBitmap(
-                                            s.bgColor, s.customBgArgb, raw)
+                                            s.bgColor, s.customBgArgb, raw, _customBgBitmap.value)
                                     else raw
                                 }
 
@@ -827,6 +908,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
                 VideoExportState.status.value   = ExportStatus.Done(uri)
                 VideoExportState.onCancelRequested = null   // no longer needed
+                prefs.addGalleryEntry(GalleryEntry(
+                    uri       = uri,
+                    timestamp = System.currentTimeMillis(),
+                    preset    = s.toPreset(),
+                    isVideo   = true,
+                ))
                 onActionCompleted()
                 _uiState.update {
                     it.copy(
@@ -934,9 +1021,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     private fun makeOrbitBaseBitmap(s: UiState, size: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        if (s.bgColor.isTheme) {
+        if (s.bgColor.drawsArtBehind) {
             ThemeBackgroundRenderer.drawTo(canvas, s.bgColor, s.customBgArgb,
-                                           size.toFloat(), size.toFloat())
+                                           size.toFloat(), size.toFloat(), _customBgBitmap.value)
         } else {
             canvas.drawColor(s.effectiveBgArgb)
         }
@@ -1051,9 +1138,44 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         it.copy(videoExportError = null, videoExportUri = null)
     }
 
-    // ── Randomize ─────────────────────────────────────────────────────────────
+    // ── Randomize / undo ─────────────────────────────────────────────────────
+
+    // Single-level undo: the visual state right before the last randomize or
+    // preset apply, so a shape the user liked is never lost to one stray tap.
+    private var undoState: UiState? = null
+
+    private fun snapshotForUndo() {
+        undoState = _uiState.value
+    }
+
+    /** Restore the visual state captured before the last randomize / preset apply. */
+    fun undoLastApply() {
+        val snap = undoState ?: return
+        undoState = null
+        _uiState.update { cur ->
+            cur.copy(
+                attractorType = snap.attractorType,
+                params        = snap.params,
+                palette       = snap.palette,
+                customStops   = snap.customStops,
+                renderStyle   = snap.renderStyle,
+                bgColor       = snap.bgColor,
+                yaw           = snap.yaw,
+                pitch         = snap.pitch,
+                roll          = snap.roll,
+                zoom          = snap.zoom,
+                gamma         = snap.gamma,
+                depthCue      = snap.depthCue,
+                fullRange     = snap.fullRange,
+                bitmap        = null,
+            )
+        }
+        rebuildPaletteLut()
+        fetchDotPoints()
+    }
 
     fun randomize() {
+        snapshotForUndo()
         val type    = AttractorType.entries.random()
         val palette = PaletteType.entries.filter { it != PaletteType.CUSTOM }.random()
         val params  = type.paramRanges.map { range ->
@@ -1075,6 +1197,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Randomize only params + palette, keeping the current attractor type. */
     fun randomizeParams() {
+        snapshotForUndo()
         val type = _uiState.value.attractorType
         val params = type.paramRanges.map { range ->
             range.start + Random.nextFloat() * (range.endInclusive - range.start)
@@ -1109,12 +1232,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             renderStyle    = s.renderStyle.ordinal,
             // For themed backgrounds the Compose layer draws the art; the native
             // bitmap renders with a transparent background so the theme shows through.
-            bgColor        = if (s.bgColor.isTheme) 0xFF000000.toInt() else s.effectiveBgArgb,
+            bgColor        = if (s.bgColor.drawsArtBehind) 0xFF000000.toInt() else s.effectiveBgArgb,
             boundsExtraPad = boundsExtraPad,
             depthCue       = if (s.attractorType.is3D) s.depthCue else 0f,
             fullRange      = if (s.fullRange) 1 else 0,
             customStops    = customStops,
-            transparentBg  = if (s.transparentBg || s.bgColor.isTheme) 1 else 0,
+            transparentBg  = if (s.transparentBg || s.bgColor.drawsArtBehind) 1 else 0,
         )
     }
 
@@ -1126,6 +1249,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun onActionCompleted() {
         viewModelScope.launch(Dispatchers.IO) {
+            if (!hasEverRendered.value) prefs.setHasRendered()
             if (prefs.isReviewTriggered()) return@launch
             val count = prefs.incrementRenderExportCount()
             if (count >= REVIEW_TRIGGER_COUNT) {
@@ -1145,6 +1269,21 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             if (debounceMs > 0L) delay(debounceMs)
             _uiState.update { it.copy(isRendering = true, isRetrying = false) }
+
+            // Determinate progress for HD/4K renders only — previews are too
+            // quick to matter. The native CPU path counts iteration steps; a GPU
+            // render never reports (stays -1), so the UI keeps its spinner.
+            var progressJob: Job? = null
+            if (size >= HD_SIZE) {
+                ChaoscopeEngine.nativeRenderProgressReset()
+                progressJob = launch {
+                    while (isActive) {
+                        delay(PROGRESS_POLL_MS)
+                        val p = ChaoscopeEngine.nativeRenderProgress()
+                        _uiState.update { it.copy(renderProgress = p) }
+                    }
+                }
+            }
             try {
                 val s = _uiState.value
                 val pixels = nativeRenderCall(s, iterations, size)
@@ -1163,16 +1302,21 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     val bitmap = Bitmap.createBitmap(retryPixels, size, size, Bitmap.Config.ARGB_8888)
                     _bucketedDots.value = null
+                    lastRenderedPreset = s.toPreset()
                     _uiState.update { it.copy(bitmap = bitmap) }
                     onActionCompleted()
                 } else {
                     val bitmap = Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
                     _bucketedDots.value = null
+                    lastRenderedPreset = s.toPreset()
                     _uiState.update { it.copy(bitmap = bitmap) }
                     onActionCompleted()
                 }
             } finally {
-                _uiState.update { it.copy(isRendering = false, isRetrying = false) }
+                progressJob?.cancel()
+                _uiState.update {
+                    it.copy(isRendering = false, isRetrying = false, renderProgress = -1f)
+                }
             }
         }
     }
@@ -1186,6 +1330,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         private const val DEBOUNCE_MS         = 80L
         private const val LOOK_DEBOUNCE_MS    = 300L
         private const val PERSIST_DEBOUNCE_MS = 500L
+        private const val PROGRESS_POLL_MS    = 200L
 
         // Outro appended to every video export (1 s at 30 fps).
         private const val OUTRO_FRAMES = 30

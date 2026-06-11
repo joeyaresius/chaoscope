@@ -17,6 +17,8 @@ static constexpr int ATTRACTOR_PICKOVER      = 11; // Pickover
 static constexpr int ATTRACTOR_HALVORSEN     = 12; // Halvorsen (cyclically symmetric)
 static constexpr int ATTRACTOR_BURKE_SHAW    = 13; // Burke-Shaw
 static constexpr int ATTRACTOR_SPROTT_B      = 14; // Sprott-B
+static constexpr int ATTRACTOR_LORENZ_84     = 15; // Lorenz-84 (climate model)
+static constexpr int ATTRACTOR_HENON         = 16; // Hénon (2-D map)
 
 /**
  * Iterate n points in-place for one step.
@@ -37,6 +39,8 @@ static constexpr int ATTRACTOR_SPROTT_B      = 14; // Sprott-B
  *   HALVORSEN      params[0..1] : a, dt
  *   BURKE_SHAW     params[0..2] : s, v, dt
  *   SPROTT_B       params[0..2] : a, b, dt
+ *   LORENZ_84      params[0..4] : a, b, F, G, dt
+ *   HENON          params[0..1] : a, b
  */
 void attractorIterateN(
     int type, const float* params,

@@ -3,6 +3,18 @@ package com.chaoscope
 import android.content.Context
 import java.util.Locale
 
+/** A selectable UI language: locale code + flag emoji for the picker rows. */
+data class LangOption(val code: String, val flag: String)
+
+/** Languages offered by the in-app pickers (splash + settings sheet). */
+val LANGUAGES = listOf(
+    LangOption("en",    "🇺🇸"),
+    LangOption("pt-BR", "🇧🇷"),
+    LangOption("fr",    "🇫🇷"),
+    LangOption("es",    "🇪🇸"),
+    LangOption("zh-CN", "🇨🇳"),
+)
+
 object LangPrefs {
     private const val PREFS_NAME = "lang_prefs"
     private const val KEY_LANG   = "lang_code"

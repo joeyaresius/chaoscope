@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -111,7 +112,12 @@ private fun rememberAuroraRibbons(): List<AuroraRibbon> = remember {
  * For themed entries ([BgColor.isTheme]) it renders procedural art.
  */
 @Composable
-fun ThemedBackground(bgColor: BgColor, customBgArgb: Int, modifier: Modifier = Modifier) {
+fun ThemedBackground(
+    bgColor: BgColor,
+    customBgArgb: Int,
+    modifier: Modifier = Modifier,
+    customBgBitmap: android.graphics.Bitmap? = null,
+) {
     val baseArgb = if (bgColor == BgColor.CUSTOM) customBgArgb else bgColor.argb
     val baseColor = Color((baseArgb.toLong() and 0xFFFFFFFFL))
 
@@ -132,8 +138,26 @@ fun ThemedBackground(bgColor: BgColor, customBgArgb: Int, modifier: Modifier = M
             val ribbons = rememberAuroraRibbons()
             Canvas(modifier) { drawAuroraTheme(baseColor, ribbons) }
         }
+        BgColor.IMAGE -> Canvas(modifier) {
+            drawRect(baseColor)
+            customBgBitmap?.let { drawImageCentreCrop(it) }
+        }
         else -> Canvas(modifier) { drawRect(baseColor) }
     }
+}
+
+/** Draws [bmp] scaled to cover the canvas, centre-cropped (matches ThemeBackgroundRenderer). */
+private fun DrawScope.drawImageCentreCrop(bmp: android.graphics.Bitmap) {
+    val scale = maxOf(size.width / bmp.width, size.height / bmp.height)
+    val dw = bmp.width * scale
+    val dh = bmp.height * scale
+    val left = (size.width - dw) / 2f
+    val top  = (size.height - dh) / 2f
+    drawContext.canvas.nativeCanvas.drawBitmap(
+        bmp, null,
+        android.graphics.RectF(left, top, left + dw, top + dh),
+        android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG),
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

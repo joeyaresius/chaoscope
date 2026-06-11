@@ -12,20 +12,21 @@
     <string name="cd_skip_welcome">跳过欢迎页</string>
     <string name="cd_close">关闭</string>
 
-    <string name="cd_recent_open">最近渲染 — 点击打开</string>
     <string name="cd_recent_share">分享此渲染图</string>
 
     <string name="cd_live_preview">%1$s 吸引子实时预览</string>
 
     <string name="splash_tagline">奇异吸引子探索器</string>
-    <string name="splash_description">可视化混沌中隐藏的秩序。\n数百万次迭代。十二种吸引子。\n等你发现的无限形态。</string>
-    <string name="splash_tribute">✦  向 Nicolas Desprez 的原版 Chaoscope（2000 年代）致敬\n——那款首次让奇异吸引子变得绝美的 Windows 应用。</string>
+    <string name="splash_description">可视化混沌中隐藏的秩序。\n数百万次迭代。十七种吸引子。\n等你发现的无限形态。</string>
+    <string name="splash_tribute">✦  向 Nicolas Desprez 的原版 Chaoscope（2000 年代）致敬\n——它首次让奇异吸引子变得绝美。</string>
+    <string name="splash_tribute_short">✦ 致敬 Nicolas Desprez 的原版 Chaoscope</string>
     <string name="splash_btn_explore">开始探索</string>
     <string name="splash_btn_close">关闭</string>
     <string name="splash_btn_tutorial">🎓  显示教程</string>
     <string name="splash_btn_coffee">请我喝杯咖啡</string>
     <string name="splash_btn_feedback">建议或反馈</string>
     <string name="splash_footer">开源 · Apache 2.0 许可证</string>
+    <string name="splash_credits">由 Lucas Balancin 与 Thiago Sturiale 创作 · 2026</string>
     <string name="splash_feedback_subject">Chaoscope — 建议 / 反馈</string>
 
     <string name="tab_shape">形状</string>
@@ -45,13 +46,54 @@
     <string name="section_render_detail">渲染细节</string>
     <string name="section_preview_density">预览密度</string>
     <string name="section_animation_export">导出动画</string>
-    <string name="section_recent_renders">最近渲染</string>
+    <string name="section_gallery">图库</string>
+
+    <!-- Gallery -->
+    <string name="gallery_view_all">查看全部</string>
+    <string name="gallery_open_editor">在编辑器中打开</string>
+    <string name="gallery_view_image">查看图片</string>
+    <string name="gallery_delete">删除</string>
+    <string name="gallery_delete_confirm_title">删除渲染图？</string>
+    <string name="gallery_delete_entry_only">仅从图库移除</string>
+    <string name="gallery_delete_with_file">同时从设备删除文件</string>
+    <string name="gallery_empty">导出的渲染图将显示在这里。</string>
+    <string name="cd_gallery_entry">图库渲染图 — 点按查看操作</string>
+    <string name="cd_close_gallery">关闭图库</string>
+
+    <!-- Undo -->
+    <string name="btn_undo">撤销</string>
+    <string name="msg_shuffled">已随机</string>
+    <string name="msg_preset_applied">已应用预设</string>
+
+    <!-- Settings sheet -->
+    <string name="settings_title">设置</string>
+    <string name="section_language">语言</string>
+    <string name="btn_replay_tutorial">🎓  重看教程</string>
+
+    <!-- Attractor of the Day -->
+    <string name="daily_title">每日吸引子</string>
+
+    <!-- Live wallpaper -->
+    <string name="wp_settings_title">动态壁纸</string>
+    <string name="wp_description">奇异吸引子在主屏幕上缓缓旋转。</string>
+    <string name="wp_source_label">壁纸显示</string>
+    <string name="wp_source_current">我当前的作品</string>
+    <string name="wp_speed_label">旋转速度</string>
+    <string name="wp_hint">仅在主屏幕可见时旋转；省电模式下暂停。</string>
+
+    <!-- Preset codes (import / share) -->
+    <string name="btn_import_preset">导入</string>
+    <string name="import_preset_title">导入预设</string>
+    <string name="import_preset_hint">粘贴 Chaoscope 预设代码（CHS1:…），例如来自分享图片的说明文字。</string>
+    <string name="import_invalid">代码无效或来自更新版本</string>
+    <string name="msg_clipboard_preset">在剪贴板中发现预设代码</string>
 
     <string name="btn_render">▶  渲染</string>
     <string name="btn_render_hd">HD</string>
     <string name="btn_render_4k">4K</string>
     <string name="btn_export_png">导出 PNG</string>
     <string name="btn_set_wallpaper">🖼  设为壁纸</string>
+    <string name="btn_set_live_wallpaper">🌀  设为动态壁纸</string>
     <string name="btn_export_video">🎬  导出视频</string>
     <string name="btn_cancel_export">取消导出</string>
     <string name="btn_randomize_params">🎲 参数</string>
@@ -61,6 +103,7 @@
     <string name="btn_cancel">取消</string>
     <string name="btn_save">保存</string>
     <string name="btn_edit_colour">编辑颜色</string>
+    <string name="btn_change_photo">更换照片</string>
 
     <string name="toggle_full_range">完整调色板范围</string>
     <string name="toggle_full_range_desc">拉伸密度，使所有调色板颜色都显示出来。</string>
@@ -104,6 +147,9 @@
     <string name="anim_orbit_hint">将吸引子渲染为不断生长的彩色点 — 每帧揭示更多轨迹。无需关键帧。</string>
     <string name="anim_sweep_hint">自动将所有参数从当前状态变化到随机目标 — 每次导出都不同。无需关键帧。</string>
     <string name="anim_exporting_frame">正在导出第 %1$d / %2$d 帧</string>
+    <string name="video_warning_title">在后台导出</string>
+    <string name="video_warning_body">渲染视频可能需要一些时间。它会在后台继续运行，我们会显示进度通知，方便你跟踪并在需要时取消。请在下一个界面允许通知以便查看。</string>
+    <string name="video_warning_confirm">开始导出</string>
 
     <string name="dialog_custom_bg">自定义背景</string>
     <string name="label_hue">色相：%1$s°</string>
@@ -138,7 +184,7 @@
     <string name="tutorial_welcome_title">欢迎使用 Chaoscope</string>
     <string name="tutorial_welcome_body">在画布上任意拖动即可在 3D 中旋转吸引子。双指捏合可缩放。</string>
     <string name="tutorial_pick_title">选择一个吸引子</string>
-    <string name="tutorial_pick_body">滑动标签行从 15 种奇异吸引子中选择 — 或点击「给我惊喜」随机选一个。</string>
+    <string name="tutorial_pick_body">滑动缩略图库选择吸引子 — 或点击「给我惊喜」随机选一个。</string>
     <string name="tutorial_tune_title">调整参数</string>
     <string name="tutorial_tune_body">拖动任意滑块即可实时重塑轨道。微小的改变就能彻底改变画面。</string>
     <string name="tutorial_render_title">点击渲染</string>
@@ -148,4 +194,137 @@
     <string name="tutorial_next">下一步</string>
     <string name="tutorial_done">完成</string>
     <string name="tutorial_skip">跳过教程</string>
+
+    <!-- ── 吸引子描述 &amp; 参数提示 ───────────────────────────────────────── -->
+    <string name="attr_clifford_desc">经典的二维迭代映射提升到三维。六个参数扭曲每一步如何折叠和拉伸轨道——微小的改变会产生截然不同的形状。</string>
+    <string name="attr_clifford_hint0">水平正弦驱动——控制使轨道左右弯曲的主波。</string>
+    <string name="attr_clifford_hint1">垂直正弦驱动——控制轨道上下折叠的方式。</string>
+    <string name="attr_clifford_hint2">水平余弦驱动——为 X 轴增加一个垂直方向的扭转。</string>
+    <string name="attr_clifford_hint3">垂直余弦驱动——为 Y 轴增加一个垂直方向的扭转。</string>
+    <string name="attr_clifford_hint4">轴间耦合——数值越大，图案越紧密、越缠结。</string>
+    <string name="attr_clifford_hint5">次级耦合——微调整体纹理密度。</string>
+
+    <string name="attr_peter_de_jong_desc">Clifford 的近亲，非线性更强——产生密集的花丝和贝壳状的分层图案。</string>
+    <string name="attr_peter_de_jong_hint0">主 X 拉伸——数值越大，轨道在水平方向被拉得越开。</string>
+    <string name="attr_peter_de_jong_hint1">主 Y 拉伸——数值越大，轨道在垂直方向被拉得越开。</string>
+    <string name="attr_peter_de_jong_hint2">交叉耦合——使轨道沿对角线弯曲。</string>
+    <string name="attr_peter_de_jong_hint3">次 X 拉伸——增加更精细的水平细节。</string>
+    <string name="attr_peter_de_jong_hint4">次 Y 拉伸——增加更精细的垂直细节。</string>
+    <string name="attr_peter_de_jong_hint5">最终扭转——控制形状螺旋的紧密程度。</string>
+
+    <string name="attr_gumowski_mira_desc">来自等离子体物理的二维映射。倾向于精致的有机曲线，看起来像贝壳或水母。</string>
+    <string name="attr_gumowski_mira_hint0">阻尼——接近 0 时轨道保持张开；远离 0 时收紧环路。</string>
+    <string name="attr_gumowski_mira_hint1">非线性——驱动卷曲。负值会翻转螺旋方向。</string>
+
+    <string name="attr_lorenz_desc">著名的蝴蝶。爱德华·洛伦茨 1963 年的天气模型——让“混沌”一词家喻户晓的系统。</string>
+    <string name="attr_lorenz_hint0">σ（普朗特数）——流体黏度。标准值为 10。</string>
+    <string name="attr_lorenz_hint1">ρ（瑞利数）——驱动对流。超过约 24.74 后混沌开始出现。</string>
+    <string name="attr_lorenz_hint2">β（纵横比）——控制翅膀的几何形状。标准值为 8/3 ≈ 2.667。</string>
+    <string name="attr_lorenz_hint3">dt——模拟步长。越小轨迹越平滑，但收敛越慢。</string>
+
+    <string name="attr_rossler_desc">洛伦茨更简单的近亲。缓慢向外螺旋，然后猛地弹回——像一台宇宙弹珠机。</string>
+    <string name="attr_rossler_hint0">内螺旋速率——轨道在平面上扩张的速度。</string>
+    <string name="attr_rossler_hint1">抬升偏移——把轨道推入三维的小常数。</string>
+    <string name="attr_rossler_hint2">折返阈值——轨道到达此值时会剧烈折叠。越大漏斗越宽。</string>
+    <string name="attr_rossler_hint3">dt——模拟步长。</string>
+
+    <string name="attr_aizawa_desc">一个扭曲的环面。环路缠绕中心轴并沿其漂移——产生贝壳状或莫比乌斯状的形状。</string>
+    <string name="attr_aizawa_hint0">沿中心轴的漂移。</string>
+    <string name="attr_aizawa_hint1">环面的垂直压缩。</string>
+    <string name="attr_aizawa_hint2">朝向轴的径向拉力。</string>
+    <string name="attr_aizawa_hint3">绕轴的扭转速率——越大线圈越紧。</string>
+    <string name="attr_aizawa_hint4">非对称——把完美环面打破成更有机的卷曲。</string>
+    <string name="attr_aizawa_hint5">垂直非对称——上下轴上的同样效果。</string>
+    <string name="attr_aizawa_hint6">dt——模拟步长。</string>
+
+    <string name="attr_thomas_desc">循环对称——在 x、y、z 上是同一个方程。看起来像一团缠结的毛线。</string>
+    <string name="attr_thomas_hint0">阻尼——数值越低轨道越混沌。低于约 0.21 时变为超混沌。</string>
+    <string name="attr_thomas_hint1">dt——模拟步长。</string>
+
+    <string name="attr_chaotic_flow_desc">一种具有许多控制参数的通用混沌流——形态多样，从优雅的丝带到密集的风暴。</string>
+    <string name="attr_chaotic_flow_hint0">X 轴上的主驱动。</string>
+    <string name="attr_chaotic_flow_hint1">Y 轴上的主驱动。</string>
+    <string name="attr_chaotic_flow_hint2">轴间耦合。</string>
+    <string name="attr_chaotic_flow_hint3">垂直抬升。</string>
+    <string name="attr_chaotic_flow_hint4">强迫强度——越大动力学越剧烈。</string>
+    <string name="attr_chaotic_flow_hint5">dt——模拟步长。</string>
+
+    <string name="attr_icon_desc">对称图标（Field &amp; Golubitsky）。复多项式产生具有旋转对称性的曼陀罗状图案，并被提升为可倾斜和旋转的三维浮雕。</string>
+    <string name="attr_icon_hint0">λ——整体收缩。越负越把轨道往里拉。</string>
+    <string name="attr_icon_hint1">α——径向驱动。越大射线越锐利。</string>
+    <string name="attr_icon_hint2">β——角向畸变。弯曲对称轴和深度浮雕。</string>
+    <string name="attr_icon_hint3">ω——旋转速率。设定最终图案的 n 重对称。</string>
+
+    <string name="attr_ifs_desc">迭代函数系统。随机应用四个仿射映射产生分形蕨；扭转参数让叶片螺旋出平面，进入三维。</string>
+    <string name="attr_ifs_hint0">宽度——使每片小叶变粗或变细。</string>
+    <string name="attr_ifs_hint1">倾斜——使蕨偏向垂直方向的左侧或右侧。</string>
+    <string name="attr_ifs_hint2">扭转——使每片叶片旋转出平面。0 是平面二维蕨；越大越把它卷成三维。</string>
+
+    <string name="attr_julia_desc">q² + c 的四元数 Julia 集，渲染为三维曲面。j 项（c_j）驱动深度——设为 0 即为经典的平面二维 Julia。</string>
+    <string name="attr_julia_hint0">c 的实部（标量）。</string>
+    <string name="attr_julia_hint1">c 的虚部（i）。靠近 Mandelbrot 边缘的值细节最丰富。</string>
+    <string name="attr_julia_hint2">c 的 j 部分——第三维度。0 会坍缩为平面二维 Julia；更大的值把它展开为三维体。</string>
+
+    <string name="attr_pickover_desc">Clifford Pickover 标志性的奇异吸引子——产生带有微妙分层的翅膀状和贝壳状三维形态。</string>
+    <string name="attr_pickover_hint0">X 拉伸——轨道向侧面延伸的距离。</string>
+    <string name="attr_pickover_hint1">Y 拉伸——形状的垂直跨度。</string>
+    <string name="attr_pickover_hint2">交叉耦合——弯曲翅膀。</string>
+    <string name="attr_pickover_hint3">最终扭转——设定整体的手性。</string>
+
+    <string name="attr_halvorsen_desc">循环对称——同一个方程在 x、y、z 间轮换。折叠成相互交错的环面结环，像一个三维椒盐脆饼。</string>
+    <string name="attr_halvorsen_hint0">阻尼——数值越低环路越松；接近 1.4 时轨道勉强保持有界。</string>
+    <string name="attr_halvorsen_hint1">dt——模拟步长。越小越平滑，收敛越慢。</string>
+
+    <string name="attr_burke_shaw_desc">一条快速的双螺旋，缠绕成由嵌套贝壳构成的紧致龙卷风——密集的、星系般的旋涡。</string>
+    <string name="attr_burke_shaw_hint0">耦合强度——驱动旋涡速率。越大螺旋缠绕得越紧。</string>
+    <string name="attr_burke_shaw_hint1">垂直强迫——沿轴抬升并拉伸漏斗。</string>
+    <string name="attr_burke_shaw_hint2">dt——模拟步长。</string>
+
+    <string name="attr_sprott_b_desc">Sprott 极简混沌系统之一——仅两项，却描绘出一个宽阔的旋转圆盘。优雅且适合新手。</string>
+    <string name="attr_sprott_b_hint0">耦合——缩放驱动旋涡的 y·z 项。</string>
+    <string name="attr_sprott_b_hint1">反馈——缩放闭合环路的 x·y 项。重塑圆盘。</string>
+    <string name="attr_sprott_b_hint2">dt——模拟步长。</string>
+
+    <!-- ── 调色板描述 ─────────────────────────────────────────────────────── -->
+    <string name="palette_nebula_desc">深蓝与紫——宇宙般静谧。</string>
+    <string name="palette_fire_desc">暖色的红、橙与黄——熔融感。</string>
+    <string name="palette_electric_desc">冷青与亮蓝——高压电感。</string>
+    <string name="palette_aurora_desc">绿、青与紫罗兰——北极光。</string>
+    <string name="palette_matrix_desc">黑底单色绿——终端怀旧。</string>
+    <string name="palette_grey_desc">纯亮度——聚焦于形态而非色彩。</string>
+    <string name="palette_spectrum_desc">完整色相环——从紫经青、绿、黄到橙，由暗到亮。</string>
+    <string name="palette_sunset_desc">深紫到品红、橙与金奶油色——温暖而戏剧化。</string>
+    <string name="palette_ice_desc">藏青到钢蓝、冰蓝与白——冷冽而晶莹。</string>
+    <string name="palette_neon_desc">亮粉到电光绿——高对比、鲜艳。</string>
+    <string name="palette_custom_desc">你自己的色标——点按“编辑”自定义。</string>
+
+    <!-- ── 渲染样式描述 ───────────────────────────────────────────────────── -->
+    <string name="style_gas_desc">对数直方图累积——经典的 Chaoscope 模式。</string>
+    <string name="style_dust_desc">四次方根稀疏点——弥散的星场或尘云外观。</string>
+    <string name="style_liquid_desc">带 z-buffer 深度的 Gas——近点明亮，远点暗淡。</string>
+    <string name="style_plasma_desc">循环色带——高频条纹图案。</string>
+    <string name="style_solid_desc">硬阈值剪影——大胆的、海报式填充。</string>
+    <string name="style_light_desc">逐点轨道速度 × 曲率——核心暖、外围冷，转弯处明亮。</string>
+
+    <!-- ── 渲染质量描述 ───────────────────────────────────────────────────── -->
+    <string name="quality_draft_desc">最快——点更少，细节更粗糙。</string>
+    <string name="quality_standard_desc">均衡默认。</string>
+    <string name="quality_high_desc">更密更平滑——渲染更慢。</string>
+    <string name="quality_ultra_desc">最高细节——HD 渲染可能需要一些时间。</string>
+
+    <!-- ── 预览密度描述 ───────────────────────────────────────────────────── -->
+    <string name="density_low_desc">最轻——在较慢的手机上旋转最流畅。</string>
+    <string name="density_med_desc">均衡默认。</string>
+    <string name="density_high_desc">旋转时细节最多——最适合高性能手机。</string>
+
+    <string name="attr_lorenz_84_desc">大气环流的低阶模型——爱德华·洛伦茨 1984 年的“盒中天气”。描绘出在平静与风暴状态之间游走的环状、丝带般的流动。</string>
+    <string name="attr_lorenz_84_hint0">西风的阻尼——主气流衰减的快慢。</string>
+    <string name="attr_lorenz_84_hint1">波耦合强度——将温度波与急流联系起来。</string>
+    <string name="attr_lorenz_84_hint2">热强迫——驱动整个系统的赤道到极地的加热。</string>
+    <string name="attr_lorenz_84_hint3">非对称强迫——使波型倾斜，打破对称性。</string>
+    <string name="attr_lorenz_84_hint4">dt——模拟步长。</string>
+
+    <string name="attr_henon_desc">标志性的奇异吸引子——米歇尔·埃农 1976 年的映射。其轨道收敛到一条精致的香蕉形曲线，放大后会显现出无穷的自相似分形条带。</string>
+    <string name="attr_henon_hint0">非线性折叠——使曲线弯曲的平方项。接近 1.4 时为经典形状；超过约 1.42 时轨道会逃逸。</string>
+    <string name="attr_henon_hint1">收缩——每一步向直线收缩的强度。决定分形条带的厚度。</string>
 </resources>

@@ -17,8 +17,11 @@ import com.chaoscope.PreviewDensity
 import com.chaoscope.RenderQuality
 import com.chaoscope.RenderStyle
 import com.chaoscope.UiState
+import com.chaoscope.GalleryEntry
 import com.chaoscope.colorStopsToString
 import com.chaoscope.defaultCustomStops
+import com.chaoscope.galleryEntryToString
+import com.chaoscope.parseGalleryEntry
 import com.chaoscope.presetsToString
 import com.chaoscope.stringToColorStops
 import com.chaoscope.stringToPresets
@@ -100,6 +103,7 @@ class ChaoscopePreferences(private val context: Context) {
             customStops    = savedCustomStops,
             transparentBg  = prefs[KEY_TRANSPARENT_BG] ?: false,
             customBgArgb   = prefs[KEY_CUSTOM_BG_ARGB] ?: 0xFF1A0028.toInt(),
+            customBgPath   = prefs[KEY_CUSTOM_BG_PATH],
         )
     }
 
@@ -120,6 +124,8 @@ class ChaoscopePreferences(private val context: Context) {
             prefs[KEY_PREVIEW_DENSITY] = state.previewDensity.ordinal
             prefs[KEY_TRANSPARENT_BG]  = state.transparentBg
             prefs[KEY_CUSTOM_BG_ARGB]  = state.customBgArgb
+            state.customBgPath?.let { prefs[KEY_CUSTOM_BG_PATH] = it }
+                ?: prefs.remove(KEY_CUSTOM_BG_PATH)
 
             // Clear any stale param entries from a previous attractor with more params.
             val maxParams = AttractorType.entries.maxOf { it.paramNames.size }
@@ -128,6 +134,30 @@ class ChaoscopePreferences(private val context: Context) {
                 prefs[floatPreferencesKey("$KEY_PARAM_PREFIX$i")] = v
             }
         }
+    }
+
+    // ── Live wallpaper ───────────────────────────────────────────────────────
+
+    /** What the live wallpaper shows: [WP_SOURCE_CURRENT] or [WP_SOURCE_DAILY]. */
+    val wallpaperSource: Flow<String> = data.map { it[KEY_WP_SOURCE] ?: WP_SOURCE_CURRENT }
+
+    suspend fun setWallpaperSource(source: String) {
+        context.dataStore.edit { it[KEY_WP_SOURCE] = source }
+    }
+
+    /** Live-wallpaper rotation speed in degrees per second. */
+    val wallpaperSpeed: Flow<Float> = data.map { it[KEY_WP_SPEED] ?: WP_DEFAULT_SPEED }
+
+    suspend fun setWallpaperSpeed(degPerSec: Float) {
+        context.dataStore.edit { it[KEY_WP_SPEED] = degPerSec }
+    }
+
+    // ── First-ever render (drives the render-FAB pulse hint) ────────────────
+
+    val hasEverRendered: Flow<Boolean> = data.map { it[KEY_HAS_RENDERED] ?: false }
+
+    suspend fun setHasRendered() {
+        context.dataStore.edit { it[KEY_HAS_RENDERED] = true }
     }
 
     // ── In-app review counter ────────────────────────────────────────────────
@@ -149,23 +179,37 @@ class ChaoscopePreferences(private val context: Context) {
         context.dataStore.edit { it[KEY_REVIEW_TRIGGERED] = true }
     }
 
-    // ── Recent exports (Uri strings, newest first, capped) ───────────────────
+    // ── Gallery (exported renders + their presets, newest first, capped) ─────
+    // Reuses the old recents key: legacy URI-only lines parse as entries with a
+    // null preset, so existing users keep their recent renders (view/share only).
 
-    val recentExports: Flow<List<String>> = data.map { prefs ->
+    val galleryEntries: Flow<List<GalleryEntry>> = data.map { prefs ->
         prefs[KEY_RECENTS]
             ?.split('\n')
-            ?.filter { it.isNotBlank() }
+            ?.mapNotNull { parseGalleryEntry(it) }
             ?: emptyList()
     }
 
-    suspend fun addRecentExport(uri: String) {
+    suspend fun addGalleryEntry(entry: GalleryEntry) {
         context.dataStore.edit { prefs ->
             val existing = prefs[KEY_RECENTS]
                 ?.split('\n')
-                ?.filter { it.isNotBlank() && it != uri }
+                ?.mapNotNull { parseGalleryEntry(it) }
+                ?.filter { it.uri != entry.uri }
                 ?: emptyList()
-            val updated = (listOf(uri) + existing).take(MAX_RECENTS)
-            prefs[KEY_RECENTS] = updated.joinToString("\n")
+            val updated = (listOf(entry) + existing).take(MAX_GALLERY)
+            prefs[KEY_RECENTS] = updated.joinToString("\n") { galleryEntryToString(it) }
+        }
+    }
+
+    suspend fun deleteGalleryEntry(uri: String) {
+        context.dataStore.edit { prefs ->
+            val kept = prefs[KEY_RECENTS]
+                ?.split('\n')
+                ?.mapNotNull { parseGalleryEntry(it) }
+                ?.filter { it.uri != uri }
+                ?: return@edit
+            prefs[KEY_RECENTS] = kept.joinToString("\n") { galleryEntryToString(it) }
         }
     }
 
@@ -198,7 +242,11 @@ class ChaoscopePreferences(private val context: Context) {
     }
 
     companion object {
-        private const val MAX_RECENTS = 8
+        const val WP_SOURCE_CURRENT = "current"
+        const val WP_SOURCE_DAILY   = "daily"
+        const val WP_DEFAULT_SPEED  = 2f   // 360° in 3 minutes
+
+        private const val MAX_GALLERY = 50
         private const val MAX_USER_PRESETS = 30
         private const val KEY_PARAM_PREFIX = "param_"
 
@@ -219,6 +267,10 @@ class ChaoscopePreferences(private val context: Context) {
         private val KEY_PREVIEW_DENSITY    = intPreferencesKey("preview_density")
         private val KEY_TRANSPARENT_BG     = booleanPreferencesKey("transparent_bg")
         private val KEY_CUSTOM_BG_ARGB      = intPreferencesKey("custom_bg_argb")
+        private val KEY_CUSTOM_BG_PATH      = stringPreferencesKey("custom_bg_path")
+        private val KEY_WP_SOURCE           = stringPreferencesKey("wallpaper_source")
+        private val KEY_WP_SPEED            = floatPreferencesKey("wallpaper_speed")
+        private val KEY_HAS_RENDERED        = booleanPreferencesKey("has_ever_rendered")
         private val KEY_RENDER_EXPORT_COUNT = intPreferencesKey("render_export_count")
         private val KEY_REVIEW_TRIGGERED    = booleanPreferencesKey("review_triggered")
         private val KEY_RECENTS            = stringPreferencesKey("recent_exports")

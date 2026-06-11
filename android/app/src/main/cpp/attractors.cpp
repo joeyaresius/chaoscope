@@ -183,6 +183,10 @@ void attractorIterateN(
     // real: t = λ + α·r² + β·(x³-3xy²)
     //       x' = t·x + ω·(x²-y²)
     //       y' = t·y - ω·2xy
+    // The map is intrinsically 2-D. Following Chaoscope, we lift it into 3-D by
+    // emitting a depth coordinate that is *computed from but never fed back into*
+    // x/y: z = Re(w³) = x³-3xy². This raises the flat mandala into a fluted relief
+    // keyed to its angular symmetry, so the camera has real depth to rotate.
     case ATTRACTOR_ICON: {
         const float lam = p[0], alp = p[1], bet = p[2], omg = p[3];
         for (int i = 0; i < n; i++) {
@@ -192,7 +196,7 @@ void attractorIterateN(
             float t    = lam + alp*r2 + bet*rez3;
             xs[i] = t*x + omg*(x*x - y*y);
             ys[i] = t*y - omg*(2.f*x*y);
-            zs[i] = 0.f;
+            zs[i] = rez3;   // depth lift — not used in the x/y recurrence
         }
         break;
     }
@@ -330,6 +334,39 @@ void attractorIterateN(
             xs[i] = x + dt * (a * y * z);
             ys[i] = y + dt * (x - y);
             zs[i] = z + dt * (1.f - b * x * y);
+        }
+        break;
+    }
+
+    // ── Lorenz-84 (Euler) ────────────────────────────────────────────────────
+    // Low-order atmospheric circulation model.
+    // dx/dt = -a*x - y² - z² + a*F
+    // dy/dt = -y + x*y - b*x*z + G
+    // dz/dt = -z + b*x*y + x*z
+    case ATTRACTOR_LORENZ_84: {
+        const float a = p[0], b = p[1], F = p[2], G = p[3], dt = p[4];
+        for (int i = 0; i < n; i++) {
+            float x = xs[i], y = ys[i], z = zs[i];
+            float dx = -a * x - y * y - z * z + a * F;
+            float dy = -y + x * y - b * x * z + G;
+            float dz = -z + b * x * y + x * z;
+            xs[i] = x + dt * dx;
+            ys[i] = y + dt * dy;
+            zs[i] = z + dt * dz;
+        }
+        break;
+    }
+
+    // ── Hénon (2-D map) ──────────────────────────────────────────────────────
+    // x' = 1 - a*x² + y
+    // y' = b*x
+    case ATTRACTOR_HENON: {
+        const float a = p[0], b = p[1];
+        for (int i = 0; i < n; i++) {
+            float x = xs[i], y = ys[i];
+            float xn = 1.f - a * x * x + y;
+            float yn = b * x;
+            xs[i] = xn; ys[i] = yn; zs[i] = 0.f;
         }
         break;
     }

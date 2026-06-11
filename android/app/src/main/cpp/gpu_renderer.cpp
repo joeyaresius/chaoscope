@@ -112,11 +112,11 @@ void step_attractor(inout float x, inout float y, inout float z) {
         float dz=p3*x*y-p4*z;
         x+=p5*dx; y+=p5*dy; z+=p5*dz; break; }
 
-    case 8: { // Icon (Symmetry Icons, p=3)
+    case 8: { // Icon (Symmetry Icons, p=3) — z lifts the flat mandala into 3-D
         float r2=x*x+y*y, rez3=x*x*x-3.0*x*y*y;
         float t=p0+p1*r2+p2*rez3;
         float nx=t*x+p3*(x*x-y*y);
-        y=t*y-p3*(2.0*x*y); x=nx; z=0.0; break; }
+        y=t*y-p3*(2.0*x*y); x=nx; z=rez3; break; }
 
     case 9: { // IFS Barnsley Fern (3-D)
         float ct=cos(p2), st=sin(p2);
@@ -158,6 +158,17 @@ void step_attractor(inout float x, inout float y, inout float z) {
     case 13: { // Burke-Shaw (Euler)
         float dx=-p0*(x+y), dy=-y-p0*x*z, dz=p0*x*y+p1;
         x+=p2*dx; y+=p2*dy; z+=p2*dz; break; }
+
+    case 15: { // Lorenz-84 (Euler)
+        float dx=-p0*x-y*y-z*z+p0*p2;
+        float dy=-y+x*y-p1*x*z+p3;
+        float dz=-z+p1*x*y+x*z;
+        x+=p4*dx; y+=p4*dy; z+=p4*dz; break; }
+
+    case 16: { // Hénon (2-D map)
+        float nx=1.0-p0*x*x+y;
+        float ny=p1*x;
+        x=nx; y=ny; z=0.0; break; }
 
     default: { // Sprott-B (14, Euler)
         float dx=p0*y*z, dy=x-y, dz=1.0-p1*x*y;

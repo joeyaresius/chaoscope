@@ -51,6 +51,17 @@ struct RenderParams {
 bool renderAttractor(const RenderParams& rp, int* outPixels);
 
 /**
+ * Progress of the in-flight HD render as a fraction in [0, 1], or -1 when no
+ * tracked render is running (preview/thumbnail renders are not tracked).
+ * Poll from another thread while renderAttractor runs.
+ */
+float renderProgress();
+
+/** Clear progress state before starting a render (progress reads -1 until the
+ *  CPU path begins counting — GPU renders never report). */
+void renderProgressReset();
+
+/**
  * Fast dot-preview: iterate the attractor and return n_pts projected
  * (u, v) pairs, each normalised to [-1, 1].  No histogram, no colours.
  * Intended for real-time rotation feedback (~50 K points, < 5 ms on ARM).

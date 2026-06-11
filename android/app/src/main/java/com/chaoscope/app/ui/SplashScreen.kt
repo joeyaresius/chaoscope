@@ -10,6 +10,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaoscope.AttractorType
 import com.chaoscope.ChaoscopeEngine
+import com.chaoscope.LANGUAGES
 import com.chaoscope.LangPrefs
 import com.chaoscope.PaletteType
 import com.chaoscope.R
@@ -45,15 +48,6 @@ import kotlin.math.sin
 private val Primary   = Color(0xFF4FC3F7)
 private val Secondary = Color(0xFF9C27B0)
 private val BmcYellow = Color(0xFFFFDD00)
-
-private data class LangOption(val code: String, val flag: String)
-private val LANGUAGES = listOf(
-    LangOption("en",    "🇺🇸"),
-    LangOption("pt-BR", "🇧🇷"),
-    LangOption("fr",    "🇫🇷"),
-    LangOption("es",    "🇪🇸"),
-    LangOption("zh-CN", "🇨🇳"),
-)
 
 @Composable
 fun SplashScreen(
@@ -188,27 +182,13 @@ fun SplashScreen(
             )
         }
 
-        // ── Skip / Close button ───────────────────────────────────────────
-        IconButton(
-            onClick  = onDismiss,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(8.dp),
-        ) {
-            Icon(
-                imageVector        = Icons.Outlined.Close,
-                contentDescription = stringResource(
-                    if (isFirstLaunch) R.string.cd_skip_welcome else R.string.cd_close,
-                ),
-                tint               = Color(0xFF8899BB),
-            )
-        }
-
         // ── Text + buttons ────────────────────────────────────────────────
+        // Scrollable so longer translations (pt/fr/es run longer than English)
+        // can't grow the column past the screen and push buttons out of view.
         Column(
             modifier            = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -245,21 +225,33 @@ fun SplashScreen(
                 lineHeight = 22.sp,
             )
 
-            Spacer(Modifier.height(24.dp))
-
-            Surface(
-                shape    = RoundedCornerShape(10.dp),
-                color    = Color.White.copy(alpha = 0.05f),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            // Launch splash keeps a one-line tribute (most users never open
+            // About); the About screen shows the full card.
+            if (isFirstLaunch) {
+                Spacer(Modifier.height(16.dp))
                 Text(
-                    text       = stringResource(R.string.splash_tribute),
-                    fontSize   = 12.sp,
-                    color      = Color(0xFF8899BB),
-                    textAlign  = TextAlign.Center,
-                    lineHeight = 18.sp,
-                    modifier   = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    text      = stringResource(R.string.splash_tribute_short),
+                    fontSize  = 11.sp,
+                    color     = Color(0xFF8899BB),
+                    textAlign = TextAlign.Center,
                 )
+            } else {
+                Spacer(Modifier.height(24.dp))
+
+                Surface(
+                    shape    = RoundedCornerShape(10.dp),
+                    color    = Color.White.copy(alpha = 0.05f),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text       = stringResource(R.string.splash_tribute),
+                        fontSize   = 12.sp,
+                        color      = Color(0xFF8899BB),
+                        textAlign  = TextAlign.Center,
+                        lineHeight = 18.sp,
+                        modifier   = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
             }
 
             Spacer(Modifier.height(36.dp))
@@ -282,7 +274,9 @@ fun SplashScreen(
                 )
             }
 
-            if (!isFirstLaunch) {
+            // Tutorial button: launch splash only — About dropped it now that
+            // the settings sheet has "Replay tutorial".
+            if (isFirstLaunch) {
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick  = onShowTutorial,
@@ -301,55 +295,58 @@ fun SplashScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            // Support / feedback buttons live on the About screen only.
+            if (!isFirstLaunch) {
+                Spacer(Modifier.height(12.dp))
 
-            OutlinedButton(
-                onClick  = {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW,
-                               Uri.parse("https://buymeacoffee.com/balancin"))
+                OutlinedButton(
+                    onClick  = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW,
+                                   Uri.parse("https://buymeacoffee.com/balancin"))
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape  = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, BmcYellow),
+                ) {
+                    Text(text = "☕  ", fontSize = 18.sp)
+                    Text(
+                        text       = stringResource(R.string.splash_btn_coffee),
+                        color      = BmcYellow,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 15.sp,
                     )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape  = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, BmcYellow),
-            ) {
-                Text(text = "☕  ", fontSize = 18.sp)
-                Text(
-                    text       = stringResource(R.string.splash_btn_coffee),
-                    color      = BmcYellow,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 15.sp,
-                )
-            }
+                }
 
-            Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
 
-            val feedbackSubject = stringResource(R.string.splash_feedback_subject)
-            OutlinedButton(
-                onClick  = {
-                    context.startActivity(
-                        Intent(Intent.ACTION_SENDTO).apply {
-                            data = Uri.parse("mailto:chaoscope@duck.com")
-                            putExtra(Intent.EXTRA_SUBJECT, feedbackSubject)
-                        }
+                val feedbackSubject = stringResource(R.string.splash_feedback_subject)
+                OutlinedButton(
+                    onClick  = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:chaoscope@duck.com")
+                                putExtra(Intent.EXTRA_SUBJECT, feedbackSubject)
+                            }
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape  = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Secondary),
+                ) {
+                    Text(text = "✉  ", fontSize = 16.sp, color = Secondary)
+                    Text(
+                        text       = stringResource(R.string.splash_btn_feedback),
+                        color      = Secondary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 15.sp,
                     )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape  = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, Secondary),
-            ) {
-                Text(text = "✉  ", fontSize = 16.sp, color = Secondary)
-                Text(
-                    text       = stringResource(R.string.splash_btn_feedback),
-                    color      = Secondary,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 15.sp,
-                )
+                }
             }
 
             Spacer(Modifier.height(20.dp))
@@ -391,7 +388,38 @@ fun SplashScreen(
                 letterSpacing = 0.5.sp,
             )
 
+            if (!isFirstLaunch) {
+                Spacer(Modifier.height(6.dp))
+
+                Text(
+                    text          = stringResource(R.string.splash_credits),
+                    fontSize      = 11.sp,
+                    color         = Color(0xFF445566),
+                    textAlign     = TextAlign.Center,
+                    letterSpacing = 0.5.sp,
+                )
+            }
+
             Spacer(Modifier.height(20.dp))
+        }
+
+        // ── Skip / Close button ───────────────────────────────────────────
+        // Composed after the scrollable column so it sits on top — composed
+        // before it, the column's scroll area swallowed every tap on the ✕.
+        IconButton(
+            onClick  = onDismiss,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(8.dp),
+        ) {
+            Icon(
+                imageVector        = Icons.Outlined.Close,
+                contentDescription = stringResource(
+                    if (isFirstLaunch) R.string.cd_skip_welcome else R.string.cd_close,
+                ),
+                tint               = Color(0xFF8899BB),
+            )
         }
     }
 }

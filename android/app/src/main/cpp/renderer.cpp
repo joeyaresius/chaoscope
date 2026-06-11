@@ -1,11 +1,36 @@
 #include "renderer.h"
 #include "attractors.h"
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <vector>
 #include <algorithm>
 #include <cfloat>
 #include <thread>
+
+// ────────────────────────────────────────────────────────────────────────────
+// Render progress — polled from Kotlin while an HD render runs
+// ────────────────────────────────────────────────────────────────────────────
+// Only renders at PROGRESS_MIN_W or wider track progress, so a concurrent
+// thumbnail/preview render can't corrupt the bar. The UI runs at most one HD
+// render at a time.
+
+static constexpr int PROGRESS_MIN_W = 1024;
+static std::atomic<long long> g_progressDone{0};
+static std::atomic<long long> g_progressTotal{0};
+
+void renderProgressReset() {
+    g_progressDone.store(0, std::memory_order_relaxed);
+    g_progressTotal.store(0, std::memory_order_relaxed);
+}
+
+float renderProgress() {
+    const long long total = g_progressTotal.load(std::memory_order_relaxed);
+    if (total <= 0) return -1.f;
+    const long long done = g_progressDone.load(std::memory_order_relaxed);
+    const float p = (float)done / (float)total;
+    return p > 1.f ? 1.f : p;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Camera / orthographic projection
@@ -247,6 +272,16 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         return static_cast<int>(static_cast<long long>(t) * BATCH_SIZE / T);
     };
 
+    // Progress: each thread walks warmup + bounds + accumulation steps; one
+    // atomic tick per step is negligible next to the per-step batch math.
+    const bool trackProgress = (W >= PROGRESS_MIN_W);
+    if (trackProgress) {
+        const long long perThread =
+            WARMUP_STEPS + BOUNDS_STEPS + rp.iterations / BATCH_SIZE + 1;
+        g_progressDone.store(0, std::memory_order_relaxed);
+        g_progressTotal.store(perThread * T, std::memory_order_relaxed);
+    }
+
     // ── Phase A: warmup + auto-bounds (parallel over trajectory slices) ──────
     struct Stat {
         float uMin = FLT_MAX, uMax = -FLT_MAX;
@@ -263,8 +298,10 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
         float* Y = ys.data() + lo;
         float* Z = zs.data() + lo;
 
-        for (int w = 0; w < WARMUP_STEPS; w++)
+        for (int w = 0; w < WARMUP_STEPS; w++) {
             attractorIterateN(rp.attractorType, rp.params, X, Y, Z, n);
+            if (trackProgress) g_progressDone.fetch_add(1, std::memory_order_relaxed);
+        }
 
         Stat st;
         // LIGHT: mean 3-D step length, to normalise speed later.
@@ -273,6 +310,7 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
 
         for (int s = 0; s < BOUNDS_STEPS; s++) {
             attractorIterateN(rp.attractorType, rp.params, X, Y, Z, n);
+            if (trackProgress) g_progressDone.fetch_add(1, std::memory_order_relaxed);
             if (isLight) {
                 for (int i = 0; i < n; i++) {
                     float dx = X[i] - px[i], dy = Y[i] - py[i], dz = Z[i] - pz[i];
@@ -434,7 +472,10 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
                 }
             };
 
-            for (long long s = 0; s < baseSteps; s++) lightStep(n);
+            for (long long s = 0; s < baseSteps; s++) {
+                lightStep(n);
+                if (trackProgress) g_progressDone.fetch_add(1, std::memory_order_relaxed);
+            }
             int exCount = std::min(hi, rem) - lo;   // extra step for global idx < rem
             if (exCount > n) exCount = n;
             if (exCount > 0) lightStep(exCount);
@@ -539,7 +580,10 @@ bool renderAttractor(const RenderParams& rp, int* outPixels) {
             }
         };
 
-        for (long long s = 0; s < baseSteps; s++) stepAccum(n);
+        for (long long s = 0; s < baseSteps; s++) {
+            stepAccum(n);
+            if (trackProgress) g_progressDone.fetch_add(1, std::memory_order_relaxed);
+        }
         int exCount = std::min(hi, rem) - lo;
         if (exCount > n) exCount = n;
         if (exCount > 0) stepAccum(exCount);

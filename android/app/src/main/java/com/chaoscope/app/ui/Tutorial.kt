@@ -1,13 +1,19 @@
 package com.chaoscope.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -92,6 +98,16 @@ fun TutorialOverlay(
         // (the control panel) push the card to the top.
         val placeCardAtTop = spotlightRect != null &&
             spotlightRect.center.y > constraints.maxHeight / 2f
+        // The anchor rects are measured a frame after first composition. Until the
+        // current step's anchor resolves we don't yet know which half to place the
+        // card on, so we keep it invisible and fade it in once `placeCardAtTop` is
+        // settled — otherwise the card visibly jumps from bottom to top on load.
+        val cardReady = spotlightRect != null
+        val cardAlpha by animateFloatAsState(
+            targetValue   = if (cardReady) 1f else 0f,
+            animationSpec = tween(durationMillis = 180),
+            label         = "tutorialCardFade",
+        )
         // ── Semi-transparent overlay with cutout spotlight ──────────────────
         Canvas(
             modifier = Modifier
@@ -125,10 +141,15 @@ fun TutorialOverlay(
         Card(
             modifier = Modifier
                 .align(if (placeCardAtTop) Alignment.TopCenter else Alignment.BottomCenter)
+                .alpha(cardAlpha)
                 .then(if (placeCardAtTop) Modifier.statusBarsPadding() else Modifier.navigationBarsPadding())
                 .padding(horizontal = 20.dp, vertical = 24.dp)
                 // Clear the progress dots when sitting at the top.
                 .padding(top = if (placeCardAtTop) 28.dp else 0.dp)
+                // Never let the card grow past the screen — otherwise a long
+                // (translated) body can push the Skip/Next row off-screen and
+                // the tutorial becomes impossible to dismiss.
+                .heightIn(max = maxHeight * 0.7f)
                 .fillMaxWidth(),
             shape    = RoundedCornerShape(20.dp),
             colors   = CardDefaults.cardColors(
@@ -151,6 +172,11 @@ fun TutorialOverlay(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 22.sp,
+                    // Body scrolls if it's too tall; the button row below stays
+                    // pinned and always reachable.
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(

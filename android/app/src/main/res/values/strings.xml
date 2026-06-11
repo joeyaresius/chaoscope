@@ -17,7 +17,6 @@
     <string name="cd_close">Close</string>
 
     <!-- Recents -->
-    <string name="cd_recent_open">Recent render — tap to open</string>
     <string name="cd_recent_share">Share this render</string>
 
     <!-- Live preview -->
@@ -27,14 +26,16 @@
          Splash screen
          ==================================================================== -->
     <string name="splash_tagline">Strange Attractor Explorer</string>
-    <string name="splash_description">Visualise the hidden order inside chaos.\nMillions of iterations. Twelve attractors.\nInfinite shapes waiting to be discovered.</string>
-    <string name="splash_tribute">✦  A tribute to the original Chaoscope\nby Nicolas Desprez (2000s) — the Windows app\nthat first made strange attractors beautiful.</string>
+    <string name="splash_description">Visualise the hidden order inside chaos.\nMillions of iterations. Seventeen attractors.\nInfinite shapes waiting to be discovered.</string>
+    <string name="splash_tribute">✦  A tribute to the original Chaoscope\nby Nicolas Desprez (2000s) — which first\nmade strange attractors beautiful.</string>
+    <string name="splash_tribute_short">✦ A tribute to the original Chaoscope by Nicolas Desprez</string>
     <string name="splash_btn_explore">Explore Attractors</string>
     <string name="splash_btn_close">Close</string>
     <string name="splash_btn_tutorial">🎓  Show tutorial</string>
     <string name="splash_btn_coffee">Buy me a coffee</string>
     <string name="splash_btn_feedback">Suggest or Criticize</string>
     <string name="splash_footer">Open source · Apache 2.0 License</string>
+    <string name="splash_credits">Created by Lucas Balancin and Thiago Sturiale · 2026</string>
     <string name="splash_feedback_subject">Chaoscope — Suggestion / Feedback</string>
 
     <!-- ====================================================================
@@ -60,7 +61,47 @@
     <string name="section_render_detail">Render Detail</string>
     <string name="section_preview_density">Preview Density</string>
     <string name="section_animation_export">Animation Export</string>
-    <string name="section_recent_renders">Recent Renders</string>
+    <string name="section_gallery">Gallery</string>
+
+    <!-- ── Gallery ─────────────────────────────────────────────────────────── -->
+    <string name="gallery_view_all">View all</string>
+    <string name="gallery_open_editor">Open in editor</string>
+    <string name="gallery_view_image">View image</string>
+    <string name="gallery_delete">Delete</string>
+    <string name="gallery_delete_confirm_title">Delete render?</string>
+    <string name="gallery_delete_entry_only">Remove from gallery only</string>
+    <string name="gallery_delete_with_file">Delete file from device too</string>
+    <string name="gallery_empty">Your exported renders will appear here.</string>
+    <string name="cd_gallery_entry">Gallery render — tap for actions</string>
+    <string name="cd_close_gallery">Close gallery</string>
+
+    <!-- ── Undo ────────────────────────────────────────────────────────────── -->
+    <string name="btn_undo">Undo</string>
+    <string name="msg_shuffled">Shuffled</string>
+    <string name="msg_preset_applied">Preset applied</string>
+
+    <!-- ── Settings sheet ──────────────────────────────────────────────────── -->
+    <string name="settings_title">Settings</string>
+    <string name="section_language">Language</string>
+    <string name="btn_replay_tutorial">🎓  Replay tutorial</string>
+
+    <!-- ── Attractor of the Day ────────────────────────────────────────────── -->
+    <string name="daily_title">Attractor of the Day</string>
+
+    <!-- ── Live wallpaper ──────────────────────────────────────────────────── -->
+    <string name="wp_settings_title">Live Wallpaper</string>
+    <string name="wp_description">A strange attractor slowly rotating on your home screen.</string>
+    <string name="wp_source_label">Wallpaper shows</string>
+    <string name="wp_source_current">My current creation</string>
+    <string name="wp_speed_label">Rotation speed</string>
+    <string name="wp_hint">Rotates only while the home screen is visible; pauses in battery saver.</string>
+
+    <!-- ── Preset codes (import / share) ───────────────────────────────────── -->
+    <string name="btn_import_preset">Import</string>
+    <string name="import_preset_title">Import preset</string>
+    <string name="import_preset_hint">Paste a Chaoscope preset code (CHS1:…) — for example from a shared image caption.</string>
+    <string name="import_invalid">Invalid or newer-version code</string>
+    <string name="msg_clipboard_preset">Preset code found in clipboard</string>
 
     <!-- ====================================================================
          Buttons
@@ -70,6 +111,7 @@
     <string name="btn_render_4k">4K Render</string>
     <string name="btn_export_png">Export PNG</string>
     <string name="btn_set_wallpaper">🖼  Set as Wallpaper</string>
+    <string name="btn_set_live_wallpaper">🌀  Set as Live Wallpaper</string>
     <string name="btn_copy_caption">📋  Copy Caption</string>
     <string name="btn_export_video">🎬  Export Video</string>
     <string name="btn_cancel_export">Cancel export</string>
@@ -81,6 +123,7 @@
     <string name="btn_cancel">Cancel</string>
     <string name="btn_save">Save</string>
     <string name="btn_edit_colour">Edit colour</string>
+    <string name="btn_change_photo">Change photo</string>
 
     <!-- ====================================================================
          Toggles and descriptions
@@ -132,6 +175,9 @@
     <string name="anim_orbit_hint">Renders the attractor as growing coloured dots — each frame reveals more of the orbit path. No keyframes needed.</string>
     <string name="anim_sweep_hint">Auto-varies all parameters from the current state to a random target — a fresh result every export. No keyframes needed.</string>
     <string name="anim_exporting_frame">Exporting frame %1$d / %2$d</string>
+    <string name="video_warning_title">Exports in the background</string>
+    <string name="video_warning_body">Rendering the video can take a while. It keeps running in the background, and we\'ll post a progress notification so you can track it and cancel if needed. Allow notifications on the next screen to see it.</string>
+    <string name="video_warning_confirm">Start export</string>
 
     <!-- ====================================================================
          Color picker dialog
@@ -172,7 +218,7 @@
     <string name="tutorial_welcome_title">Welcome to Chaoscope</string>
     <string name="tutorial_welcome_body">Drag anywhere on the canvas to rotate the attractor in 3D. Pinch to zoom.</string>
     <string name="tutorial_pick_title">Pick an attractor</string>
-    <string name="tutorial_pick_body">Scroll the chip row to choose from 15 strange attractors — or tap Surprise Me for a random one.</string>
+    <string name="tutorial_pick_body">Scroll the thumbnail gallery to pick an attractor — or tap Surprise Me for a random one.</string>
     <string name="tutorial_tune_title">Tune the parameters</string>
     <string name="tutorial_tune_body">Drag any slider to reshape the orbit in real time. Small changes can completely transform the picture.</string>
     <string name="tutorial_render_title">Tap to render</string>
@@ -182,4 +228,137 @@
     <string name="tutorial_next">Next</string>
     <string name="tutorial_done">Done</string>
     <string name="tutorial_skip">Skip tutorial</string>
+
+    <!-- ── Attractor descriptions &amp; parameter hints ───────────────────── -->
+    <string name="attr_clifford_desc">A classic 2-D iterative map lifted into 3-D. Six knobs warp how each step folds and stretches the orbit — small changes produce wildly different shapes.</string>
+    <string name="attr_clifford_hint0">Horizontal sine drive — controls the main wave that bends the orbit left and right.</string>
+    <string name="attr_clifford_hint1">Vertical sine drive — controls how the orbit folds up and down.</string>
+    <string name="attr_clifford_hint2">Horizontal cosine drive — adds a perpendicular twist to the X axis.</string>
+    <string name="attr_clifford_hint3">Vertical cosine drive — adds a perpendicular twist to the Y axis.</string>
+    <string name="attr_clifford_hint4">Coupling between axes — higher values create tighter, more knotted patterns.</string>
+    <string name="attr_clifford_hint5">Secondary coupling — fine-tunes the overall texture density.</string>
+
+    <string name="attr_peter_de_jong_desc">Cousin of Clifford with stronger nonlinearity — produces dense filigree and shell-like layered patterns.</string>
+    <string name="attr_peter_de_jong_hint0">Primary X stretch — wider values pull the orbit horizontally.</string>
+    <string name="attr_peter_de_jong_hint1">Primary Y stretch — wider values pull the orbit vertically.</string>
+    <string name="attr_peter_de_jong_hint2">Cross-coupling — bends the orbit diagonally.</string>
+    <string name="attr_peter_de_jong_hint3">Secondary X stretch — adds finer-grained horizontal detail.</string>
+    <string name="attr_peter_de_jong_hint4">Secondary Y stretch — adds finer-grained vertical detail.</string>
+    <string name="attr_peter_de_jong_hint5">Final twist — controls how tightly the shape spirals.</string>
+
+    <string name="attr_gumowski_mira_desc">A 2-D map from plasma physics. Tends toward delicate, organic curves that look like seashells or jellyfish.</string>
+    <string name="attr_gumowski_mira_hint0">Damping — close to 0 keeps orbits open; further from 0 tightens loops.</string>
+    <string name="attr_gumowski_mira_hint1">Nonlinearity — drives the curl. Negative values flip the spiral direction.</string>
+
+    <string name="attr_lorenz_desc">The famous butterfly. Edward Lorenz\'s 1963 weather model — the system that made \"chaos\" a household word.</string>
+    <string name="attr_lorenz_hint0">σ (Prandtl number) — fluid viscosity. Standard value is 10.</string>
+    <string name="attr_lorenz_hint1">ρ (Rayleigh number) — drives the convection. Above ~24.74 the chaos kicks in.</string>
+    <string name="attr_lorenz_hint2">β (aspect ratio) — controls the wing geometry. Standard is 8/3 ≈ 2.667.</string>
+    <string name="attr_lorenz_hint3">dt — simulation step. Smaller = smoother trajectory but slower convergence.</string>
+
+    <string name="attr_rossler_desc">A simpler cousin of Lorenz. Spirals slowly outward then snaps back — like a cosmic pinball.</string>
+    <string name="attr_rossler_hint0">Inner spiral rate — how fast orbits expand on the flat plane.</string>
+    <string name="attr_rossler_hint1">Lift offset — small constant that nudges the orbit into 3-D.</string>
+    <string name="attr_rossler_hint2">Snap threshold — when the orbit reaches this, it folds violently. Higher = wider funnel.</string>
+    <string name="attr_rossler_hint3">dt — simulation step.</string>
+
+    <string name="attr_aizawa_desc">A twisted torus. Loops wrap a central axis while drifting along it — produces shell or Möbius-like shapes.</string>
+    <string name="attr_aizawa_hint0">Drift along the central axis.</string>
+    <string name="attr_aizawa_hint1">Vertical compression of the torus.</string>
+    <string name="attr_aizawa_hint2">Radial pull toward the axis.</string>
+    <string name="attr_aizawa_hint3">Twist rate around the axis — higher = tighter coil.</string>
+    <string name="attr_aizawa_hint4">Asymmetry — breaks the perfect torus into more organic curls.</string>
+    <string name="attr_aizawa_hint5">Vertical asymmetry — same idea on the up/down axis.</string>
+    <string name="attr_aizawa_hint6">dt — simulation step.</string>
+
+    <string name="attr_thomas_desc">Cyclically symmetric — the same equation in x, y, and z. Looks like a tangled ball of yarn.</string>
+    <string name="attr_thomas_hint0">Damping — lower values make the orbit more chaotic. Below ~0.21 it becomes hyperchaotic.</string>
+    <string name="attr_thomas_hint1">dt — simulation step.</string>
+
+    <string name="attr_chaotic_flow_desc">A generic chaotic flow with many control knobs — wide range of forms, from elegant ribbons to dense storms.</string>
+    <string name="attr_chaotic_flow_hint0">Primary drive on the X axis.</string>
+    <string name="attr_chaotic_flow_hint1">Primary drive on the Y axis.</string>
+    <string name="attr_chaotic_flow_hint2">Coupling between axes.</string>
+    <string name="attr_chaotic_flow_hint3">Vertical lift.</string>
+    <string name="attr_chaotic_flow_hint4">Forcing strength — higher creates more violent dynamics.</string>
+    <string name="attr_chaotic_flow_hint5">dt — simulation step.</string>
+
+    <string name="attr_icon_desc">Symmetric icons (Field &amp; Golubitsky). Complex polynomials produce mandala-like patterns with rotational symmetry, lifted into a 3-D relief you can tilt and rotate.</string>
+    <string name="attr_icon_hint0">λ — overall contraction. More negative pulls orbits inward.</string>
+    <string name="attr_icon_hint1">α — radial drive. Higher gives sharper rays.</string>
+    <string name="attr_icon_hint2">β — angular distortion. Bends the symmetry axes and the depth relief.</string>
+    <string name="attr_icon_hint3">ω — rotation rate. Sets the n-fold symmetry of the final pattern.</string>
+
+    <string name="attr_ifs_desc">Iterated function system. Four affine maps applied at random produce a fractal fern; the twist knob spirals the fronds out of the plane into 3-D.</string>
+    <string name="attr_ifs_hint0">Width — fattens or thins each leaflet.</string>
+    <string name="attr_ifs_hint1">Lean — biases the fern left or right of vertical.</string>
+    <string name="attr_ifs_hint2">Twist — rotates each frond out of plane. 0 is the flat 2-D fern; higher coils it into 3-D.</string>
+
+    <string name="attr_julia_desc">Quaternion Julia set for q² + c, rendered as a 3-D surface. The j-term (c_j) drives the depth — set it to 0 for the classic flat 2-D Julia.</string>
+    <string name="attr_julia_hint0">Real (scalar) part of c.</string>
+    <string name="attr_julia_hint1">Imaginary (i) part of c. Values near the Mandelbrot edge give the richest detail.</string>
+    <string name="attr_julia_hint2">j part of c — the third dimension. 0 collapses to a flat 2-D Julia; larger values open it into a 3-D body.</string>
+
+    <string name="attr_pickover_desc">Clifford Pickover\'s iconic strange attractor — produces wing- and shell-like 3-D forms with subtle layering.</string>
+    <string name="attr_pickover_hint0">X stretch — how far the orbit reaches sideways.</string>
+    <string name="attr_pickover_hint1">Y stretch — vertical span of the shape.</string>
+    <string name="attr_pickover_hint2">Cross-coupling — bends the wings.</string>
+    <string name="attr_pickover_hint3">Final twist — sets the overall handedness.</string>
+
+    <string name="attr_halvorsen_desc">Cyclically symmetric — the same equation cycled through x, y and z. Folds into interlocking torus-knot loops, like a 3-D pretzel.</string>
+    <string name="attr_halvorsen_hint0">Damping — lower values loosen the loops; near 1.4 the orbit barely stays bound.</string>
+    <string name="attr_halvorsen_hint1">dt — simulation step. Smaller = smoother, slower convergence.</string>
+
+    <string name="attr_burke_shaw_desc">A fast double-spiral that winds into a tight tornado of nested shells — dense, galaxy-like swirls.</string>
+    <string name="attr_burke_shaw_hint0">Coupling strength — drives the swirl rate. Higher winds the spiral tighter.</string>
+    <string name="attr_burke_shaw_hint1">Vertical forcing — lifts and stretches the funnel along its axis.</string>
+    <string name="attr_burke_shaw_hint2">dt — simulation step.</string>
+
+    <string name="attr_sprott_b_desc">One of Sprott\'s minimal chaotic systems — just two terms, yet it traces a broad swirling disc. Elegant and beginner-friendly.</string>
+    <string name="attr_sprott_b_hint0">Coupling — scales the y·z drive that feeds the swirl.</string>
+    <string name="attr_sprott_b_hint1">Feedback — scales the x·y term that closes the loop. Reshapes the disc.</string>
+    <string name="attr_sprott_b_hint2">dt — simulation step.</string>
+
+    <!-- ── Palette descriptions ───────────────────────────────────────────── -->
+    <string name="palette_nebula_desc">Deep blues and purples — cosmic and quiet.</string>
+    <string name="palette_fire_desc">Warm reds, oranges and yellow — molten.</string>
+    <string name="palette_electric_desc">Cool cyan and bright blue — high-voltage.</string>
+    <string name="palette_aurora_desc">Greens, teals and violets — northern lights.</string>
+    <string name="palette_matrix_desc">Mono-green on black — terminal nostalgia.</string>
+    <string name="palette_grey_desc">Pure luminance — focus on form, not colour.</string>
+    <string name="palette_spectrum_desc">Full hue wheel — violet through cyan, green, yellow to orange, dark-to-bright.</string>
+    <string name="palette_sunset_desc">Deep purple to magenta, orange and golden cream — warm and dramatic.</string>
+    <string name="palette_ice_desc">Navy to steel blue, ice blue and white — cold and crystalline.</string>
+    <string name="palette_neon_desc">Hot pink to electric green — high-contrast, vibrant.</string>
+    <string name="palette_custom_desc">Your own colour stops — tap Edit to customise.</string>
+
+    <!-- ── Render style descriptions ──────────────────────────────────────── -->
+    <string name="style_gas_desc">Log-histogram accumulation — the classic Chaoscope mode.</string>
+    <string name="style_dust_desc">4th-root sparse points — diffuse starfield or dust-cloud look.</string>
+    <string name="style_liquid_desc">Gas with z-buffer depth — near points bright, far points dim.</string>
+    <string name="style_plasma_desc">Cyclic colour bands — high-frequency striped patterns.</string>
+    <string name="style_solid_desc">Hard threshold silhouette — bold, poster-like fills.</string>
+    <string name="style_light_desc">Per-point orbit speed × curvature — warm core, cool periphery, bright at bends.</string>
+
+    <!-- ── Render quality descriptions ────────────────────────────────────── -->
+    <string name="quality_draft_desc">Fastest — fewer points, rougher detail.</string>
+    <string name="quality_standard_desc">Balanced default.</string>
+    <string name="quality_high_desc">Denser and smoother — slower render.</string>
+    <string name="quality_ultra_desc">Maximum detail — an HD render can take a while.</string>
+
+    <!-- ── Preview density descriptions ───────────────────────────────────── -->
+    <string name="density_low_desc">Lightest — smoothest rotation on slower phones.</string>
+    <string name="density_med_desc">Balanced default.</string>
+    <string name="density_high_desc">Most detail while rotating — best on fast phones.</string>
+
+    <string name="attr_lorenz_84_desc">A low-order model of atmospheric circulation — Edward Lorenz\'s 1984 \"weather in a box.\" Traces looping, ribbon-like flows that wander between calm and stormy regimes.</string>
+    <string name="attr_lorenz_84_hint0">Damping of the westerly wind — how quickly the main flow decays.</string>
+    <string name="attr_lorenz_84_hint1">Strength of the wave coupling — links the temperature waves to the jet.</string>
+    <string name="attr_lorenz_84_hint2">Thermal forcing — the equator-to-pole heating that drives the whole system.</string>
+    <string name="attr_lorenz_84_hint3">Asymmetry forcing — tilts the wave pattern, breaking the symmetry.</string>
+    <string name="attr_lorenz_84_hint4">dt — simulation step.</string>
+
+    <string name="attr_henon_desc">The canonical strange attractor — Michel Hénon\'s 1976 map. Its orbit settles onto a delicate banana-shaped curve that, zoomed in, reveals endless self-similar fractal bands.</string>
+    <string name="attr_henon_hint0">Nonlinear fold — the squared term that bends the curve. Near 1.4 gives the classic shape; above ~1.42 the orbit escapes.</string>
+    <string name="attr_henon_hint1">Contraction — how strongly each step shrinks toward the line. Sets the thickness of the fractal bands.</string>
 </resources>

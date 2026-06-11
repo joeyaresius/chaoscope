@@ -193,6 +193,22 @@ Java_com_chaoscope_ChaoscopeEngine_nativePaletteLut(
     return result;
 }
 
+/** Progress of the in-flight HD render in [0,1], or -1 when untracked. */
+JNIEXPORT jfloat JNICALL
+Java_com_chaoscope_ChaoscopeEngine_nativeRenderProgress(
+    JNIEnv* /* env */, jobject /* this */
+) {
+    return renderProgress();
+}
+
+/** Clear progress state before kicking off a render. */
+JNIEXPORT void JNICALL
+Java_com_chaoscope_ChaoscopeEngine_nativeRenderProgressReset(
+    JNIEnv* /* env */, jobject /* this */
+) {
+    renderProgressReset();
+}
+
 // ── GPU renderer JNI ─────────────────────────────────────────────────────────
 
 JNIEXPORT jboolean JNICALL
