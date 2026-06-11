@@ -1031,29 +1031,36 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Peak per-pixel dot count for the full orbit at [size] resolution, turned into
-     * a per-dot alpha so the finished (all-points) trace tops out near
-     * [ORBIT_PEAK_TARGET] instead of clamping to white. Binned at the draw
-     * resolution — the scale that actually governs ADD-blend saturation.
+     * Per-dot alpha from the *median* nonzero per-pixel dot count of the full
+     * orbit at [size] resolution, so the body of the trace lands near
+     * [ORBIT_BODY_TARGET]. Normalising to the absolute peak (the old scheme)
+     * made dense-cored attractors invisible: a single outlier pixel thousands
+     * of times denser than the rest forced alpha to 1 and left the typical
+     * pixel at a few /255. The rare hot-core pixels now clip toward white
+     * instead — the same trade the renderer's log tone-map makes.
      */
     private fun computeOrbitDotAlpha(pts: FloatArray, size: Int): Int {
         val n = pts.size / 2
         if (n == 0) return ORBIT_DOT_ALPHA
         val bins = IntArray(size * size)
         val half = size * 0.5f
-        var maxBin = 0
+        var nonZero = 0
         var i = 0
         while (i < n) {
             val px = (half + pts[i * 2]     * half).toInt()
             val py = (half + pts[i * 2 + 1] * half).toInt()
             if (px in 0 until size && py in 0 until size) {
-                val c = ++bins[py * size + px]
-                if (c > maxBin) maxBin = c
+                if (bins[py * size + px]++ == 0) nonZero++
             }
             i++
         }
-        if (maxBin <= 0) return ORBIT_DOT_ALPHA
-        return (ORBIT_PEAK_TARGET / maxBin).coerceIn(1, ORBIT_DOT_ALPHA)
+        if (nonZero == 0) return ORBIT_DOT_ALPHA
+        val counts = IntArray(nonZero)
+        var j = 0
+        for (b in bins) if (b > 0) counts[j++] = b
+        counts.sort()
+        val median = counts[nonZero / 2].coerceAtLeast(1)
+        return (ORBIT_BODY_TARGET / median).coerceIn(1, ORBIT_DOT_ALPHA)
     }
 
     /**
@@ -1348,10 +1355,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         // this toward the measured peak density so the trace can't blow out to white.
         private const val ORBIT_DOT_ALPHA = 28
 
-        // Target accumulated value (0–255) for the single densest pixel once the full
-        // orbit is drawn. < 255 leaves a little colour headroom in the brightest core.
-        // Raise toward 255 for punchier output, lower for a softer finish.
-        private const val ORBIT_PEAK_TARGET = 220
+        // Target accumulated value (0–255) for the *median-density* pixel once the
+        // full orbit is drawn — the brightness of the trace's body. Dense cores
+        // clip toward white (like the renderer's log tone-map highlights). Raise
+        // for a brighter body at the cost of more core blowout.
+        private const val ORBIT_BODY_TARGET = 72
 
         // ── Orbit-Trace tuning ─────────────────────────────────────────────────
         // Colour mode:
@@ -1370,9 +1378,9 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         // brightness) and a faster per-frame redraw. The lever behind the original look.
         private const val ORBIT_MAX_POINTS = 2_000_000
 
-        // Scale per-dot alpha to the measured peak density so the finished trace tops
-        // out near ORBIT_PEAK_TARGET instead of clipping to white. Safe to combine with
-        // either colour mode; turn off for the exact legacy fixed-alpha brightness.
+        // Scale per-dot alpha to the measured median density so the finished trace's
+        // body sits near ORBIT_BODY_TARGET. Safe to combine with either colour mode;
+        // turn off for the exact legacy fixed-alpha brightness.
         private const val ORBIT_NORMALIZE_BRIGHTNESS = true
 
         // Max ping-pong base frame count to cache for reverse-half replay (incremental
