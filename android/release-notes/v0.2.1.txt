@@ -1,0 +1,29 @@
+<en-US>
+Welcome to Chaoscope! Explore strange attractors — millions of points tracing beautiful chaotic shapes. Render in HD, recolour with custom palettes, export stills and video, and set them as live wallpaper.
+
+This release adds full edge-to-edge display on Android 15, refines the welcome screen, and brings general polish. Available in English, Português, Français, Español and 中文.
+</en-US>
+
+<pt-BR>
+Bem-vindo ao Chaoscope! Explore atratores estranhos — milhões de pontos formando belas figuras caóticas. Renderize em HD, recolora com paletas personalizadas, exporte imagens e vídeos e use-os como papel de parede.
+
+Esta versão adiciona exibição de ponta a ponta no Android 15, aprimora a tela de boas-vindas e traz melhorias gerais. Disponível em Português, English, Français, Español e 中文.
+</pt-BR>
+
+<fr-FR>
+Bienvenue dans Chaoscope ! Explorez les attracteurs étranges — des millions de points dessinant de superbes formes chaotiques. Rendu en HD, recoloration avec des palettes personnalisées, export d'images et de vidéos, et fond d'écran.
+
+Cette version ajoute l'affichage bord à bord sur Android 15, peaufine l'écran d'accueil et apporte des améliorations générales. Disponible en Français, English, Português, Español et 中文.
+</fr-FR>
+
+<es-ES>
+¡Bienvenido a Chaoscope! Explora atractores extraños: millones de puntos que trazan bellas formas caóticas. Renderiza en HD, recolorea con paletas personalizadas, exporta imágenes y vídeos, y úsalos como fondo de pantalla.
+
+Esta versión añade la visualización de borde a borde en Android 15, mejora la pantalla de bienvenida y trae mejoras generales. Disponible en Español, English, Português, Français y 中文.
+</es-ES>
+
+<zh-CN>
+欢迎使用 Chaoscope！探索奇异吸引子——数百万个点描绘出绝美的混沌图形。支持高清渲染、自定义调色板重新着色、导出图片和视频，并设为壁纸。
+
+此版本新增 Android 15 全面屏（边到边）显示，优化了欢迎界面，并带来多项整体改进。支持简体中文、English、Português、Français 和 Español。
+</zh-CN>
