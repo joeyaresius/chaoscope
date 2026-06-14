@@ -40,5 +40,8 @@ google-services.json
 __pycache__/
 *.pyc
 
+# Prototype generated output (regenerable from the scripts)
+prototype/out/
+
 # Claude Code (personal/local settings)
 .claude/

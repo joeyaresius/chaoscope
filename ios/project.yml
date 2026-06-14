@@ -23,15 +23,9 @@ targets:
       # C bridge (includes renderer.h via HEADER_SEARCH_PATHS)
       - path: Core
         compilerFlags: "-std=c++17 -ffast-math"
-      # Portable C++ engine — shared with Android.
-      # gpu_renderer and chaoscope_jni are excluded (Android-only).
-      - path: ../android/app/src/main/cpp
+      # Portable C++ engine — shared with Android, lives in top-level core/.
+      - path: ../core
         compilerFlags: "-std=c++17 -ffast-math"
-        excludes:
-          - chaoscope_jni.cpp
-          - gpu_renderer.cpp
-          - gpu_renderer.h
-          - CMakeLists.txt
 
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.chaoscope.app
@@ -42,7 +36,7 @@ targets:
       OTHER_CFLAGS: "-ffast-math"
       HEADER_SEARCH_PATHS:
         - "$(SRCROOT)/Core"
-        - "$(SRCROOT)/../android/app/src/main/cpp"
+        - "$(SRCROOT)/../core"
       IPHONEOS_DEPLOYMENT_TARGET: "16.0"
       TARGETED_DEVICE_FAMILY: "1,2"   # iPhone + iPad
       ENABLE_BITCODE: "NO"            # not required since Xcode 14
