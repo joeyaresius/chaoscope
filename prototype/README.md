@@ -1,103 +1,142 @@
-# Chaoscope Clone — Prototype (Phases 1–4)
+# Chaoscope — Python prototype & asset tooling
 
-Motor matemático + pipeline de renderização por histograma + sistema de cores, implementados em Python/NumPy como prova de conceito antes da portagem para C/C++.
+This folder is **not** part of the shipping apps. It holds two things:
 
----
+1. **`engine/`** — the original NumPy proof-of-concept: the attractor math + histogram
+   render pipeline that was validated here before being ported to the C++ engine in
+   [`core/`](../core/). It's still handy for fast visual QA without a device build.
+2. **`assets/`** — scripts that generate the launcher icon and the store / social-media
+   marketing assets (Instagram posts, reels, turntables, profile icon, video outro).
 
-## Estrutura
+Plus **`qa/`** for one-off analysis scripts.
 
 ```
 prototype/
-├── attractors.py   ← Fase 1 — Motor matemático (7 atratores 2-D / 3-D)
-├── renderer.py     ← Fase 2 — Histograma de densidade + tone-mapping logarítmico
-├── colormap.py     ← Fase 4 — Sistema de gradientes / paletas de cores
-├── render.py       ← Runner principal (CLI)
-└── requirements.txt
+├── engine/
+│   ├── attractors.py     ← attractor equations (vectorised NumPy)
+│   ├── renderer.py       ← density histogram + logarithmic tone-mapping + camera
+│   ├── colormap.py       ← gradient / palette system
+│   ├── render.py         ← CLI runner that wires the above together
+│   └── requirements.txt  ← numpy, pillow, matplotlib
+├── assets/
+│   ├── icon_design.py    ← launcher icon (real Lorenz orbit); --emit writes the Android drawable XMLs
+│   ├── profile_icon.py   ← Instagram profile photo (reuses icon_design geometry)
+│   ├── insta_export.py   ← curated "hero" attractor posts (1080² + 1080×1350)
+│   ├── video_export.py   ← Instagram reels / orbit-trace "build sweep" MP4s
+│   └── outro_mock.py     ← QA mock of the in-app video outro frame
+├── qa/
+│   └── orbit_alpha_check.py  ← orbit-trace per-pixel density distribution check
+└── out/                  ← generated images / MP4s (gitignored — regenerable)
 ```
+
+> `out/` is **gitignored**. Everything in it is produced by the scripts above, so it's
+> never committed. All scripts write there via paths relative to their own location, so
+> output lands in `prototype/out/` regardless of your current directory.
 
 ---
 
-## Instalação
+## Setup
 
 ```bash
-cd prototype
-pip install -r requirements.txt
+pip install -r engine/requirements.txt   # numpy, pillow, matplotlib
 ```
+
+Some `assets/` scripts also shell out to **ffmpeg** for MP4 encoding — install it and
+make sure it's on your `PATH`.
 
 ---
 
-## Uso rápido
+## `engine/` — the render POC
+
+Run the CLI from inside `engine/` (its imports are same-folder):
 
 ```bash
-# Preview: Clifford, 2 M iterações, 1024×1024, paleta nebula
+cd engine
+
+# Quick preview with matplotlib
 python render.py --show
 
-# Lorenz 3-D com rotação de câmera, salvo em PNG
-python render.py -a lorenz -n 5000000 -s 1024 -p fire --yaw 30 --pitch 20 -o out/lorenz.png --show
+# Lorenz 3-D with camera rotation, saved to PNG
+python render.py -a lorenz -n 5000000 -s 1024 -p fire --yaw 30 --pitch 20 -o ../out/lorenz.png
 
-# Listar todos os atratores e paletas disponíveis
+# List every attractor and palette
 python render.py --list
 ```
 
----
+### Attractors (engine POC)
 
-## Atratores disponíveis
+The Python engine implements a subset of the full C++ engine — enough to prove the
+pipeline:
 
-| Chave          | Nome              | Dimensão |
-|----------------|-------------------|----------|
-| `clifford`     | Clifford          | 2-D      |
-| `peterdejong`  | Peter de Jong     | 2-D      |
-| `gumowskimira` | Gumowski-Mira     | 2-D      |
-| `lorenz`       | Lorenz            | 3-D      |
-| `rossler`      | Rössler           | 3-D      |
-| `aizawa`       | Aizawa            | 3-D      |
-| `thomas`       | Thomas            | 3-D      |
+`clifford` · `peterdejong` · `gumowskimira` · `lorenz` · `rossler` · `aizawa` ·
+`thomas` · `icon` · `lorenz84` · `henon`
 
----
+> The shipping apps support 15+ attractors; the authoritative list and parameter
+> layouts live in [`core/attractors.h`](../core/attractors.h).
 
-## Paletas disponíveis
+### Palettes
 
 `nebula` · `fire` · `electric` · `aurora` · `matrix` · `greyscale` · `greyscale_inv`
 
----
+### Key CLI flags
 
-## Parâmetros do CLI
+| Flag | Default | Description |
+|---|---|---|
+| `-a, --attractor` | `clifford` | Attractor name |
+| `-n, --iters` | `2000000` | Iteration count |
+| `-s, --size` | `1024` | Square canvas size (px) |
+| `-p, --palette` | `nebula` | Colour palette |
+| `--gamma` | `1.0` | Gamma applied to density |
+| `--tone` | `log` | Tone-mapping: `log` or `linear` |
+| `--yaw/--pitch/--roll` | `0` | Camera rotation for 3-D attractors (degrees) |
+| `--zoom` | `1.0` | Camera zoom |
+| `-o, --output` | — | PNG output path |
+| `--show` | — | Display with matplotlib |
 
-| Flag            | Padrão      | Descrição                                      |
-|-----------------|-------------|------------------------------------------------|
-| `--attractor`   | `clifford`  | Nome do atrator                                |
-| `--iters`       | `2000000`   | Número de iterações                            |
-| `--size`        | `1024`      | Tamanho do canvas em pixels (quadrado)         |
-| `--palette`     | `nebula`    | Paleta de cores                                |
-| `--gamma`       | `1.0`       | Correção de gamma aplicada à densidade         |
-| `--tone`        | `log`       | Tone-mapping: `log` ou `linear`                |
-| `--yaw/pitch/roll` | `0`      | Rotação de câmera para atratores 3-D (graus)   |
-| `--zoom`        | `1.0`       | Zoom da câmera                                 |
-| `--output`      | —           | Caminho de saída do PNG                        |
-| `--show`        | —           | Exibir com matplotlib                          |
-| `--batch-size`  | `10000`     | Tamanho do lote para iteração vectorizada      |
+(Run `python render.py --help` for the complete list.)
 
----
-
-## Arquitetura do pipeline
+### Pipeline
 
 ```
-Atrator (fórmula) → iterate_attractor_batch()
-        ↓ xs, ys, zs  (N pontos)
-     Camera.project()
-        ↓ u, v  (coordenadas de tela)
-  HistogramCanvas.accumulate()
-        ↓ counts[H, W]  (inteiros)
-   log_density_map()          ← escala logarítmica (estilo Chaoscope)
-        ↓ density[H, W]  ∈ [0, 1]
-      Palette.apply()
-        ↓ rgba[H, W, 4]  (uint8)
-    PIL.Image / matplotlib
+attractor formula → iterate_attractor_batch()  → xs, ys, zs
+        → Camera.project()                      → u, v
+        → HistogramCanvas.accumulate()          → counts[H, W]
+        → log_density_map()                      → density[H, W] ∈ [0, 1]
+        → Palette.apply()                        → rgba[H, W, 4]
+        → PIL.Image / matplotlib
 ```
+
+This mirrors the C++ engine in [`core/`](../core/) — see [core/README.md](../core/README.md).
 
 ---
 
-## Próximos passos (Fases 3 e 5)
+## `assets/` — icon & marketing generators
 
-- **Fase 3 — Mobile**: Portar o motor para C/C++ via NDK; UI em Jetpack Compose (Android) ou SwiftUI (iOS).
-- **Fase 5 — Otimização**: Preview a 1 M iterações enquanto slider é arrastado; botão "Renderizar Alta Qualidade" a 500 M iterações off-screen.
+These import the engine from `../engine` automatically (via a small `sys.path` shim),
+so you can run them from inside `assets/`:
+
+```bash
+cd assets
+
+python icon_design.py            # writes launcher-icon previews to ../out/
+python icon_design.py --emit     # also writes the Android drawable XMLs into android/.../res/drawable/
+python profile_icon.py           # Instagram profile photo → ../out/insta/
+python insta_export.py           # hero-attractor posts → ../out/insta/
+python video_export.py -a lorenz # orbit-trace reel MP4 → ../out/insta/  (needs ffmpeg)
+python outro_mock.py             # video-outro mock → ../out/  (needs icon_design output first)
+```
+
+> `icon_design.py --emit` is the **only** script that writes outside `prototype/` — it
+> regenerates `android/app/src/main/res/drawable/ic_launcher*.xml`. Don't hand-edit
+> those XMLs; change `icon_design.py` and re-emit.
+
+---
+
+## `qa/` — analysis scripts
+
+```bash
+python qa/orbit_alpha_check.py   # compares orbit-trace density normalisation bases
+```
+
+Standalone (no engine import) — used to validate the in-app `computeOrbitDotAlpha`
+normalisation against the Kotlin pipeline.
