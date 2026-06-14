@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Status-bar notification icon: monochrome (white-on-transparent) Lorenz
+  butterfly — two nested orbit loops with the orbit-head dot. Status-bar
+  small icons are alpha-masked, so only the silhouette matters.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <group
+        android:rotation="-18"
+        android:pivotX="12"
+        android:pivotY="12">
+
+        <!-- outer orbit -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"
+            android:pathData="M12,12 C9.8,7.6 3,7.6 3,12 C3,16.4 9.8,16.4 12,12 C14.2,7.6 21,7.6 21,12 C21,16.4 14.2,16.4 12,12 Z"/>
+
+        <!-- inner orbit -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="1.3"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"
+            android:pathData="M12,12 C10.6,9.4 6.2,9.4 6.2,12 C6.2,14.6 10.6,14.6 12,12 C13.4,9.4 17.8,9.4 17.8,12 C17.8,14.6 13.4,14.6 12,12 Z"/>
+
+        <!-- orbit head -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M21,12 m-1.4,0 a1.4,1.4 0 1,1 2.8,0 a1.4,1.4 0 1,1 -2.8,0 Z"/>
+    </group>
+</vector>

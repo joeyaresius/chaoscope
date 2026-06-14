@@ -1,0 +1,14 @@
+v0.3.0 — Galerie, Attracteur du Jour et Fond d'Écran Animé
+
+• Galerie de créations — chaque rendu exporté est sauvegardé avec son preset pour le rouvrir dans l'éditeur, le partager ou le supprimer (avec option de suppression depuis Photos)
+• Miniatures des presets sauvegardés — vos presets affichent un aperçu en direct dans le sélecteur
+• Annuler — aléatorisez ou appliquez un preset, puis tapez Annuler dans le message pour revenir en arrière
+• Attracteur du Jour — une sélection fraîche basée sur la date apparaît dans l'onglet Forme chaque jour
+• Codes de preset partageables — partagez n'importe quel aspect en tant que code CHS1: ; collez-le sur un autre appareil pour le recréer instantanément
+• Sélecteur de 17 attracteurs — parcourez tous les attracteurs avec des aperçus miniatures ; les noms longs s'ajustent maintenant correctement
+• Icône de paramètres — Détail de Rendu, Densité d'Aperçu et Langue déplacés dans une feuille de paramètres
+• Barre de progression du rendu — les rendus HD et 4K affichent un pourcentage en direct sur le canevas
+• Fond d'écran animé — définissez Chaoscope comme fond d'écran d'accueil ; choisissez l'aspect Actuel ou Quotidien et la vitesse de rotation
+• Correction de la luminosité Orbit-Trace — les formes à noyau dense (Lorenz, Clifford…) ne sont plus surexposées
+• Pulsation du bouton de rendu — le bouton pulse jusqu'au premier rendu pour guider les nouveaux utilisateurs
+• Améliorations de l'onglet Caméra — le Zoom fonctionne pour les attracteurs 2D ; le reste s'estompe élégamment

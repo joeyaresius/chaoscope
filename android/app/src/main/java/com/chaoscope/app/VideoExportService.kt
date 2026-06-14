@@ -128,7 +128,7 @@ class VideoExportService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_export)
             .setContentTitle(getString(R.string.notif_export_title))
             .setContentText(
                 if (total > 0) getString(R.string.notif_export_progress, done, total)

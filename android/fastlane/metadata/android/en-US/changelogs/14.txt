@@ -1,0 +1,14 @@
+v0.3.0 — Gallery, Daily Attractor & Live Wallpaper
+
+• Creations gallery — every render you export is saved with its preset so you can reopen it in the editor, share it, or delete it (with optional removal from Photos)
+• User-preset thumbnails — your saved presets show a live miniature preview in the picker
+• Undo — randomize or apply a preset and tap Undo in the snackbar if you want to go back
+• Attractor of the Day — a fresh date-seeded pick appears on the Shape tab every day
+• Shareable preset codes — share any look as a CHS1: code; paste it on another device to recreate it instantly
+• 17-attractor grid picker — browse all attractors with thumbnail previews; long names now wrap correctly
+• Settings gear — Render Detail, Preview Density and Language moved to a clean settings sheet
+• Render progress bar — HD and 4K renders show a live percentage bar on the canvas
+• Live wallpaper — set Chaoscope as your home screen wallpaper; choose Current or Daily look + rotation speed
+• Orbit-Trace brightness fix — dense-core shapes (Lorenz, Clifford…) are no longer washed out
+• FAB pulse — the render button pulses until your first render so new users know where to tap
+• Camera tab improvements — Zoom works for 2D attractors; the rest dims gracefully

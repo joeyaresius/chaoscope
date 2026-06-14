@@ -962,13 +962,14 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         // Fade in over first 8 frames (~0.27 s at 30fps)
         val alpha = if (outroIdx < 8) (outroIdx * 255 / 7).coerceIn(0, 255) else 255
 
-        canvas.drawColor(Color.parseColor("#FF080818"))
+        canvas.drawColor(Color.parseColor("#FF06060F"))
 
-        // Lorenz butterfly icon centred in the upper portion
+        // Lorenz-orbit icon (round variant: circle-clipped, blends as an
+        // app-icon disc against the matching background) in the upper portion
         val iconSize = (size * 0.35f).toInt()
         val iconLeft = (size - iconSize) / 2
         val iconTop  = (size * 0.20f).toInt()
-        ContextCompat.getDrawable(context, R.drawable.ic_launcher)?.apply {
+        ContextCompat.getDrawable(context, R.drawable.ic_launcher_round)?.apply {
             setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize)
             this.alpha = alpha
             draw(canvas)

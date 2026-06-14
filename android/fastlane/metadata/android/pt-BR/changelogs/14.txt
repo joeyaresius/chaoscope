@@ -1,0 +1,14 @@
+v0.3.0 — Galeria, Atrator do Dia e Papel de Parede Animado
+
+• Galeria de criações — cada render exportado é salvo com seu preset para reabrir no editor, compartilhar ou excluir (com opção de remover também das Fotos)
+• Miniaturas de presets salvos — seus presets exibem uma prévia ao vivo no seletor
+• Desfazer — aleatorize ou aplique um preset e toque em Desfazer no aviso para voltar atrás
+• Atrator do Dia — uma seleção nova baseada na data aparece na aba Forma todos os dias
+• Códigos de preset compartilháveis — compartilhe qualquer visual como código CHS1:; cole em outro dispositivo para recriar instantaneamente
+• Seletor de 17 atratores — explore todos com miniaturas; nomes longos agora quebram corretamente
+• Ícone de configurações — Detalhe de Render, Densidade de Prévia e Idioma movidos para uma aba de configurações
+• Barra de progresso do render — renders HD e 4K exibem uma porcentagem ao vivo no canvas
+• Papel de parede animado — defina Chaoscope como plano de fundo inicial; escolha visual Atual ou Diário e velocidade de rotação
+• Correção de brilho do Orbit-Trace — formas de núcleo denso (Lorenz, Clifford…) não ficam mais saturadas
+• Pulso do botão de render — o botão pulsa até o primeiro render para guiar novos usuários
+• Melhorias na aba Câmera — o Zoom funciona para atratores 2D; o restante escurece graciosamente
