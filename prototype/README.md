@@ -21,8 +21,9 @@ prototype/
 ├── assets/
 │   ├── icon_design.py    ← launcher icon (real Lorenz orbit); --emit writes the Android drawable XMLs
 │   ├── profile_icon.py   ← Instagram profile photo (reuses icon_design geometry)
-│   ├── insta_export.py   ← curated "hero" attractor posts (1080² + 1080×1350)
-│   ├── video_export.py   ← Instagram reels / orbit-trace "build sweep" MP4s
+│   ├── marketing.py      ← growth-loop helper: CHS1 preset codes + post captions (mirrors PresetSerializer.kt)
+│   ├── insta_export.py   ← curated "hero" attractor posts (1080² + 1080×1350) + per-post captions
+│   ├── video_export.py   ← Instagram reels / orbit-trace "build sweep" MP4s (+ --caption)
 │   └── outro_mock.py     ← QA mock of the in-app video outro frame
 ├── qa/
 │   └── orbit_alpha_check.py  ← orbit-trace per-pixel density distribution check
@@ -121,10 +122,24 @@ cd assets
 python icon_design.py            # writes launcher-icon previews to ../out/
 python icon_design.py --emit     # also writes the Android drawable XMLs into android/.../res/drawable/
 python profile_icon.py           # Instagram profile photo → ../out/insta/
-python insta_export.py           # hero-attractor posts → ../out/insta/
-python video_export.py -a lorenz # orbit-trace reel MP4 → ../out/insta/  (needs ffmpeg)
+python insta_export.py           # hero-attractor posts + captions → ../out/insta/
+python insta_export.py --captions-only   # just (re)write the .txt captions, no render (fast)
+python video_export.py -a lorenz --caption   # orbit-trace reel MP4 + caption → ../out/insta/  (needs ffmpeg)
 python outro_mock.py             # video-outro mock → ../out/  (needs icon_design output first)
 ```
+
+### The Instagram growth loop
+
+`insta_export.py` and `video_export.py` write a post-ready `<name>.txt` caption next to
+each image/reel (and an aggregated `captions.md`). Every caption carries a hook, the
+look description, the Play Store install link, and a **`CHS1:` preset code** — the same
+shareable code the app generates. A viewer copies the code, opens Chaoscope, and the
+in-app clipboard detector offers to paste it, dropping them onto the exact look from the
+post. Pretty picture → install → recreate → share again.
+
+`marketing.py` mirrors `android/.../PresetSerializer.kt` byte-for-byte to emit those
+codes. **If the Android preset format or enum names change, update `marketing.py` to
+match** (the app would bump the code prefix to `CHS2:`).
 
 > `icon_design.py --emit` is the **only** script that writes outside `prototype/` — it
 > regenerates `android/app/src/main/res/drawable/ic_launcher*.xml`. Don't hand-edit

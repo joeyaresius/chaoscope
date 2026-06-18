@@ -1,0 +1,4 @@
+• Pantalla de bienvenida simplificada para un primer inicio más limpio
+• Pequeñas correcciones y mejoras internas
+
+¿Te gusta Chaoscope? ¿Una idea o un fallo que reportar? Escríbenos a chaoscope@duck.com: leemos todo.

@@ -1,0 +1,4 @@
+• Streamlined the welcome screen for a cleaner first launch
+• Minor fixes and polish under the hood
+
+Enjoying Chaoscope? An idea or a bug to report? Write to chaoscope@duck.com — we read everything.

@@ -601,6 +601,11 @@ fun UiState.toPreset(name: String = attractorType.displayName) = Preset(
 // Sharing
 // ────────────────────────────────────────────────────────────────────────────
 
+/** Official Instagram presence — used by the share caption (tag nudge) and the
+ *  "Follow on Instagram" button on the About screen. */
+const val INSTAGRAM_HANDLE = "@chaoscope.app"
+const val INSTAGRAM_URL    = "https://www.instagram.com/chaoscope.app/"
+
 /** Format a parameter value compactly: trim trailing zeros, locale-independent. */
 private fun formatParamValue(v: Float): String =
     String.format(java.util.Locale.US, "%.3f", v).trimEnd('0').trimEnd('.')
@@ -637,4 +642,5 @@ fun buildShareCaption(
  */
 fun buildShareCaption(preset: Preset): String =
     buildShareCaption(preset.type, preset.palette, preset.params) +
-        "\n\nRecreate it in Chaoscope: " + presetToCode(preset)
+        "\n\nRecreate it in Chaoscope: " + presetToCode(preset) +
+        "\n\n📷 Tag $INSTAGRAM_HANDLE to be featured"

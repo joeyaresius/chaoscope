@@ -322,6 +322,33 @@ fun SplashScreen(
                         fontSize   = 15.sp,
                     )
                 }
+
+                // Follow the official Instagram — opens the IG app if present,
+                // otherwise the browser. About-only, beside the feedback button.
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick  = {
+                        val uri = Uri.parse(com.chaoscope.INSTAGRAM_URL)
+                        val appIntent = Intent(Intent.ACTION_VIEW, uri)
+                            .setPackage("com.instagram.android")
+                        runCatching { context.startActivity(appIntent) }.onFailure {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape  = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Primary),
+                ) {
+                    Text(text = "📷  ", fontSize = 16.sp, color = Primary)
+                    Text(
+                        text       = stringResource(R.string.splash_btn_instagram),
+                        color      = Primary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 15.sp,
+                    )
+                }
             }
 
             Spacer(Modifier.height(20.dp))
