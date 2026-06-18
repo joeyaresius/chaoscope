@@ -28,7 +28,6 @@
     <string name="splash_btn_explore">Explorar Atratores</string>
     <string name="splash_btn_close">Fechar</string>
     <string name="splash_btn_tutorial">🎓  Mostrar tutorial</string>
-    <string name="splash_btn_coffee">Me pague um café</string>
     <string name="splash_btn_feedback">Sugerir ou Criticar</string>
     <string name="splash_footer">Código aberto · Licença Apache 2.0</string>
     <string name="splash_credits">Criado por Lucas Balancin e Thiago Sturiale · 2026</string>

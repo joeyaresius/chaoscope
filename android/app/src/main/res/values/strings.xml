@@ -32,7 +32,6 @@
     <string name="splash_btn_explore">Explore Attractors</string>
     <string name="splash_btn_close">Close</string>
     <string name="splash_btn_tutorial">🎓  Show tutorial</string>
-    <string name="splash_btn_coffee">Buy me a coffee</string>
     <string name="splash_btn_feedback">Suggest or Criticize</string>
     <string name="splash_footer">Open source · Apache 2.0 License</string>
     <string name="splash_credits">Created by Lucas Balancin and Thiago Sturiale · 2026</string>

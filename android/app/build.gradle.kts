@@ -11,7 +11,7 @@ android {
         applicationId = "com.chaoscope"
         minSdk        = 26
         targetSdk     = 36
-        versionCode   = 14
+        versionCode   = 15
         versionName   = "0.3.0"
 
         externalNativeBuild {

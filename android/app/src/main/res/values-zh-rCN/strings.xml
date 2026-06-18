@@ -23,7 +23,6 @@
     <string name="splash_btn_explore">开始探索</string>
     <string name="splash_btn_close">关闭</string>
     <string name="splash_btn_tutorial">🎓  显示教程</string>
-    <string name="splash_btn_coffee">请我喝杯咖啡</string>
     <string name="splash_btn_feedback">建议或反馈</string>
     <string name="splash_footer">开源 · Apache 2.0 许可证</string>
     <string name="splash_credits">由 Lucas Balancin 与 Thiago Sturiale 创作 · 2026</string>

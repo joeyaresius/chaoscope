@@ -47,7 +47,6 @@ import kotlin.math.sin
 
 private val Primary   = Color(0xFF4FC3F7)
 private val Secondary = Color(0xFF9C27B0)
-private val BmcYellow = Color(0xFFFFDD00)
 
 @Composable
 fun SplashScreen(
@@ -295,32 +294,8 @@ fun SplashScreen(
                 }
             }
 
-            // Support / feedback buttons live on the About screen only.
+            // Feedback button lives on the About screen only.
             if (!isFirstLaunch) {
-                Spacer(Modifier.height(12.dp))
-
-                OutlinedButton(
-                    onClick  = {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW,
-                                   Uri.parse("https://buymeacoffee.com/balancin"))
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape  = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, BmcYellow),
-                ) {
-                    Text(text = "☕  ", fontSize = 18.sp)
-                    Text(
-                        text       = stringResource(R.string.splash_btn_coffee),
-                        color      = BmcYellow,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 15.sp,
-                    )
-                }
-
                 Spacer(Modifier.height(12.dp))
 
                 val feedbackSubject = stringResource(R.string.splash_feedback_subject)
