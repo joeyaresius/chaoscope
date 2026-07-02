@@ -29,6 +29,7 @@
     <string name="splash_btn_close">Fechar</string>
     <string name="splash_btn_tutorial">🎓  Mostrar tutorial</string>
     <string name="splash_btn_feedback">Sugerir ou Criticar</string>
+    <string name="splash_btn_instagram">Siga no Instagram</string>
     <string name="splash_footer">Código aberto · Licença Apache 2.0</string>
     <string name="splash_credits">Criado por Lucas Balancin e Thiago Sturiale · 2026</string>
     <string name="splash_feedback_subject">Chaoscope — Sugestão / Feedback</string>

@@ -1,0 +1,4 @@
+• Tela de boas-vindas simplificada para um primeiro início mais limpo
+• Pequenas correções e melhorias internas
+
+Curtindo o Chaoscope? Tem uma ideia ou encontrou um bug? Escreva para chaoscope@duck.com: lemos tudo.

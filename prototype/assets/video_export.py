@@ -444,8 +444,35 @@ def main(argv=None) -> int:
                     help="Turntable viewing tilt in degrees (default 22).")
     ap.add_argument("--preview", type=float, default=None,
                     help="Dump one frame at this progress (0..1) and exit.")
+    ap.add_argument("--caption", action="store_true",
+                    help="Also write a post-ready .txt caption (install link + "
+                         "CHS1 recreate-code) next to the MP4.")
+    ap.add_argument("--palette", default="electric",
+                    help="Palette for the caption's CHS1 code (default electric). "
+                         "The reel itself uses the depth ramp, not a palette.")
+    ap.add_argument("--hook", default="Watch a strange attractor draw itself "
+                    "from a single equation. 🌀",
+                    help="First caption line (the scroll-stopper).")
     ap.add_argument("--output", "-o", default=None)
-    render(ap.parse_args(argv))
+    args = ap.parse_args(argv)
+    render(args)
+
+    if args.caption and args.preview is None:
+        from marketing import spec_for_poc, build_caption
+        key = args.attractor.lower().replace("_", "").replace("-", "")
+        turntable = bool(args.spins and args.spins > 0)
+        spec = spec_for_poc(key, args.palette,
+                            yaw=args.yaw,
+                            pitch=args.tilt if turntable else args.pitch)
+        if spec is None:
+            print(f"(no CHS1 default for '{key}'; caption skipped)")
+        else:
+            suffix = "_turntable" if turntable else "_reel"
+            mp4 = args.output or os.path.join(OUT_DIR, f"{key}{suffix}.mp4")
+            cap = os.path.splitext(mp4)[0] + ".txt"
+            with open(cap, "w", encoding="utf-8") as fh:
+                fh.write(build_caption(spec, args.hook))
+            print(f"caption -> {cap}")
     return 0
 
 

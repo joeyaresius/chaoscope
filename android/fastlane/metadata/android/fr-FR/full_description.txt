@@ -1,0 +1,28 @@
+Chaoscope transforme les mathématiques cachées du chaos en un art hypnotique et infiniment détaillé, directement sur votre téléphone.
+
+Les attracteurs étranges sont l'empreinte visuelle des systèmes chaotiques : des équations simples qui, itérées des millions de fois, tracent des formes organiques et hypnotiques impossibles à dessiner à la main. Chaoscope vous permet de les explorer, de les régler, de les recolorer et d'exporter des rendus de qualité galerie, le tout calculé localement sur votre appareil.
+
+CE QUE VOUS POUVEZ FAIRE
+• Explorez 17 attracteurs étranges : Lorenz, Clifford, Rössler, Aizawa, Thomas, de Jong, Halvorsen, Burke-Shaw, Hénon et plus
+• Faites pivoter, zoomez et cadrez les attracteurs 3-D en temps réel grâce à un nuage de points en direct
+• Réglez les équations avec des curseurs intuitifs et regardez la forme se transformer
+• Recolorez instantanément avec 10 palettes créées à la main (Nebula, Fire, Electric, Aurora, Matrix et plus) ou concevez la vôtre
+• Effectuez des rendus en HD et 4K spectaculaires avec une barre de progression en direct
+• Exportez vers vos Photos, définissez un fond d'écran ou enregistrez une vidéo animée
+
+PERSONNALISEZ
+• Galerie de créations : chaque rendu est enregistré avec sa recette pour le rouvrir, le modifier et le réexporter à tout moment
+• Attracteur du jour : une nouvelle image vérifiée chaque jour
+• Fond d'écran animé : placez un attracteur tournant lentement sur votre écran d'accueil
+• Codes de préréglage : partagez n'importe quel visuel sous forme d'un court code qu'un ami peut coller pour le recréer instantanément
+
+PRIVÉ ET GRATUIT
+• 100 % gratuit, sans publicité ni abonnement
+• Aucun compte, aucun suivi, aucune collecte de données : tout est calculé hors ligne sur votre appareil
+
+UN HOMMAGE
+Chaoscope est une réinvention moderne et indépendante du légendaire logiciel Windows du même nom, créé par Nicolas Desprez, dont le travail pionnier a fait découvrir la beauté des attracteurs étranges à d'innombrables personnes. Aucun code ni ressource d'origine n'a été utilisé ; le nom est repris en hommage.
+
+Que vous soyez mathématicien, artiste, designer à la recherche de fonds d'écran ou simplement amateur de belles choses, Chaoscope est une fenêtre de poche sur le monde étrange et magnifique du chaos.
+
+Téléchargez-le gratuitement et commencez à explorer.

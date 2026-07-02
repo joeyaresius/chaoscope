@@ -1,0 +1,28 @@
+Chaoscope turns the hidden mathematics of chaos into mesmerizing, infinitely detailed art — right on your phone.
+
+Strange attractors are the visual fingerprints of chaotic systems: simple equations that, when iterated millions of times, trace hypnotic, organic shapes no one could draw by hand. Chaoscope lets you explore them, tune them, recolor them, and export gallery-quality renders — all computed locally on your device.
+
+WHAT YOU CAN DO
+• Explore 17 strange attractors — Lorenz, Clifford, Rössler, Aizawa, Thomas, de Jong, Halvorsen, Burke-Shaw, Hénon and more
+• Rotate, zoom and frame 3-D attractors in real time with a live point cloud
+• Tune the underlying equations with intuitive sliders and watch the shape transform
+• Recolor instantly with 10 hand-built palettes — Nebula, Fire, Electric, Aurora, Matrix and beyond — or design your own
+• Render in stunning HD and 4K with a live progress bar
+• Export to your Photos, set it as wallpaper, or save an animated video
+
+MAKE IT YOURS
+• Creations gallery — every render is saved with its recipe so you can reopen, tweak and re-export it anytime
+• Attractor of the Day — a fresh, hand-validated look every single day
+• Live wallpaper — set a slowly turning attractor as your home screen
+• Shareable preset codes — share any look as a short code a friend can paste to recreate it instantly
+
+PRIVATE & FREE
+• 100% free — no ads, no subscriptions
+• No accounts, no tracking, no data collection — everything renders offline on your device
+
+A TRIBUTE
+Chaoscope is a modern, independent reimagining of the legendary Windows tool of the same name by Nicolas Desprez, whose pioneering work introduced countless people to the beauty of strange attractors. No original code or assets were used — the name is carried forward in tribute.
+
+Whether you're a mathematician, an artist, a designer hunting for wallpapers, or just someone who loves beautiful things, Chaoscope is a pocket-sized window into the strange, gorgeous world of chaos.
+
+Download it free and start exploring.

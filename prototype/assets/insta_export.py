@@ -43,6 +43,8 @@ from attractors import ATTRACTORS, iterate_attractor_batch
 from renderer import Camera, build_density_image
 from colormap import colorize, PALETTES
 
+from marketing import PresetSpec, write_caption
+
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "out", "insta")
 
 # App branding background (matches launcher icon BG_OUTER / BG_INNER).
@@ -62,30 +64,55 @@ WATERMARK_ALPHA = 64            # 0-255; subtle but legible
 # so the opening grid reads as a set.
 # ---------------------------------------------------------------------------
 
+# Each post carries:
+#   * render hints  — POC attractor key / palette / iters / gamma / camera, and
+#   * spec          — the authoritative Android Preset (known-good params) used
+#                     to emit the CHS1 caption code, and
+#   * hook          — the first caption line (the scroll-stopper).
+# The render and the code share the same attractor + palette + camera, so the
+# code drops a viewer onto the look they just saw in the feed.
 POSTS: list[dict] = [
     # ── Row 1: three hero stills, one attractor each ──────────────────────
     dict(name="thomas_aurora",   attractor="thomas",   palette="aurora",
-         iters=12_000_000, gamma=0.85, yaw=28, pitch=18),
+         iters=12_000_000, gamma=0.85, yaw=28, pitch=18,
+         spec=PresetSpec("THOMAS", [0.208186, 0.05], "AURORA", yaw=28, pitch=18),
+         hook="A single equation, looped 12 million times. 🌀"),
     dict(name="lorenz84_electric", attractor="lorenz84", palette="electric",
-         iters=12_000_000, gamma=0.85, yaw=35, pitch=22),
+         iters=12_000_000, gamma=0.85, yaw=35, pitch=22,
+         spec=PresetSpec("LORENZ_84", [0.25, 4.0, 8.0, 1.0, 0.01], "ELECTRIC", yaw=35, pitch=22),
+         hook="This is what a simplified model of the weather looks like. ⚡"),
     dict(name="clifford_nebula", attractor="clifford", palette="nebula",
-         iters=10_000_000, gamma=0.90),
+         iters=10_000_000, gamma=0.90,
+         spec=PresetSpec("CLIFFORD", [-1.4, 1.6, 1.0, 0.7, 1.5, 0.5], "NEBULA"),
+         hook="Four numbers. Infinite detail. 🌌"),
 
     # ── Row 2: motion-adjacent + palette range ────────────────────────────
     dict(name="lorenz_fire",     attractor="lorenz",   palette="fire",
-         iters=12_000_000, gamma=0.80, yaw=24, pitch=16),
+         iters=12_000_000, gamma=0.80, yaw=24, pitch=16,
+         spec=PresetSpec("LORENZ", [10, 28, 2.667, 0.005], "FIRE", yaw=24, pitch=16),
+         hook="The Lorenz attractor — the original butterfly effect, on fire. 🔥"),
     dict(name="aizawa_aurora",   attractor="aizawa",   palette="aurora",
-         iters=14_000_000, gamma=0.85, yaw=30, pitch=20),
+         iters=14_000_000, gamma=0.85, yaw=30, pitch=20,
+         spec=PresetSpec("AIZAWA", [0.95, 0.7, 0.6, 3.5, 0.25, 0.1, 0.01], "AURORA", yaw=30, pitch=20),
+         hook="Chaos doesn't have to look chaotic. 🌠"),
 
     # ── Row 3: more variety, show the palette LUT range ───────────────────
     dict(name="thomas_matrix",   attractor="thomas",   palette="matrix",
-         iters=12_000_000, gamma=0.85, yaw=28, pitch=18),
+         iters=12_000_000, gamma=0.85, yaw=28, pitch=18,
+         spec=PresetSpec("THOMAS", [0.208186, 0.05], "MATRIX", yaw=28, pitch=18),
+         hook="Same shape, different mood. Tap to recolor. 🟢"),
     dict(name="dejong_electric", attractor="peterdejong", palette="electric",
-         iters=10_000_000, gamma=0.90),
+         iters=10_000_000, gamma=0.90,
+         spec=PresetSpec("PETER_DE_JONG", [-2.0, -2.0, -1.2, 2.0, 1.8, -1.5], "ELECTRIC"),
+         hook="The Peter de Jong map — woven from pure math. ⚡"),
     dict(name="rossler_nebula",  attractor="rossler",  palette="nebula",
-         iters=12_000_000, gamma=0.85, yaw=40, pitch=12),
+         iters=12_000_000, gamma=0.85, yaw=40, pitch=12,
+         spec=PresetSpec("ROSSLER", [0.2, 0.2, 5.7, 0.02], "NEBULA", yaw=40, pitch=12),
+         hook="The Rössler attractor folding space into a spiral. 🌌"),
     dict(name="clifford_fire",   attractor="clifford", palette="fire",
-         iters=10_000_000, gamma=0.90),
+         iters=10_000_000, gamma=0.90,
+         spec=PresetSpec("CLIFFORD", [-1.4, 1.6, 1.0, 0.7, 1.5, 0.5], "FIRE"),
+         hook="The same Clifford attractor — now in embers. 🔥"),
 ]
 
 
@@ -189,6 +216,10 @@ def main(argv=None) -> int:
                     help="Skip the 1080x1350 portrait variant.")
     ap.add_argument("--no-watermark", action="store_true",
                     help="Skip the CHAOSCOPE wordmark.")
+    ap.add_argument("--no-captions", action="store_true",
+                    help="Skip writing the .txt caption (with CHS1 code) per post.")
+    ap.add_argument("--captions-only", action="store_true",
+                    help="Only (re)write captions — no rendering. Fast.")
     ap.add_argument("--list", action="store_true",
                     help="List curated posts and exit.")
     args = ap.parse_args(argv)
@@ -211,31 +242,52 @@ def main(argv=None) -> int:
     os.makedirs(OUT_DIR, exist_ok=True)
     pw, ph = args.size, round(args.size * 1350 / 1080)   # 4:5 portrait
 
+    captions: list[str] = []
     for p in posts:
         post = dict(p)
         if args.iters is not None:
             post["iters"] = args.iters
-        print(f"[{post['name']}] {post['attractor']} / {post['palette']} "
-              f"@ {post['iters']:,} iters ...", flush=True)
 
-        glow = render_glow(post, args.size)
+        if not args.captions_only:
+            print(f"[{post['name']}] {post['attractor']} / {post['palette']} "
+                  f"@ {post['iters']:,} iters ...", flush=True)
+            glow = render_glow(post, args.size)
 
-        square = compose_square(glow, args.size)
-        if not args.no_watermark:
-            stamp_watermark(square)
-        sq_path = os.path.join(OUT_DIR, f"{post['name']}_1x1.png")
-        square.convert("RGB").save(sq_path)
-        print(f"   -> {sq_path}")
-
-        if not args.no_portrait:
-            portrait = compose_portrait(glow, pw, ph)
+            square = compose_square(glow, args.size)
             if not args.no_watermark:
-                stamp_watermark(portrait)
-            pt_path = os.path.join(OUT_DIR, f"{post['name']}_4x5.png")
-            portrait.convert("RGB").save(pt_path)
-            print(f"   -> {pt_path}")
+                stamp_watermark(square)
+            sq_path = os.path.join(OUT_DIR, f"{post['name']}_1x1.png")
+            square.convert("RGB").save(sq_path)
+            print(f"   -> {sq_path}")
 
-    print(f"\nDone. {len(posts)} post(s) written to {OUT_DIR}")
+            if not args.no_portrait:
+                portrait = compose_portrait(glow, pw, ph)
+                if not args.no_watermark:
+                    stamp_watermark(portrait)
+                pt_path = os.path.join(OUT_DIR, f"{post['name']}_4x5.png")
+                portrait.convert("RGB").save(pt_path)
+                print(f"   -> {pt_path}")
+
+        # Caption with the install link + a CHS1 code that recreates the look.
+        if not args.no_captions:
+            cap_path = write_caption(post["spec"], post["hook"], OUT_DIR, post["name"])
+            print(f"   -> {cap_path}")
+            from marketing import build_caption
+            captions.append(f"### {post['name']}\n\n"
+                            + build_caption(post["spec"], post["hook"]))
+
+    # Aggregate every caption into one copy-paste sheet for posting day.
+    if not args.no_captions and captions:
+        md_path = os.path.join(OUT_DIR, "captions.md")
+        with open(md_path, "w", encoding="utf-8") as fh:
+            fh.write("# Chaoscope — Instagram captions\n\n"
+                     "Each block is post-ready: hook · look · install link · "
+                     "CHS1 recreate-code · hashtags.\n\n---\n\n"
+                     + "\n\n---\n\n".join(captions))
+        print(f"\nCaption sheet -> {md_path}")
+
+    action = "caption(s)" if args.captions_only else "post(s)"
+    print(f"\nDone. {len(posts)} {action} written to {OUT_DIR}")
     return 0
 
 

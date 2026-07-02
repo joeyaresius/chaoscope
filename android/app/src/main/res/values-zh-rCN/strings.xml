@@ -24,6 +24,7 @@
     <string name="splash_btn_close">关闭</string>
     <string name="splash_btn_tutorial">🎓  显示教程</string>
     <string name="splash_btn_feedback">建议或反馈</string>
+    <string name="splash_btn_instagram">在 Instagram 上关注</string>
     <string name="splash_footer">开源 · Apache 2.0 许可证</string>
     <string name="splash_credits">由 Lucas Balancin 与 Thiago Sturiale 创作 · 2026</string>
     <string name="splash_feedback_subject">Chaoscope — 建议 / 反馈</string>

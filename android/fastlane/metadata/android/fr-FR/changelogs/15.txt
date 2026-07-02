@@ -1,0 +1,4 @@
+• Écran de bienvenue simplifié pour un premier lancement plus net
+• Petites corrections et améliorations internes
+
+Vous aimez Chaoscope ? Une idée ou un bug à signaler ? Écrivez-nous à chaoscope@duck.com : nous lisons tout.
