@@ -88,13 +88,6 @@
     <!-- ── Attractor of the Day ────────────────────────────────────────────── -->
     <string name="daily_title">Attractor of the Day</string>
 
-    <!-- ── Live wallpaper ──────────────────────────────────────────────────── -->
-    <string name="wp_settings_title">Live Wallpaper</string>
-    <string name="wp_description">A strange attractor slowly rotating on your home screen.</string>
-    <string name="wp_source_label">Wallpaper shows</string>
-    <string name="wp_source_current">My current creation</string>
-    <string name="wp_speed_label">Rotation speed</string>
-    <string name="wp_hint">Rotates only while the home screen is visible; pauses in battery saver.</string>
 
     <!-- ── Preset codes (import / share) ───────────────────────────────────── -->
     <string name="btn_import_preset">Import</string>
@@ -111,7 +104,6 @@
     <string name="btn_render_4k">4K Render</string>
     <string name="btn_export_png">Export PNG</string>
     <string name="btn_set_wallpaper">🖼  Set as Wallpaper</string>
-    <string name="btn_set_live_wallpaper">🌀  Set as Live Wallpaper</string>
     <string name="btn_copy_caption">📋  Copy Caption</string>
     <string name="btn_export_video">🎬  Export Video</string>
     <string name="btn_cancel_export">Cancel export</string>
@@ -133,7 +125,9 @@
     <string name="toggle_transparent_bg">Transparent background</string>
     <string name="toggle_transparent_bg_desc">Export PNG with transparent BG — great for stickers.</string>
     <string name="toggle_pingpong">Ping-pong loop</string>
-    <string name="label_frames">Frames:</string>
+    <string name="label_duration">Duration:</string>
+    <string name="label_video_size">Size:</string>
+    <string name="anim_seconds_chip">%1$d s</string>
     <string name="label_name">Name</string>
     <string name="camera_3d_only">Camera controls are only available for 3D attractors.\n\nSwitch to a 3D attractor on the Shape tab to use yaw, pitch, roll, and depth controls.</string>
     <string name="save_preset_title">Save preset</string>
@@ -161,9 +155,11 @@
     <!-- ====================================================================
          Animation modes
          ==================================================================== -->
+    <string name="anim_turntable">Turntable</string>
     <string name="anim_morph">Morph</string>
     <string name="anim_orbit_trace">Orbit Trace</string>
     <string name="anim_sweep">Sweep</string>
+    <string name="anim_turntable_hint">One full 360° spin of the current look — loops seamlessly. No keyframes needed.</string>
     <string name="anim_morph_pingpong_desc">Plays A→B→A for a seamless looping video.</string>
     <string name="anim_orbit_pingpong_desc">Trace the orbit up, then erase back to the start.</string>
     <string name="anim_sweep_pingpong_desc">Morph to the random target and back — seamless loop.</string>
@@ -173,8 +169,19 @@
     <string name="anim_frame_b_done">✓ Frame B</string>
     <string name="anim_morph_hint">Set Frame A and Frame B to enable export.</string>
     <string name="anim_orbit_hint">Renders the attractor as growing coloured dots — each frame reveals more of the orbit path. No keyframes needed.</string>
-    <string name="anim_sweep_hint">Auto-varies all parameters from the current state to a random target — a fresh result every export. No keyframes needed.</string>
+    <string name="anim_sweep_hint">Sweeps all parameters from the current look to the random target below. No keyframes needed.</string>
+    <string name="anim_sweep_target">Sweep target</string>
+    <string name="anim_sweep_reroll">🎲 New target</string>
+    <string name="label_spin_axis">Spin axis:</string>
+    <string name="axis_yaw">Yaw</string>
+    <string name="axis_pitch">Pitch</string>
+    <string name="axis_roll">Roll</string>
+    <string name="toggle_hd_frames">HD dot density</string>
+    <string name="anim_hd_frames_desc">Frames match a full render\'s density — export takes several times longer.</string>
+    <string name="btn_anim_preview">▶ Preview</string>
+    <string name="btn_anim_preview_stop">⏹ Stop</string>
     <string name="anim_exporting_frame">Exporting frame %1$d / %2$d</string>
+    <string name="anim_exporting_eta">Exporting frame %1$d / %2$d · ~%3$s left</string>
     <string name="video_warning_title">Exports in the background</string>
     <string name="video_warning_body">Rendering the video can take a while. It keeps running in the background, and we\'ll post a progress notification so you can track it and cancel if needed. Allow notifications on the next screen to see it.</string>
     <string name="video_warning_confirm">Start export</string>

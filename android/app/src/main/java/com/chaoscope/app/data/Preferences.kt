@@ -136,20 +136,12 @@ class ChaoscopePreferences(private val context: Context) {
         }
     }
 
-    // ── Live wallpaper ───────────────────────────────────────────────────────
+    // ── Video-export background warning (shown before the first export only) ─
 
-    /** What the live wallpaper shows: [WP_SOURCE_CURRENT] or [WP_SOURCE_DAILY]. */
-    val wallpaperSource: Flow<String> = data.map { it[KEY_WP_SOURCE] ?: WP_SOURCE_CURRENT }
+    val videoWarningSeen: Flow<Boolean> = data.map { it[KEY_VIDEO_WARNING_SEEN] ?: false }
 
-    suspend fun setWallpaperSource(source: String) {
-        context.dataStore.edit { it[KEY_WP_SOURCE] = source }
-    }
-
-    /** Live-wallpaper rotation speed in degrees per second. */
-    val wallpaperSpeed: Flow<Float> = data.map { it[KEY_WP_SPEED] ?: WP_DEFAULT_SPEED }
-
-    suspend fun setWallpaperSpeed(degPerSec: Float) {
-        context.dataStore.edit { it[KEY_WP_SPEED] = degPerSec }
+    suspend fun setVideoWarningSeen() {
+        context.dataStore.edit { it[KEY_VIDEO_WARNING_SEEN] = true }
     }
 
     // ── First-ever render (drives the render-FAB pulse hint) ────────────────
@@ -242,10 +234,6 @@ class ChaoscopePreferences(private val context: Context) {
     }
 
     companion object {
-        const val WP_SOURCE_CURRENT = "current"
-        const val WP_SOURCE_DAILY   = "daily"
-        const val WP_DEFAULT_SPEED  = 2f   // 360° in 3 minutes
-
         private const val MAX_GALLERY = 50
         private const val MAX_USER_PRESETS = 30
         private const val KEY_PARAM_PREFIX = "param_"
@@ -268,8 +256,7 @@ class ChaoscopePreferences(private val context: Context) {
         private val KEY_TRANSPARENT_BG     = booleanPreferencesKey("transparent_bg")
         private val KEY_CUSTOM_BG_ARGB      = intPreferencesKey("custom_bg_argb")
         private val KEY_CUSTOM_BG_PATH      = stringPreferencesKey("custom_bg_path")
-        private val KEY_WP_SOURCE           = stringPreferencesKey("wallpaper_source")
-        private val KEY_WP_SPEED            = floatPreferencesKey("wallpaper_speed")
+        private val KEY_VIDEO_WARNING_SEEN  = booleanPreferencesKey("video_warning_seen")
         private val KEY_HAS_RENDERED        = booleanPreferencesKey("has_ever_rendered")
         private val KEY_RENDER_EXPORT_COUNT = intPreferencesKey("render_export_count")
         private val KEY_REVIEW_TRIGGERED    = booleanPreferencesKey("review_triggered")

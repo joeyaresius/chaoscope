@@ -527,7 +527,29 @@ val AttractorType.presets: List<Preset>
  * PARAM_SWEEP — auto-varies all parameters from the current state to a randomly
  *               generated target and morphs between them; no keyframes needed.
  */
-enum class AnimMode { MORPH, ORBIT_TRACE, PARAM_SWEEP }
+enum class AnimMode { TURNTABLE, MORPH, ORBIT_TRACE, PARAM_SWEEP }
+
+/**
+ * Which camera angle the Turntable revolution spins. Yaw orbits around the
+ * vertical axis; pitch tumbles over the top; roll spins in the screen plane.
+ * Applies to 3-D attractors only — 2-D ones always spin via roll (yaw/pitch
+ * collapse them edge-on).
+ */
+enum class TurntableAxis { YAW, PITCH, ROLL }
+
+/**
+ * Output size/aspect for video export. The attractor art is always rendered
+ * square at [artSize] (the engine fits the shape to the canvas per-axis, so a
+ * non-square render would stretch it); portrait frames composite the square
+ * art centred on a full-frame background.
+ */
+enum class VideoResPreset(val width: Int, val height: Int) {
+    FAST (768,  768),
+    HD   (1080, 1080),
+    REELS(1080, 1920);
+
+    val artSize: Int get() = minOf(width, height)
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // UI state
@@ -567,14 +589,28 @@ data class UiState(
     val wallpaperDone: Boolean       = false,
     val wallpaperError: String?      = null,
     // ── Animation export ──────────────────────────────────────────────────
-    val animMode: AnimMode           = AnimMode.MORPH,
+    val animMode: AnimMode           = AnimMode.TURNTABLE,
+    val turntableAxis: TurntableAxis = TurntableAxis.YAW,
     val keyframeA: AnimKeyframe?     = null,
     val keyframeB: AnimKeyframe?     = null,
-    val animFrames: Int              = 30,
+    /** Video length in seconds (before ping-pong doubling and outro). */
+    val animSeconds: Int             = 4,
     val animPingPong: Boolean        = false,
+    val videoRes: VideoResPreset     = VideoResPreset.FAST,
+    /** Render video frames at still-render dot density instead of preview
+     *  density — much denser art, several times slower per frame. */
+    val videoHdFrames: Boolean       = false,
+    /** Random target for PARAM_SWEEP — generated on mode entry, re-rollable. */
+    val sweepTarget: AnimKeyframe?   = null,
+    /** Small still of [sweepTarget] so the user sees the destination pre-export. */
+    val sweepPreview: Bitmap?        = null,
+    /** True while the in-canvas animation preview loop is running. */
+    val isAnimPreviewing: Boolean    = false,
     val isExportingVideo: Boolean    = false,
     val videoExportProgress: Int     = 0,
     val videoExportTotal: Int        = 0,
+    /** Wall-clock start of the running export — drives the ETA readout. */
+    val videoExportStartMs: Long     = 0L,
     val videoExportError: String?    = null,
     val videoExportUri: String?      = null,
 ) {

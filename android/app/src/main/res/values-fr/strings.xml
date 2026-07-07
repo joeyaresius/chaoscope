@@ -73,13 +73,6 @@
     <!-- Attractor of the Day -->
     <string name="daily_title">Attracteur du jour</string>
 
-    <!-- Live wallpaper -->
-    <string name="wp_settings_title">Fond d\'écran animé</string>
-    <string name="wp_description">Un attracteur étrange tournant lentement sur votre écran d\'accueil.</string>
-    <string name="wp_source_label">Le fond affiche</string>
-    <string name="wp_source_current">Ma création actuelle</string>
-    <string name="wp_speed_label">Vitesse de rotation</string>
-    <string name="wp_hint">Tourne uniquement quand l\'écran d\'accueil est visible ; en pause en mode économie d\'énergie.</string>
 
     <!-- Preset codes (import / share) -->
     <string name="btn_import_preset">Importer</string>
@@ -93,7 +86,6 @@
     <string name="btn_render_4k">4K</string>
     <string name="btn_export_png">Exporter PNG</string>
     <string name="btn_set_wallpaper">🖼  Définir comme Fond d\'écran</string>
-    <string name="btn_set_live_wallpaper">🌀  Définir comme fond animé</string>
     <string name="btn_export_video">🎬  Exporter Vidéo</string>
     <string name="btn_cancel_export">Annuler l\'export</string>
     <string name="btn_randomize_params">🎲 Paramètres</string>
@@ -110,7 +102,9 @@
     <string name="toggle_transparent_bg">Fond transparent</string>
     <string name="toggle_transparent_bg_desc">Exporter le PNG avec un fond transparent — parfait pour les stickers.</string>
     <string name="toggle_pingpong">Boucle ping-pong</string>
-    <string name="label_frames">Images :</string>
+    <string name="label_duration">Durée :</string>
+    <string name="label_video_size">Taille :</string>
+    <string name="anim_seconds_chip">%1$d s</string>
     <string name="label_name">Nom</string>
     <string name="camera_3d_only">Les contrôles de caméra ne sont disponibles que pour les attracteurs 3D.\n\nPassez à un attracteur 3D dans l\'onglet Forme pour utiliser le lacet, le tangage, le roulis et la profondeur.</string>
     <string name="save_preset_title">Enregistrer le préréglage</string>
@@ -133,9 +127,11 @@
     <string name="cd_type_value">Saisir la valeur pour %1$s</string>
     <string name="image_attractor">Attracteur Étrange — %1$s</string>
 
+    <string name="anim_turntable">Tour 360°</string>
     <string name="anim_morph">Morphing</string>
     <string name="anim_orbit_trace">Tracé d\'Orbite</string>
     <string name="anim_sweep">Balayage</string>
+    <string name="anim_turntable_hint">Un tour complet à 360° de l\'aspect actuel — boucle parfaitement. Aucune image-clé requise.</string>
     <string name="anim_morph_pingpong_desc">Joue A→B→A pour une vidéo en boucle continue.</string>
     <string name="anim_orbit_pingpong_desc">Trace l\'orbite puis l\'efface jusqu\'au début.</string>
     <string name="anim_sweep_pingpong_desc">Morph vers la cible aléatoire puis retour — boucle continue.</string>
@@ -145,8 +141,19 @@
     <string name="anim_frame_b_done">✓ Image B</string>
     <string name="anim_morph_hint">Définissez l\'Image A et l\'Image B pour activer l\'export.</string>
     <string name="anim_orbit_hint">Affiche l\'attracteur sous forme de points colorés croissants — chaque image révèle plus de l\'orbite. Aucune image-clé requise.</string>
-    <string name="anim_sweep_hint">Varie automatiquement tous les paramètres de l\'état actuel vers une cible aléatoire — un résultat unique à chaque export. Aucune image-clé requise.</string>
+    <string name="anim_sweep_hint">Fait évoluer tous les paramètres de l\'aspect actuel vers la cible aléatoire ci-dessous. Aucune image-clé requise.</string>
+    <string name="anim_sweep_target">Cible du balayage</string>
+    <string name="anim_sweep_reroll">🎲 Nouvelle cible</string>
+    <string name="label_spin_axis">Axe de rotation :</string>
+    <string name="axis_yaw">Lacet</string>
+    <string name="axis_pitch">Tangage</string>
+    <string name="axis_roll">Roulis</string>
+    <string name="toggle_hd_frames">Densité de points HD</string>
+    <string name="anim_hd_frames_desc">Chaque image atteint la densité d\'un rendu complet — l\'export prend plusieurs fois plus de temps.</string>
+    <string name="btn_anim_preview">▶ Aperçu</string>
+    <string name="btn_anim_preview_stop">⏹ Arrêter</string>
     <string name="anim_exporting_frame">Export de l\'image %1$d / %2$d</string>
+    <string name="anim_exporting_eta">Export de l\'image %1$d / %2$d · ~%3$s restantes</string>
     <string name="video_warning_title">L\'export se fait en arrière-plan</string>
     <string name="video_warning_body">Le rendu de la vidéo peut prendre un certain temps. Il continue en arrière-plan, et nous afficherons une notification de progression pour la suivre et l\'annuler si besoin. Autorisez les notifications sur l\'écran suivant pour la voir.</string>
     <string name="video_warning_confirm">Démarrer l\'export</string>

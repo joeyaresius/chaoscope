@@ -33,7 +33,11 @@ import kotlin.coroutines.coroutineContext
 object VideoExporter {
 
     private const val MIME_TYPE        = "video/avc"
-    private const val BIT_RATE         = 8_000_000   // 8 Mbps
+    // Bitrate scales with pixel throughput (~0.45 bits/pixel/frame — the ratio the
+    // old fixed 8 Mbps gave at 768²@30), clamped to a sane range for phone H.264.
+    private const val BITS_PER_PIXEL   = 0.45f
+    private const val MIN_BIT_RATE     = 4_000_000
+    private const val MAX_BIT_RATE     = 20_000_000
     private const val I_FRAME_INTERVAL = 1            // keyframe every second
 
     /**
@@ -42,7 +46,8 @@ object VideoExporter {
      * @param context      Application context.
      * @param frameCount   Total number of frames.
      * @param fps          Target frame rate.
-     * @param frameSize    Width = height of each (square) frame in pixels.
+     * @param width        Frame width in pixels (must be even).
+     * @param height       Frame height in pixels (must be even).
      * @param renderFrame  Suspend lambda that produces one [Bitmap] for [frameIndex].
      *                     Return null to skip a frame (export continues).
      * @param onProgress   Called with (framesEncoded, totalFrames) after each frame.
@@ -52,11 +57,13 @@ object VideoExporter {
         context:     Context,
         frameCount:  Int,
         fps:         Int = 30,
-        frameSize:   Int = 768,
+        width:       Int = 768,
+        height:      Int = 768,
         renderFrame: suspend (frameIndex: Int) -> Bitmap?,
         onProgress:  (Int, Int) -> Unit = { _, _ -> },
     ): String {
         require(frameCount > 0) { "frameCount must be > 0" }
+        require(width % 2 == 0 && height % 2 == 0) { "frame dimensions must be even" }
 
         // ── Create MediaStore entry ────────────────────────────────────────────
         val values = ContentValues().apply {
@@ -85,7 +92,8 @@ object VideoExporter {
                 filePath    = tempFile.absolutePath,
                 frameCount  = frameCount,
                 fps         = fps,
-                frameSize   = frameSize,
+                width       = width,
+                height      = height,
                 renderFrame = renderFrame,
                 onProgress  = onProgress,
             )
@@ -125,20 +133,24 @@ object VideoExporter {
         filePath:    String,
         frameCount:  Int,
         fps:         Int,
-        frameSize:   Int,
+        width:       Int,
+        height:      Int,
         renderFrame: suspend (frameIndex: Int) -> Bitmap?,
         onProgress:  (Int, Int) -> Unit,
     ) {
+        val bitRate = (BITS_PER_PIXEL * width * height * fps).toInt()
+            .coerceIn(MIN_BIT_RATE, MAX_BIT_RATE)
+
         // NV12 (COLOR_FormatYUV420SemiPlanar) is supported by every Android
         // hardware encoder since API 16.  The flexible format + getInputImage()
         // approach silently returns null on many hardware codecs, so we write
         // directly to the input ByteBuffer in NV12 layout instead.
-        val format = MediaFormat.createVideoFormat(MIME_TYPE, frameSize, frameSize).apply {
+        val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height).apply {
             setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
                 MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar,
             )
-            setInteger(MediaFormat.KEY_BIT_RATE,        BIT_RATE)
+            setInteger(MediaFormat.KEY_BIT_RATE,        bitRate)
             setInteger(MediaFormat.KEY_FRAME_RATE,       fps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL)
         }
@@ -152,7 +164,7 @@ object VideoExporter {
         var trackIdx    = -1
         var muxerActive = false
         val usPerFrame  = 1_000_000L / fps
-        val yuvSize     = frameSize * frameSize * 3 / 2   // NV12 byte count
+        val yuvSize     = width * height * 3 / 2   // NV12 byte count
 
         // Local drain helper — captures mutable encoder/muxer state by closure.
         fun drain(endOfStream: Boolean) {
@@ -204,7 +216,7 @@ object VideoExporter {
                 if (inputIdx >= 0) {
                     val buf = encoder.getInputBuffer(inputIdx)
                         ?: throw IllegalStateException("getInputBuffer returned null")
-                    writeBitmapToNV12(bitmap, buf, frameSize)
+                    writeBitmapToNV12(bitmap, buf, width, height)
                     encoder.queueInputBuffer(
                         inputIdx, 0, yuvSize,
                         frameIdx * usPerFrame,
@@ -249,10 +261,7 @@ object VideoExporter {
     //   Offset W*H        : UV plane — interleaved (U, V) pairs for each 2×2 block
     //   Total size        : W * H * 3 / 2 bytes
 
-    private fun writeBitmapToNV12(src: Bitmap, buf: java.nio.ByteBuffer, frameSize: Int) {
-        val w = frameSize
-        val h = frameSize
-
+    private fun writeBitmapToNV12(src: Bitmap, buf: java.nio.ByteBuffer, w: Int, h: Int) {
         // Scale if the bitmap doesn't exactly match the encode dimensions
         val bmp = if (src.width == w && src.height == h) src
                   else Bitmap.createScaledBitmap(src, w, h, true)

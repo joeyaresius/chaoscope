@@ -15,7 +15,7 @@ class PresetSerializerTest {
         zoom        = 1.2f,
         palette     = PaletteType.FIRE,
         renderStyle = RenderStyle.PLASMA,
-        bgColor     = BgColor.DEEP_SPACE,
+        bgColor     = BgColor.STARS,
     )
 
     @Test fun `roundtrip preserves all fields`() {
@@ -30,7 +30,7 @@ class PresetSerializerTest {
         assertEquals(1.2f, p.zoom, 0.0001f)
         assertEquals(PaletteType.FIRE, p.palette)
         assertEquals(RenderStyle.PLASMA, p.renderStyle)
-        assertEquals(BgColor.DEEP_SPACE, p.bgColor)
+        assertEquals(BgColor.STARS, p.bgColor)
     }
 
     @Test fun `multiple presets roundtrip in order`() {

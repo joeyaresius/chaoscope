@@ -2,8 +2,6 @@ package com.chaoscope.ui
 
 import android.Manifest
 import android.app.Activity
-import android.app.WallpaperManager
-import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -144,9 +142,21 @@ fun AttractorScreen(
     val showPaletteEditor by vm.showPaletteEditor.collectAsStateWithLifecycle()
     val userPresets       by vm.userPresets.collectAsStateWithLifecycle()
     val hasEverRendered   by vm.hasEverRendered.collectAsStateWithLifecycle()
+    val videoWarningSeen  by vm.videoWarningSeen.collectAsStateWithLifecycle()
     val dailyPreset       by vm.dailyPreset.collectAsStateWithLifecycle()
     val context           = LocalContext.current
     val haptics           = LocalHapticFeedback.current
+
+    // The animation preview drives ~30 native point-fetches per second — stop it
+    // when the app leaves the foreground so it can't burn CPU in the background.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) vm.stopAnimPreview()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // ── Notification permission (Android 13+) ────────────────────────────────
     // Without POST_NOTIFICATIONS the video-export foreground notification is
@@ -163,8 +173,9 @@ fun AttractorScreen(
             vm.exportVideo(context)
         }
     }
-    // Shown when the user taps "Export Video" — warns that it runs in the
-    // background before we kick off the (permission request +) export.
+    // Shown the FIRST time the user taps "Export Video" — warns that it runs in
+    // the background before we kick off the (permission request +) export.
+    // Subsequent exports skip straight to the export.
     var showVideoExportWarning by remember { mutableStateOf(false) }
     // Starts the video export, first requesting notification permission if needed.
     val startVideoExport = {
@@ -627,27 +638,21 @@ fun AttractorScreen(
                     onRenderHD4K       = vm::renderHD4K,
                     onExport           = { vm.exportPng(context) },
                     onSetWallpaper     = { vm.setWallpaper(context) },
-                    onSetLiveWallpaper = {
-                        // System live-wallpaper preview for our service; some OEM
-                        // launchers lack the direct route — fall back to the chooser.
-                        val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
-                            putExtra(
-                                WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
-                                ComponentName(context, ChaoscopeWallpaperService::class.java),
-                            )
-                        }
-                        runCatching { context.startActivity(direct) }.recoverCatching {
-                            context.startActivity(
-                                Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
-                        }
-                    },
                     onTransparentBg    = vm::setTransparentBg,
                     onAnimMode         = vm::setAnimMode,
+                    onTurntableAxis    = vm::setTurntableAxis,
                     onSetKeyframeA     = vm::setKeyframeA,
                     onSetKeyframeB     = vm::setKeyframeB,
-                    onAnimFrames       = vm::setAnimFrames,
+                    onAnimSeconds      = vm::setAnimSeconds,
                     onAnimPingPong     = vm::setAnimPingPong,
-                    onExportVideo      = { showVideoExportWarning = true },
+                    onVideoRes         = vm::setVideoRes,
+                    onVideoHdFrames    = vm::setVideoHdFrames,
+                    onRerollSweep      = vm::rerollSweepTarget,
+                    onToggleAnimPreview = vm::toggleAnimPreview,
+                    onExportVideo      = {
+                        if (videoWarningSeen) startVideoExport()
+                        else showVideoExportWarning = true
+                    },
                     onCancelVideoExport = vm::cancelVideoExport,
                     onRandomizeParams  = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -714,6 +719,7 @@ fun AttractorScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showVideoExportWarning = false
+                    vm.markVideoWarningSeen()   // one-time dialog — don't show again
                     startVideoExport()
                 }) { Text(stringResource(R.string.video_warning_confirm)) }
             },
@@ -925,13 +931,17 @@ private fun ControlPanel(
     onRenderHD4K:       ()              -> Unit,
     onExport:           ()              -> Unit,
     onSetWallpaper:     ()              -> Unit,
-    onSetLiveWallpaper: ()              -> Unit,
     onTransparentBg:    (Boolean)       -> Unit,
     onAnimMode:         (AnimMode)      -> Unit,
+    onTurntableAxis:    (TurntableAxis) -> Unit,
     onSetKeyframeA:     ()              -> Unit,
     onSetKeyframeB:     ()              -> Unit,
-    onAnimFrames:       (Int)           -> Unit,
+    onAnimSeconds:      (Int)           -> Unit,
     onAnimPingPong:     (Boolean)       -> Unit,
+    onVideoRes:         (VideoResPreset) -> Unit,
+    onVideoHdFrames:    (Boolean)       -> Unit,
+    onRerollSweep:      ()              -> Unit,
+    onToggleAnimPreview:()              -> Unit,
     onExportVideo:      ()              -> Unit,
     onCancelVideoExport:()              -> Unit,
     onRandomizeParams:  ()              -> Unit,
@@ -1495,13 +1505,26 @@ private fun ControlPanel(
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.btn_set_wallpaper)) }
                         OutlinedButton(
-                            onClick  = onSetLiveWallpaper,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(stringResource(R.string.btn_set_live_wallpaper)) }
-                        OutlinedButton(
                             onClick  = onCopyCaption,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.btn_copy_caption)) }
+
+                        // Video — the share-worthy export, promoted above the gallery
+                        AnimationSection(
+                            state               = state,
+                            onAnimMode          = onAnimMode,
+                            onTurntableAxis     = onTurntableAxis,
+                            onSetKeyframeA      = onSetKeyframeA,
+                            onSetKeyframeB      = onSetKeyframeB,
+                            onAnimSeconds       = onAnimSeconds,
+                            onAnimPingPong      = onAnimPingPong,
+                            onVideoRes          = onVideoRes,
+                            onVideoHdFrames     = onVideoHdFrames,
+                            onRerollSweep       = onRerollSweep,
+                            onToggleAnimPreview = onToggleAnimPreview,
+                            onExportVideo       = onExportVideo,
+                            onCancelVideoExport = onCancelVideoExport,
+                        )
 
                         // Gallery — past renders, tap for actions (reopen/view/share/delete)
                         if (gallery.isNotEmpty()) {
@@ -1526,18 +1549,6 @@ private fun ControlPanel(
                                 }
                             }
                         }
-
-                        // Animation export
-                        AnimationSection(
-                            state               = state,
-                            onAnimMode          = onAnimMode,
-                            onSetKeyframeA      = onSetKeyframeA,
-                            onSetKeyframeB      = onSetKeyframeB,
-                            onAnimFrames        = onAnimFrames,
-                            onAnimPingPong      = onAnimPingPong,
-                            onExportVideo       = onExportVideo,
-                            onCancelVideoExport = onCancelVideoExport,
-                        )
 
                         // Render Detail / Preview Density moved to the settings
                         // sheet (gear icon) — set-once values, not export actions.
@@ -2106,58 +2117,104 @@ private fun LabelledSlider(
 private fun AnimationSection(
     state:               UiState,
     onAnimMode:          (AnimMode) -> Unit,
+    onTurntableAxis:     (TurntableAxis) -> Unit,
     onSetKeyframeA:      () -> Unit,
     onSetKeyframeB:      () -> Unit,
-    onAnimFrames:        (Int)     -> Unit,
+    onAnimSeconds:       (Int)     -> Unit,
     onAnimPingPong:      (Boolean) -> Unit,
+    onVideoRes:          (VideoResPreset) -> Unit,
+    onVideoHdFrames:     (Boolean) -> Unit,
+    onRerollSweep:       () -> Unit,
+    onToggleAnimPreview: () -> Unit,
     onExportVideo:       () -> Unit,
     onCancelVideoExport: () -> Unit,
 ) {
-    val frameOptions = listOf(15, 30, 60)
+    val secondsOptions = listOf(2, 4, 8)
     val canExport = when (state.animMode) {
-        AnimMode.MORPH        -> state.keyframeA != null && state.keyframeB != null && !state.isExportingVideo
-        AnimMode.ORBIT_TRACE,
-        AnimMode.PARAM_SWEEP  -> state.animFrames >= 2 && !state.isExportingVideo
+        AnimMode.MORPH       -> state.keyframeA != null && state.keyframeB != null &&
+                                !state.isExportingVideo
+        AnimMode.PARAM_SWEEP -> state.sweepTarget != null && !state.isExportingVideo
+        AnimMode.TURNTABLE,
+        AnimMode.ORBIT_TRACE -> !state.isExportingVideo
     }
     val pingPongDesc = when (state.animMode) {
+        AnimMode.TURNTABLE   -> ""   // ping-pong hidden — a full spin already loops
         AnimMode.MORPH       -> stringResource(R.string.anim_morph_pingpong_desc)
         AnimMode.ORBIT_TRACE -> stringResource(R.string.anim_orbit_pingpong_desc)
         AnimMode.PARAM_SWEEP -> stringResource(R.string.anim_sweep_pingpong_desc)
     }
 
+    @Composable
+    fun modeChip(mode: AnimMode, labelRes: Int, modifier: Modifier) = FilterChip(
+        selected = state.animMode == mode,
+        onClick  = { onAnimMode(mode) },
+        enabled  = !state.isExportingVideo,
+        modifier = modifier,
+        label    = {
+            Text(stringResource(labelRes), style = MaterialTheme.typography.labelSmall)
+        },
+    )
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionLabel(stringResource(R.string.section_animation_export))
 
-        // ── Mode selector (3 chips) ───────────────────────────────────────
+        // ── Mode selector (2×2 chips) ─────────────────────────────────────
         Row(
             modifier              = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            FilterChip(
-                selected = state.animMode == AnimMode.MORPH,
-                onClick  = { onAnimMode(AnimMode.MORPH) },
-                enabled  = !state.isExportingVideo,
-                modifier = Modifier.weight(1f),
-                label    = { Text(stringResource(R.string.anim_morph), style = MaterialTheme.typography.labelSmall) },
-            )
-            FilterChip(
-                selected = state.animMode == AnimMode.ORBIT_TRACE,
-                onClick  = { onAnimMode(AnimMode.ORBIT_TRACE) },
-                enabled  = !state.isExportingVideo,
-                modifier = Modifier.weight(1f),
-                label    = { Text(stringResource(R.string.anim_orbit_trace), style = MaterialTheme.typography.labelSmall) },
-            )
-            FilterChip(
-                selected = state.animMode == AnimMode.PARAM_SWEEP,
-                onClick  = { onAnimMode(AnimMode.PARAM_SWEEP) },
-                enabled  = !state.isExportingVideo,
-                modifier = Modifier.weight(1f),
-                label    = { Text(stringResource(R.string.anim_sweep), style = MaterialTheme.typography.labelSmall) },
-            )
+            modeChip(AnimMode.TURNTABLE,   R.string.anim_turntable,   Modifier.weight(1f))
+            modeChip(AnimMode.MORPH,       R.string.anim_morph,       Modifier.weight(1f))
+        }
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            modeChip(AnimMode.ORBIT_TRACE, R.string.anim_orbit_trace, Modifier.weight(1f))
+            modeChip(AnimMode.PARAM_SWEEP, R.string.anim_sweep,       Modifier.weight(1f))
         }
 
         // ── Mode-specific controls ────────────────────────────────────────
         when (state.animMode) {
+            AnimMode.TURNTABLE -> {
+                Text(
+                    text  = stringResource(R.string.anim_turntable_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+                // Spin axis — 3-D only (2-D attractors always spin via roll)
+                if (state.attractorType.is3D) {
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text  = stringResource(R.string.label_spin_axis),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        TurntableAxis.entries.forEach { axis ->
+                            FilterChip(
+                                selected = state.turntableAxis == axis,
+                                onClick  = { onTurntableAxis(axis) },
+                                enabled  = !state.isExportingVideo,
+                                label    = {
+                                    Text(
+                                        stringResource(when (axis) {
+                                            TurntableAxis.YAW   -> R.string.axis_yaw
+                                            TurntableAxis.PITCH -> R.string.axis_pitch
+                                            TurntableAxis.ROLL  -> R.string.axis_roll
+                                        }),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             AnimMode.MORPH -> {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -2215,13 +2272,58 @@ private fun AnimationSection(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
+                // Destination preview + re-roll — no more blind exports.
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val thumb = state.sweepPreview
+                        if (thumb != null) {
+                            Image(
+                                bitmap             = thumb.asImageBitmap(),
+                                contentDescription = stringResource(R.string.anim_sweep_target),
+                                contentScale       = ContentScale.Crop,
+                                modifier           = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            CircularProgressIndicator(
+                                modifier    = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    }
+                    Column(
+                        modifier            = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text  = stringResource(R.string.anim_sweep_target),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        )
+                        OutlinedButton(
+                            onClick = onRerollSweep,
+                            enabled = !state.isExportingVideo,
+                        ) {
+                            Text(stringResource(R.string.anim_sweep_reroll),
+                                 style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
             }
         }
 
-        // ── Frame count chips + custom input ──────────────────────────────
-        var frameText by rememberSaveable { mutableStateOf(state.animFrames.toString()) }
+        // ── Duration (seconds) chips + custom input ───────────────────────
+        var secText by rememberSaveable { mutableStateOf(state.animSeconds.toString()) }
         // Keep the text field in sync when a chip is tapped or state changes externally
-        LaunchedEffect(state.animFrames) { frameText = state.animFrames.toString() }
+        LaunchedEffect(state.animSeconds) { secText = state.animSeconds.toString() }
 
         Row(
             modifier              = Modifier.fillMaxWidth(),
@@ -2229,34 +2331,65 @@ private fun AnimationSection(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text  = stringResource(R.string.label_frames),
+                text  = stringResource(R.string.label_duration),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            frameOptions.forEach { n ->
+            secondsOptions.forEach { n ->
                 FilterChip(
-                    selected = state.animFrames == n,
-                    onClick  = { onAnimFrames(n) },
+                    selected = state.animSeconds == n,
+                    onClick  = { onAnimSeconds(n) },
                     enabled  = !state.isExportingVideo,
-                    label    = { Text("$n", style = MaterialTheme.typography.labelSmall) },
+                    label    = { Text(stringResource(R.string.anim_seconds_chip, n),
+                                      style = MaterialTheme.typography.labelSmall) },
                 )
             }
             OutlinedTextField(
-                value         = frameText,
+                value         = secText,
                 onValueChange = { raw ->
-                    frameText = raw.filter { it.isDigit() }.take(4)
-                    val n = frameText.toIntOrNull() ?: return@OutlinedTextField
-                    if (n in 2..600) onAnimFrames(n)
+                    secText = raw.filter { it.isDigit() }.take(2)
+                    val n = secText.toIntOrNull() ?: return@OutlinedTextField
+                    if (n in 1..ChaoscopeViewModel.MAX_VIDEO_SECONDS) onAnimSeconds(n)
                 },
                 enabled        = !state.isExportingVideo,
                 singleLine     = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle      = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center),
-                modifier       = Modifier.width(72.dp),
+                modifier       = Modifier.width(64.dp),
             )
         }
 
-        // ── Ping-pong toggle ──────────────────────────────────────────────
+        // ── Output size ───────────────────────────────────────────────────
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text  = stringResource(R.string.label_video_size),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            VideoResPreset.entries.forEach { res ->
+                FilterChip(
+                    selected = state.videoRes == res,
+                    onClick  = { onVideoRes(res) },
+                    enabled  = !state.isExportingVideo,
+                    label    = {
+                        Text(
+                            when (res) {
+                                VideoResPreset.FAST  -> "768"
+                                VideoResPreset.HD    -> "1080"
+                                VideoResPreset.REELS -> "9:16"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    },
+                )
+            }
+        }
+
+        // ── HD frame density toggle — trades export time for full-render dots ─
         Row(
             modifier              = Modifier.fillMaxWidth(),
             verticalAlignment     = Alignment.CenterVertically,
@@ -2264,31 +2397,70 @@ private fun AnimationSection(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = stringResource(R.string.toggle_pingpong),
+                    text  = stringResource(R.string.toggle_hd_frames),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text  = pingPongDesc,
+                    text  = stringResource(R.string.anim_hd_frames_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
             }
             Switch(
-                checked         = state.animPingPong,
-                onCheckedChange = onAnimPingPong,
+                checked         = state.videoHdFrames,
+                onCheckedChange = onVideoHdFrames,
                 enabled         = !state.isExportingVideo,
             )
         }
 
-        // ── Export button / progress ──────────────────────────────────────
+        // ── Ping-pong toggle (hidden for Turntable — a full spin already loops) ─
+        if (state.animMode != AnimMode.TURNTABLE) {
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text  = stringResource(R.string.toggle_pingpong),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text  = pingPongDesc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    )
+                }
+                Switch(
+                    checked         = state.animPingPong,
+                    onCheckedChange = onAnimPingPong,
+                    enabled         = !state.isExportingVideo,
+                )
+            }
+        }
+
+        // ── Preview + Export / progress ───────────────────────────────────
         if (state.isExportingVideo) {
             val progress = if (state.videoExportTotal > 0)
                 state.videoExportProgress.toFloat() / state.videoExportTotal else 0f
+            // ETA from the rolling average once a few frames are in.
+            val etaText: String? =
+                if (state.videoExportProgress >= 5 && state.videoExportStartMs > 0L) {
+                    val elapsed = System.currentTimeMillis() - state.videoExportStartMs
+                    formatEta(elapsed *
+                        (state.videoExportTotal - state.videoExportProgress) /
+                        state.videoExportProgress)
+                } else null
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text  = stringResource(R.string.anim_exporting_frame,
-                                           state.videoExportProgress, state.videoExportTotal),
+                    text = if (etaText != null)
+                        stringResource(R.string.anim_exporting_eta,
+                                       state.videoExportProgress, state.videoExportTotal, etaText)
+                    else
+                        stringResource(R.string.anim_exporting_frame,
+                                       state.videoExportProgress, state.videoExportTotal),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
@@ -2306,18 +2478,40 @@ private fun AnimationSection(
                 ) { Text(stringResource(R.string.btn_cancel_export)) }
             }
         } else {
-            Button(
-                onClick  = onExportVideo,
-                enabled  = canExport,
-                modifier = Modifier.fillMaxWidth(),
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                ),
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(stringResource(R.string.btn_export_video), color = MaterialTheme.colorScheme.onSecondary)
+                OutlinedButton(
+                    onClick  = onToggleAnimPreview,
+                    enabled  = canExport || state.isAnimPreviewing,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(
+                            if (state.isAnimPreviewing) R.string.btn_anim_preview_stop
+                            else R.string.btn_anim_preview),
+                         style = MaterialTheme.typography.labelSmall)
+                }
+                Button(
+                    onClick  = onExportVideo,
+                    enabled  = canExport,
+                    modifier = Modifier.weight(1.4f),
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                    ),
+                ) {
+                    Text(stringResource(R.string.btn_export_video),
+                         color = MaterialTheme.colorScheme.onSecondary)
+                }
             }
         }
     }
+}
+
+/** Compact remaining-time readout: "45s" under a minute, "3m 20s" above. */
+private fun formatEta(ms: Long): String {
+    val s = (ms / 1000).coerceAtLeast(1)
+    return if (s < 60) "${s}s" else "${s / 60}m ${s % 60}s"
 }
 
 // ────────────────────────────────────────────────────────────────────────────

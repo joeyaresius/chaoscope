@@ -19,8 +19,8 @@ class AttractorDefsTest {
                 n, type.paramRanges.size,
             )
             assertEquals(
-                "${type.name}: paramHints size ${type.paramHints.size} != paramNames size $n",
-                n, type.paramHints.size,
+                "${type.name}: paramHintsRes size ${type.paramHintsRes.size} != paramNames size $n",
+                n, type.paramHintsRes.size,
             )
         }
     }
@@ -37,10 +37,10 @@ class AttractorDefsTest {
         }
     }
 
-    @Test fun `every attractor has a non-blank display name and description`() {
+    @Test fun `every attractor has a non-blank display name and a description resource`() {
         for (type in AttractorType.entries) {
             assertTrue("${type.name} has blank displayName", type.displayName.isNotBlank())
-            assertTrue("${type.name} has blank description", type.description.isNotBlank())
+            assertNotEquals("${type.name} has no description resource", 0, type.descriptionRes)
         }
     }
 
@@ -80,21 +80,21 @@ class AttractorDefsTest {
 
     // ── UiState defaults ──────────────────────────────────────────────────────
 
-    @Test fun `UiState default attractor is CLIFFORD`() {
-        assertEquals(AttractorType.CLIFFORD, UiState().attractorType)
+    @Test fun `UiState default attractor is BURKE_SHAW`() {
+        assertEquals(AttractorType.BURKE_SHAW, UiState().attractorType)
     }
 
-    @Test fun `UiState default palette is NEBULA`() {
-        assertEquals(PaletteType.NEBULA, UiState().palette)
+    @Test fun `UiState default palette is ELECTRIC`() {
+        assertEquals(PaletteType.ELECTRIC, UiState().palette)
     }
 
     @Test fun `UiState default customStops equals defaultCustomStops`() {
         assertEquals(defaultCustomStops, UiState().customStops)
     }
 
-    @Test fun `UiState default params match CLIFFORD defaults`() {
+    @Test fun `UiState default params match BURKE_SHAW defaults`() {
         val state = UiState()
-        assertEquals(AttractorType.CLIFFORD.defaultParams.toList(), state.params)
+        assertEquals(AttractorType.BURKE_SHAW.defaultParams.toList(), state.params)
     }
 
     // ── Share caption ─────────────────────────────────────────────────────────

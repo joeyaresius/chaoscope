@@ -73,13 +73,6 @@
     <!-- Attractor of the Day -->
     <string name="daily_title">Atractor del día</string>
 
-    <!-- Live wallpaper -->
-    <string name="wp_settings_title">Fondo animado</string>
-    <string name="wp_description">Un atractor extraño girando lentamente en tu pantalla de inicio.</string>
-    <string name="wp_source_label">El fondo muestra</string>
-    <string name="wp_source_current">Mi creación actual</string>
-    <string name="wp_speed_label">Velocidad de rotación</string>
-    <string name="wp_hint">Gira solo mientras la pantalla de inicio está visible; se pausa con el ahorro de batería.</string>
 
     <!-- Preset codes (import / share) -->
     <string name="btn_import_preset">Importar</string>
@@ -93,7 +86,6 @@
     <string name="btn_render_4k">4K</string>
     <string name="btn_export_png">Exportar PNG</string>
     <string name="btn_set_wallpaper">🖼  Fijar como Fondo</string>
-    <string name="btn_set_live_wallpaper">🌀  Fijar como fondo animado</string>
     <string name="btn_export_video">🎬  Exportar Vídeo</string>
     <string name="btn_cancel_export">Cancelar exportación</string>
     <string name="btn_randomize_params">🎲 Parámetros</string>
@@ -110,7 +102,9 @@
     <string name="toggle_transparent_bg">Fondo transparente</string>
     <string name="toggle_transparent_bg_desc">Exporta PNG con fondo transparente — ideal para stickers.</string>
     <string name="toggle_pingpong">Bucle ping-pong</string>
-    <string name="label_frames">Fotogramas:</string>
+    <string name="label_duration">Duración:</string>
+    <string name="label_video_size">Tamaño:</string>
+    <string name="anim_seconds_chip">%1$d s</string>
     <string name="label_name">Nombre</string>
     <string name="camera_3d_only">Los controles de cámara solo están disponibles para atractores 3D.\n\nCambia a un atractor 3D en la pestaña Forma para usar yaw, pitch, roll y profundidad.</string>
     <string name="save_preset_title">Guardar ajuste</string>
@@ -133,9 +127,11 @@
     <string name="cd_type_value">Escribir valor para %1$s</string>
     <string name="image_attractor">Atractor Extraño — %1$s</string>
 
+    <string name="anim_turntable">Giro 360°</string>
     <string name="anim_morph">Morph</string>
     <string name="anim_orbit_trace">Trazo de Órbita</string>
     <string name="anim_sweep">Barrido</string>
+    <string name="anim_turntable_hint">Una vuelta completa de 360° del aspecto actual — bucle perfecto. Sin fotogramas clave.</string>
     <string name="anim_morph_pingpong_desc">Reproduce A→B→A para un vídeo en bucle perfecto.</string>
     <string name="anim_orbit_pingpong_desc">Traza la órbita y luego la borra hasta el inicio.</string>
     <string name="anim_sweep_pingpong_desc">Morph al objetivo aleatorio y vuelta — bucle perfecto.</string>
@@ -145,8 +141,19 @@
     <string name="anim_frame_b_done">✓ Fotograma B</string>
     <string name="anim_morph_hint">Fija el Fotograma A y el Fotograma B para habilitar la exportación.</string>
     <string name="anim_orbit_hint">Renderiza el atractor como puntos coloreados crecientes — cada fotograma revela más del recorrido. Sin fotogramas clave.</string>
-    <string name="anim_sweep_hint">Varía automáticamente todos los parámetros del estado actual hasta un objetivo aleatorio — un resultado nuevo cada exportación. Sin fotogramas clave.</string>
+    <string name="anim_sweep_hint">Barre todos los parámetros del aspecto actual hasta el objetivo aleatorio de abajo. Sin fotogramas clave.</string>
+    <string name="anim_sweep_target">Objetivo del barrido</string>
+    <string name="anim_sweep_reroll">🎲 Nuevo objetivo</string>
+    <string name="label_spin_axis">Eje de giro:</string>
+    <string name="axis_yaw">Yaw</string>
+    <string name="axis_pitch">Pitch</string>
+    <string name="axis_roll">Roll</string>
+    <string name="toggle_hd_frames">Densidad de puntos HD</string>
+    <string name="anim_hd_frames_desc">Los fotogramas igualan la densidad de un render completo — la exportación tarda varias veces más.</string>
+    <string name="btn_anim_preview">▶ Vista previa</string>
+    <string name="btn_anim_preview_stop">⏹ Detener</string>
     <string name="anim_exporting_frame">Exportando fotograma %1$d / %2$d</string>
+    <string name="anim_exporting_eta">Exportando fotograma %1$d / %2$d · quedan ~%3$s</string>
     <string name="video_warning_title">Se exporta en segundo plano</string>
     <string name="video_warning_body">Renderizar el vídeo puede tardar un rato. Sigue ejecutándose en segundo plano y mostraremos una notificación de progreso para que puedas seguirlo y cancelarlo si hace falta. Permite las notificaciones en la siguiente pantalla para verlo.</string>
     <string name="video_warning_confirm">Iniciar exportación</string>

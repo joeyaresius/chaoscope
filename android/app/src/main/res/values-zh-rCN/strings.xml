@@ -73,13 +73,6 @@
     <!-- Attractor of the Day -->
     <string name="daily_title">每日吸引子</string>
 
-    <!-- Live wallpaper -->
-    <string name="wp_settings_title">动态壁纸</string>
-    <string name="wp_description">奇异吸引子在主屏幕上缓缓旋转。</string>
-    <string name="wp_source_label">壁纸显示</string>
-    <string name="wp_source_current">我当前的作品</string>
-    <string name="wp_speed_label">旋转速度</string>
-    <string name="wp_hint">仅在主屏幕可见时旋转；省电模式下暂停。</string>
 
     <!-- Preset codes (import / share) -->
     <string name="btn_import_preset">导入</string>
@@ -93,7 +86,6 @@
     <string name="btn_render_4k">4K</string>
     <string name="btn_export_png">导出 PNG</string>
     <string name="btn_set_wallpaper">🖼  设为壁纸</string>
-    <string name="btn_set_live_wallpaper">🌀  设为动态壁纸</string>
     <string name="btn_export_video">🎬  导出视频</string>
     <string name="btn_cancel_export">取消导出</string>
     <string name="btn_randomize_params">🎲 参数</string>
@@ -110,7 +102,9 @@
     <string name="toggle_transparent_bg">透明背景</string>
     <string name="toggle_transparent_bg_desc">导出带透明背景的 PNG — 非常适合贴纸。</string>
     <string name="toggle_pingpong">乒乓循环</string>
-    <string name="label_frames">帧数：</string>
+    <string name="label_duration">时长：</string>
+    <string name="label_video_size">尺寸：</string>
+    <string name="anim_seconds_chip">%1$d 秒</string>
     <string name="label_name">名称</string>
     <string name="camera_3d_only">相机控件仅适用于 3D 吸引子。\n\n请在\"形状\"标签页切换到 3D 吸引子，以使用偏航、俯仰、翻滚和景深控件。</string>
     <string name="save_preset_title">保存预设</string>
@@ -133,9 +127,11 @@
     <string name="cd_type_value">输入 %1$s 的值</string>
     <string name="image_attractor">奇异吸引子 — %1$s</string>
 
+    <string name="anim_turntable">360° 旋转</string>
     <string name="anim_morph">变形</string>
     <string name="anim_orbit_trace">轨迹描绘</string>
     <string name="anim_sweep">扫描</string>
+    <string name="anim_turntable_hint">当前画面完整旋转 360° — 无缝循环。无需关键帧。</string>
     <string name="anim_morph_pingpong_desc">播放 A→B→A，形成无缝循环视频。</string>
     <string name="anim_orbit_pingpong_desc">先描绘轨迹，然后再擦除回起点。</string>
     <string name="anim_sweep_pingpong_desc">变形到随机目标再返回 — 无缝循环。</string>
@@ -145,8 +141,19 @@
     <string name="anim_frame_b_done">✓ 关键帧 B</string>
     <string name="anim_morph_hint">同时设置关键帧 A 和 B 才能启用导出。</string>
     <string name="anim_orbit_hint">将吸引子渲染为不断生长的彩色点 — 每帧揭示更多轨迹。无需关键帧。</string>
-    <string name="anim_sweep_hint">自动将所有参数从当前状态变化到随机目标 — 每次导出都不同。无需关键帧。</string>
+    <string name="anim_sweep_hint">将所有参数从当前画面渐变到下方的随机目标。无需关键帧。</string>
+    <string name="anim_sweep_target">扫描目标</string>
+    <string name="anim_sweep_reroll">🎲 换个目标</string>
+    <string name="label_spin_axis">旋转轴：</string>
+    <string name="axis_yaw">偏航</string>
+    <string name="axis_pitch">俯仰</string>
+    <string name="axis_roll">翻滚</string>
+    <string name="toggle_hd_frames">高清点密度</string>
+    <string name="anim_hd_frames_desc">每帧达到完整渲染的点密度 — 导出耗时增加数倍。</string>
+    <string name="btn_anim_preview">▶ 预览</string>
+    <string name="btn_anim_preview_stop">⏹ 停止</string>
     <string name="anim_exporting_frame">正在导出第 %1$d / %2$d 帧</string>
+    <string name="anim_exporting_eta">正在导出第 %1$d / %2$d 帧 · 剩余约 %3$s</string>
     <string name="video_warning_title">在后台导出</string>
     <string name="video_warning_body">渲染视频可能需要一些时间。它会在后台继续运行，我们会显示进度通知，方便你跟踪并在需要时取消。请在下一个界面允许通知以便查看。</string>
     <string name="video_warning_confirm">开始导出</string>

@@ -104,6 +104,15 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     val hasEverRendered: StateFlow<Boolean> = prefs.hasEverRendered
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    // One-time "video exports in the background" dialog. Initial false: worst
+    // case a veteran sees the dialog once more while the persisted value loads.
+    val videoWarningSeen: StateFlow<Boolean> = prefs.videoWarningSeen
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun markVideoWarningSeen() {
+        viewModelScope.launch { prefs.setVideoWarningSeen() }
+    }
+
     // Attractor of the Day — null until the date-seeded candidate is validated
     // (a thumbnail render on a background thread; cached, so usually instant).
     private val _dailyPreset = MutableStateFlow<Preset?>(null)
@@ -198,12 +207,17 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         wallpaperDone        = false,
         wallpaperError       = null,
         // Animation state is session-only; don't persist mode, keyframes or export status
-        animMode             = AnimMode.MORPH,
+        animMode             = AnimMode.TURNTABLE,
+        turntableAxis        = TurntableAxis.YAW,
         keyframeA            = null,
         keyframeB            = null,
+        sweepTarget          = null,
+        sweepPreview         = null,
+        isAnimPreviewing     = false,
         isExportingVideo     = false,
         videoExportProgress  = 0,
         videoExportTotal     = 0,
+        videoExportStartMs   = 0L,
         videoExportError     = null,
         videoExportUri       = null,
     )
@@ -211,6 +225,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     // ── Parameter updates (state only – no auto render) ────────────────────
 
     fun setAttractorType(type: AttractorType) {
+        stopAnimPreview()
         _uiState.update {
             it.copy(
                 attractorType = type,
@@ -220,6 +235,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 roll  = if (type.is3D) it.roll  else 0f,
             )
         }
+        invalidateSweepTarget()
         fetchDotPoints()
     }
 
@@ -256,6 +272,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
     /** Apply a curated preset: attractor + params + camera + look, then preview. */
     fun applyPreset(preset: Preset) {
         snapshotForUndo()
+        stopAnimPreview()
         _uiState.update {
             it.copy(
                 attractorType = preset.type,
@@ -270,6 +287,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 bitmap = null,
             )
         }
+        invalidateSweepTarget()
         rebuildPaletteLut()   // preset carries its own palette — recolour the dots
         fetchDotPoints()
     }
@@ -443,6 +461,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called on every drag frame – shows dot cloud, no histogram render. */
     fun rotateBy(deltaYaw: Float, deltaPitch: Float) {
+        if (_uiState.value.isAnimPreviewing) stopAnimPreview()
         _uiState.update { s ->
             s.copy(
                 yaw   = (s.yaw   + deltaYaw)   % 360f,
@@ -454,6 +473,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pinch-to-zoom on every gesture frame – shows dot cloud. */
     fun zoomBy(factor: Float) {
+        if (_uiState.value.isAnimPreviewing) stopAnimPreview()
         _uiState.update { s ->
             s.copy(zoom = (s.zoom * factor).coerceIn(0.1f, 20f))
         }
@@ -556,6 +576,140 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         finishJob?.cancel()
         _isDragging.value = false
         _bucketedDots.value = null
+    }
+
+    // ── In-canvas animation preview ──────────────────────────────────────────
+    //
+    // User-initiated (play button in the video section) loop that animates the
+    // selected video mode through the live dot pipeline — the same cost as a
+    // drag frame, so nothing here violates the explicit-render rule.
+
+    private var animPreviewJob: Job? = null
+
+    fun toggleAnimPreview() {
+        if (_uiState.value.isAnimPreviewing) stopAnimPreview() else startAnimPreview()
+    }
+
+    private fun startAnimPreview() {
+        val start = _uiState.value
+        if (start.animMode == AnimMode.MORPH &&
+            (start.keyframeA == null || start.keyframeB == null)) return
+
+        animPreviewJob?.cancel()
+        _uiState.update { it.copy(isAnimPreviewing = true) }
+        animPreviewJob = viewModelScope.launch(Dispatchers.Default) {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            val mode = start.animMode
+
+            // Orbit Trace previews the growing trace from a fixed camera: fetch
+            // the ordered orbit once, reveal a longer prefix each frame.
+            val orbitPts: FloatArray? = if (mode == AnimMode.ORBIT_TRACE) {
+                renderer.getPoints(
+                    attractorType = start.attractorType.ordinal,
+                    params        = start.params.toFloatArray(),
+                    nPts          = start.previewDensity.dots,
+                    yaw           = start.yaw,
+                    pitch         = start.pitch,
+                    roll          = start.roll,
+                    zoom          = start.zoom,
+                )
+            } else null
+
+            val startNs = System.nanoTime()
+            while (isActive) {
+                val s        = _uiState.value
+                val durMs    = s.animSeconds.coerceIn(1, MAX_VIDEO_SECONDS) * 1000L
+                val pingPong = s.animPingPong && mode != AnimMode.TURNTABLE
+                val cycleMs  = if (pingPong) durMs * 2 else durMs
+                val elapsed  = (System.nanoTime() - startNs) / 1_000_000
+                val phase    = (elapsed % cycleMs).toFloat() / durMs   // [0,1) or [0,2)
+                val t        = if (phase <= 1f) phase else 2f - phase
+
+                when (mode) {
+                    AnimMode.TURNTABLE -> {
+                        val fs = s.withTurntableSpin(360f * t)
+                        _bucketedDots.value = bucketDots(computeDots(fs), _paletteLut.value)
+                    }
+                    AnimMode.MORPH, AnimMode.PARAM_SWEEP -> {
+                        val kfA = if (mode == AnimMode.MORPH) s.keyframeA
+                                  else AnimKeyframe(s.params, s.yaw, s.pitch, s.roll, s.zoom)
+                        val kfB = if (mode == AnimMode.MORPH) s.keyframeB else s.sweepTarget
+                        if (kfA == null || kfB == null) break
+                        val params = kfA.params.mapIndexed { i, av ->
+                            av + (kfB.params.getOrElse(i) { av } - av) * t
+                        }
+                        val fs = s.copy(
+                            params = params,
+                            yaw    = kfA.yaw   + (kfB.yaw   - kfA.yaw)   * t,
+                            pitch  = kfA.pitch + (kfB.pitch - kfA.pitch) * t,
+                            roll   = kfA.roll  + (kfB.roll  - kfA.roll)  * t,
+                            zoom   = kfA.zoom  + (kfB.zoom  - kfA.zoom)  * t,
+                        )
+                        _bucketedDots.value = bucketDots(computeDots(fs), _paletteLut.value)
+                    }
+                    AnimMode.ORBIT_TRACE -> {
+                        val pts    = orbitPts ?: break
+                        val maxPts = pts.size / 2
+                        if (maxPts == 0) break
+                        val n = (maxPts * t).roundToInt().coerceIn(1, maxPts)
+                        _bucketedDots.value = bucketOrbitPrefix(pts, n, _paletteLut.value)
+                    }
+                }
+                delay(ANIM_PREVIEW_FRAME_MS)
+            }
+            // Bailed via break (keyframes/orbit gone mid-preview) rather than
+            // cancellation — reset so the button doesn't stick on "Stop".
+            if (isActive) withContext(Dispatchers.Main) { stopAnimPreview() }
+        }
+    }
+
+    fun stopAnimPreview() {
+        if (animPreviewJob == null && !_uiState.value.isAnimPreviewing) return
+        animPreviewJob?.cancel()
+        animPreviewJob = null
+        _uiState.update { it.copy(isAnimPreviewing = false) }
+        val s = _uiState.value
+        if (s.bitmap == null && !s.isRendering) {
+            // Nothing rendered to fall back to — clearing the dots would leave
+            // the canvas on the indefinite "Loading…" state, so refresh them.
+            fetchDotPoints()
+        } else {
+            _bucketedDots.value = null   // restore the rendered-bitmap view
+        }
+    }
+
+    /**
+     * Bucket the first [nPts] orbit points (u,v pairs, trajectory order) by the
+     * rescaling-rainbow colour `idx / nPts` — the same mapping the Orbit-Trace
+     * export uses, so the preview shows the export's "building sweep" look.
+     */
+    private fun bucketOrbitPrefix(pts: FloatArray, nPts: Int, lut: IntArray): BucketedDots {
+        if (lut.isEmpty()) {
+            val uvs = FloatArray(nPts * 2)
+            System.arraycopy(pts, 0, uvs, 0, nPts * 2)
+            return BucketedDots(arrayOf(uvs), intArrayOf(0xFFFFFFFF.toInt()))
+        }
+        val nb      = lut.size
+        val lastIdx = nb - 1
+        val denom   = nPts.coerceAtLeast(1).toFloat()
+        val counts  = IntArray(nb)
+        var idx = 0
+        while (idx < nPts) {
+            counts[((idx / denom).coerceIn(0f, 1f) * lastIdx).toInt()]++
+            idx++
+        }
+        val buckets = Array(nb) { FloatArray(counts[it] * 2) }
+        val heads   = IntArray(nb)
+        idx = 0
+        while (idx < nPts) {
+            val b = ((idx / denom).coerceIn(0f, 1f) * lastIdx).toInt()
+            val h = heads[b]
+            buckets[b][h]     = pts[idx * 2]
+            buckets[b][h + 1] = pts[idx * 2 + 1]
+            heads[b] = h + 2
+            idx++
+        }
+        return BucketedDots(buckets, lut)
     }
 
     /** Reset camera to default orientation and zoom — no render. */
@@ -705,21 +859,126 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setAnimMode(mode: AnimMode) { _uiState.update { it.copy(animMode = mode) } }
+    fun setAnimMode(mode: AnimMode) {
+        val wasPreviewing = _uiState.value.isAnimPreviewing
+        stopAnimPreview()
+        _uiState.update { it.copy(animMode = mode) }
+        // Sweep shows its random destination up front — generate one on entry.
+        if (mode == AnimMode.PARAM_SWEEP && _uiState.value.sweepTarget == null) {
+            rerollSweepTarget()
+        }
+        // The preview was already playing — keep playing in the new mode rather
+        // than dropping to a stopped canvas the user reads as stuck loading.
+        if (wasPreviewing) startAnimPreview()
+    }
 
-    fun setAnimFrames(n: Int) { _uiState.update { it.copy(animFrames = n) } }
+    /**
+     * Camera for a Turntable frame at [spin] degrees into the revolution.
+     * 2-D attractors collapse edge-on under yaw/pitch — they always spin
+     * in-plane via roll; 3-D ones spin the user-chosen axis.
+     */
+    private fun UiState.withTurntableSpin(spin: Float): UiState =
+        if (!attractorType.is3D) copy(roll = (roll + spin) % 360f)
+        else when (turntableAxis) {
+            TurntableAxis.YAW   -> copy(yaw   = (yaw   + spin) % 360f)
+            TurntableAxis.PITCH -> copy(pitch = (pitch + spin) % 360f)
+            TurntableAxis.ROLL  -> copy(roll  = (roll  + spin) % 360f)
+        }
+
+    // The running preview reads state every frame, so an axis change while it
+    // plays takes effect live — no restart needed.
+    fun setTurntableAxis(axis: TurntableAxis) {
+        _uiState.update { it.copy(turntableAxis = axis) }
+    }
+
+    fun setAnimSeconds(sec: Int) {
+        _uiState.update { it.copy(animSeconds = sec.coerceIn(1, MAX_VIDEO_SECONDS)) }
+    }
 
     fun setAnimPingPong(enabled: Boolean) { _uiState.update { it.copy(animPingPong = enabled) } }
+
+    fun setVideoRes(res: VideoResPreset) { _uiState.update { it.copy(videoRes = res) } }
+
+    fun setVideoHdFrames(enabled: Boolean) { _uiState.update { it.copy(videoHdFrames = enabled) } }
+
+    // ── Sweep target (random destination, previewed before export) ───────────
+
+    private var sweepPreviewJob: Job? = null
+
+    /** Pick a fresh random sweep destination and render a small still of it. */
+    fun rerollSweepTarget() {
+        val s      = _uiState.value
+        val target = generateSweepTarget(s)
+        _uiState.update { it.copy(sweepTarget = target, sweepPreview = null) }
+
+        sweepPreviewJob?.cancel()
+        sweepPreviewJob = viewModelScope.launch(Dispatchers.Default) {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            val fs = s.copy(
+                params = target.params,
+                yaw    = target.yaw,
+                pitch  = target.pitch,
+                roll   = target.roll,
+                zoom   = target.zoom,
+            )
+            val pixels = nativeRenderCall(fs, SWEEP_PREVIEW_ITERATIONS, SWEEP_PREVIEW_SIZE)
+                ?: nativeRenderCall(fs, SWEEP_PREVIEW_ITERATIONS * 4, SWEEP_PREVIEW_SIZE,
+                                    boundsExtraPad = 0.15f)
+                ?: return@launch
+            val bmp = Bitmap.createBitmap(pixels, SWEEP_PREVIEW_SIZE, SWEEP_PREVIEW_SIZE,
+                                          Bitmap.Config.ARGB_8888)
+            if (s.bgColor.drawsArtBehind) {
+                ThemeBackgroundRenderer.compositeOnBitmap(
+                    s.bgColor, s.customBgArgb, bmp, _customBgBitmap.value)
+            }
+            // Drop the thumb if the user re-rolled again while we rendered.
+            _uiState.update { cur ->
+                if (cur.sweepTarget === target) cur.copy(sweepPreview = bmp) else cur
+            }
+        }
+    }
+
+    /**
+     * The attractor changed under the target — a stale one would sweep another
+     * attractor's parameter ranges. Re-rolls immediately when Sweep is active.
+     * Call *after* the state update so the fresh roll uses the new attractor.
+     */
+    private fun invalidateSweepTarget() {
+        sweepPreviewJob?.cancel()
+        _uiState.update { it.copy(sweepTarget = null, sweepPreview = null) }
+        if (_uiState.value.animMode == AnimMode.PARAM_SWEEP) rerollSweepTarget()
+    }
 
     // ── Video export ─────────────────────────────────────────────────────────
 
     fun exportVideo(context: Context) {
+        stopAnimPreview()
         val s = _uiState.value
 
-        // Ping-pong appends the reverse (minus the duplicated last frame)
-        val baseFrames         = s.animFrames.coerceAtLeast(2)
-        val totalFrames        = if (s.animPingPong) baseFrames * 2 - 1 else baseFrames
+        val fps        = VIDEO_FPS
+        val baseFrames = (s.animSeconds.coerceIn(1, MAX_VIDEO_SECONDS) * fps).coerceAtLeast(2)
+        // Turntable loops by construction — ping-pong never applies to it.
+        // Otherwise ping-pong appends the reverse (minus the duplicated last frame).
+        val pingPong           = s.animPingPong && s.animMode != AnimMode.TURNTABLE
+        val totalFrames        = if (pingPong) baseFrames * 2 - 1 else baseFrames
         val totalFramesWithOutro = totalFrames + OUTRO_FRAMES
+
+        // Output geometry: art is always square (the engine fits the shape per-axis);
+        // portrait presets composite it centred on a full-frame background.
+        val vidW    = s.videoRes.width
+        val vidH    = s.videoRes.height
+        val artSize = s.videoRes.artSize
+        // Keep per-pixel point density constant across art sizes. Preview-density
+        // frames scale previewIterations (tuned for the 768 canvas); HD frames
+        // scale hdIterations (tuned for the 2048 still) so each frame matches a
+        // full still render's dot density — several times slower per frame.
+        val frameIterations =
+            if (s.videoHdFrames)
+                s.renderQuality.hdIterations *
+                    artSize * artSize / (HD_SIZE.toLong() * HD_SIZE)
+            else
+                s.renderQuality.previewIterations *
+                    artSize * artSize / (PREVIEW_SIZE.toLong() * PREVIEW_SIZE)
 
         // Resolve keyframes for modes that need them
         val kfA: AnimKeyframe?
@@ -730,10 +989,11 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 kfB = s.keyframeB ?: return
             }
             AnimMode.PARAM_SWEEP -> {
-                // Snapshot current state as A; auto-generate B with random param variation
+                // Snapshot current state as A; sweep to the previewed random target
                 kfA = AnimKeyframe(s.params, s.yaw, s.pitch, s.roll, s.zoom)
-                kfB = generateSweepTarget(s)
+                kfB = s.sweepTarget ?: generateSweepTarget(s)
             }
+            AnimMode.TURNTABLE,
             AnimMode.ORBIT_TRACE -> { kfA = null; kfB = null }
         }
 
@@ -742,6 +1002,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 isExportingVideo    = true,
                 videoExportProgress = 0,
                 videoExportTotal    = totalFramesWithOutro,
+                videoExportStartMs  = System.currentTimeMillis(),
                 videoExportError    = null,
                 videoExportUri      = null,
             )
@@ -755,13 +1016,21 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
         videoExportJob = viewModelScope.launch(Dispatchers.Default) {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            // Full-frame background, rendered once — only needed when the frame is
+            // larger than the art (portrait presets). Camera-mode art is drawn onto
+            // a copy of it; the Orbit-Trace base is a centre crop of it, so the
+            // procedural themes match pixel-for-pixel with no seam.
+            val frameBase: Bitmap? =
+                if (vidW == artSize && vidH == artSize) null
+                else makeFrameBase(s, vidW, vidH)
+
             // Pre-compute the full orbit point cloud once for ORBIT_TRACE so that
             // every frame is a prefix of the same orbit (true cumulative trace).
-            // The final frame draws previewIterations points, matching the per-frame
-            // density used by the Morph/Sweep render path so all video modes reach the
-            // same point budget at the selected render quality.
+            // The final frame draws the scaled iteration budget, matching the
+            // per-frame density used by the Morph/Sweep render path so all video
+            // modes reach the same point budget at the selected render quality.
             val orbitPts: FloatArray? = if (s.animMode == AnimMode.ORBIT_TRACE) {
-                val requested = s.renderQuality.previewIterations.toInt()
+                val requested = frameIterations.toInt()
                 val maxPts = if (ORBIT_MAX_POINTS > 0)
                                  requested.coerceAtMost(ORBIT_MAX_POINTS)
                              else requested
@@ -776,6 +1045,12 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 )
             } else null
 
+            // Fresh orbit accumulation base: background-only, art-sized.
+            fun orbitBaseBitmap(): Bitmap =
+                if (frameBase == null) makeOrbitBaseBitmap(s, artSize)
+                else Bitmap.createBitmap(frameBase, (vidW - artSize) / 2,
+                                         (vidH - artSize) / 2, artSize, artSize)
+
             // Orbit-Trace draw state. The LUT is sampled once; with incremental
             // mode the accumulation bitmap persists across frames and only the new
             // slice of dots is drawn onto it (see ORBIT_TRACE_INCREMENTAL).
@@ -785,22 +1060,24 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 else IntArray(0)
             val orbitStableColor = ORBIT_TRACE_INCREMENTAL
             // Ping-pong's reverse half replays the forward frames in reverse (same t,
-            // identical images). When the frame count fits the budget we render the
-            // forward half incrementally, cache each frame, and re-emit the cache for
-            // the reverse half — making ping-pong ~2× faster instead of redrawing.
+            // identical images). When the frame count fits the memory budget we render
+            // the forward half incrementally, cache each frame, and re-emit the cache
+            // for the reverse half — making ping-pong ~2× faster instead of redrawing.
+            val maxCacheFrames = (PINGPONG_CACHE_BUDGET_BYTES /
+                                  (artSize.toLong() * artSize * 4)).toInt()
             val orbitPingPongCache: Array<Bitmap?>? =
                 if (s.animMode == AnimMode.ORBIT_TRACE && ORBIT_TRACE_INCREMENTAL &&
-                    s.animPingPong && baseFrames <= MAX_PINGPONG_CACHE_FRAMES)
+                    pingPong && baseFrames <= maxCacheFrames)
                     arrayOfNulls(baseFrames)
                 else null
             // Incremental forward accumulation: non-ping-pong, or ping-pong with cache.
             val orbitIncremental = ORBIT_TRACE_INCREMENTAL &&
-                                   (!s.animPingPong || orbitPingPongCache != null)
+                                   (!pingPong || orbitPingPongCache != null)
             // Density-normalised dot alpha — caps the finished trace's brightness so it
             // can't blow out to white. Applies to whichever colour mode is active.
             val orbitDotAlpha =
                 if (ORBIT_NORMALIZE_BRIGHTNESS && orbitPts != null)
-                    computeOrbitDotAlpha(orbitPts, PREVIEW_SIZE)
+                    computeOrbitDotAlpha(orbitPts, artSize)
                 else ORBIT_DOT_ALPHA
             var orbitAccum: Bitmap? = null
             var orbitPrevNPts = 0
@@ -810,22 +1087,36 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     VideoExporter.export(
                         context    = context,
                         frameCount = totalFramesWithOutro,
-                        fps        = 30,
-                        frameSize  = PREVIEW_SIZE,
+                        fps        = fps,
+                        width      = vidW,
+                        height     = vidH,
                         renderFrame = { frameIdx ->
                             if (!isActive) return@export null
-                            if (frameIdx >= totalFrames) return@export renderOutroFrame(context, frameIdx - totalFrames)
+                            if (frameIdx >= totalFrames) return@export renderOutroFrame(
+                                context, frameIdx - totalFrames, vidW, vidH)
 
-                            // t ∈ [0,1], mirrored in the second half for ping-pong
-                            val t = if (frameIdx < baseFrames) {
-                                frameIdx.toFloat() / (baseFrames - 1).coerceAtLeast(1)
-                            } else {
-                                (totalFrames - 1 - frameIdx).toFloat() /
-                                    (baseFrames - 1).coerceAtLeast(1)
+                            // t ∈ [0,1]. Turntable excludes the endpoint (frame 0 ==
+                            // frame N → seamless loop); the others span [0,1] fully,
+                            // mirrored in the second half for ping-pong.
+                            val t = when {
+                                s.animMode == AnimMode.TURNTABLE ->
+                                    frameIdx.toFloat() / baseFrames
+                                frameIdx < baseFrames ->
+                                    frameIdx.toFloat() / (baseFrames - 1).coerceAtLeast(1)
+                                else ->
+                                    (totalFrames - 1 - frameIdx).toFloat() /
+                                        (baseFrames - 1).coerceAtLeast(1)
                             }
 
                             when (s.animMode) {
-                                // ── Morph: lerp params + camera A → B ───────────────
+                                // ── Turntable: one full camera revolution ───────────
+                                AnimMode.TURNTABLE -> {
+                                    val fs = s.withTurntableSpin(360f * t)
+                                    renderVideoArt(fs, frameIterations, artSize)
+                                        ?.let { finishCameraFrame(s, it, frameBase) }
+                                }
+
+                                // ── Morph / Sweep: lerp params + camera A → B ───────
                                 AnimMode.MORPH, AnimMode.PARAM_SWEEP -> {
                                     val params = kfA!!.params.mapIndexed { i, av ->
                                         av + (kfB!!.params.getOrElse(i) { av } - av) * t
@@ -836,18 +1127,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                     val zoom  = kfA.zoom  + (kfB.zoom  - kfA.zoom)  * t
                                     val fs    = s.copy(params = params, yaw = yaw,
                                                        pitch = pitch, roll = roll, zoom = zoom)
-                                    val pixels = nativeRenderCall(fs,
-                                                     s.renderQuality.previewIterations, PREVIEW_SIZE)
-                                        ?: nativeRenderCall(fs,
-                                               s.renderQuality.previewIterations * 4, PREVIEW_SIZE,
-                                               boundsExtraPad = 0.15f)
-                                        ?: return@export null
-                                    val raw = Bitmap.createBitmap(pixels, PREVIEW_SIZE, PREVIEW_SIZE,
-                                                                  Bitmap.Config.ARGB_8888)
-                                    if (s.bgColor.drawsArtBehind)
-                                        ThemeBackgroundRenderer.compositeOnBitmap(
-                                            s.bgColor, s.customBgArgb, raw, _customBgBitmap.value)
-                                    else raw
+                                    renderVideoArt(fs, frameIterations, artSize)
+                                        ?.let { finishCameraFrame(s, it, frameBase) }
                                 }
 
                                 // ── Orbit Trace: cumulative coloured dot cloud ────────
@@ -864,21 +1145,20 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                     val isReverse  = orbitPingPongCache != null &&
                                                      frameIdx >= baseFrames
 
-                                    if (isReverse) {
+                                    val art = if (isReverse) {
                                         // Replay the cached forward frame — no redraw.
                                         val f = totalFrames - 1 - frameIdx
                                         orbitPingPongCache[f]
                                             ?.copy(Bitmap.Config.ARGB_8888, false)
-                                            ?: makeOrbitBaseBitmap(s, PREVIEW_SIZE)
+                                            ?: orbitBaseBitmap()
                                     } else if (orbitIncremental) {
                                         // Persistent accumulation: draw only the new
                                         // dots [prevNPts, nPts) onto the kept bitmap.
                                         val accum = orbitAccum
-                                            ?: makeOrbitBaseBitmap(s, PREVIEW_SIZE)
-                                                .also { orbitAccum = it }
+                                            ?: orbitBaseBitmap().also { orbitAccum = it }
                                         drawOrbitDots(accum, allPts, orbitPrevNPts, nPts,
                                                       colorDenom, orbitLut, orbitDotAlpha,
-                                                      PREVIEW_SIZE)
+                                                      artSize)
                                         orbitPrevNPts = nPts
                                         // Cache this forward frame for the reverse half,
                                         // then hand the exporter its own copy to recycle.
@@ -889,12 +1169,16 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                                         accum.copy(Bitmap.Config.ARGB_8888, false)
                                     } else {
                                         // Full (but bucketed) redraw each frame.
-                                        val bmp = makeOrbitBaseBitmap(s, PREVIEW_SIZE)
+                                        val bmp = orbitBaseBitmap()
                                         drawOrbitDots(bmp, allPts, 0, nPts,
                                                       colorDenom, orbitLut, orbitDotAlpha,
-                                                      PREVIEW_SIZE)
+                                                      artSize)
                                         bmp
                                     }
+                                    // Orbit art is fully composed (base includes the
+                                    // background) — portrait just blits it centred.
+                                    if (frameBase == null) art
+                                    else blitOntoFrame(art, frameBase)
                                 }
                             }
                         },
@@ -948,14 +1232,61 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                     bmp?.recycle()
                     orbitPingPongCache[i] = null
                 }
+                frameBase?.recycle()
             }
         }
     }
 
     // ── Video export helpers ──────────────────────────────────────────────────
 
-    private fun renderOutroFrame(context: Context, outroIdx: Int): Bitmap {
-        val size   = PREVIEW_SIZE
+    /** One square art frame: histogram render with the standard blank-frame retry. */
+    private fun renderVideoArt(fs: UiState, iterations: Long, artSize: Int): Bitmap? {
+        val pixels = nativeRenderCall(fs, iterations, artSize)
+            ?: nativeRenderCall(fs, iterations * 4, artSize, boundsExtraPad = 0.15f)
+            ?: return null
+        return Bitmap.createBitmap(pixels, artSize, artSize, Bitmap.Config.ARGB_8888)
+    }
+
+    /** Full-frame background (theme, photo or solid), rendered once per export. */
+    private fun makeFrameBase(s: UiState, w: Int, h: Int): Bitmap {
+        val bmp    = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        if (s.bgColor.drawsArtBehind) {
+            ThemeBackgroundRenderer.drawTo(canvas, s.bgColor, s.customBgArgb,
+                                           w.toFloat(), h.toFloat(), _customBgBitmap.value)
+        } else {
+            canvas.drawColor(s.effectiveBgArgb)
+        }
+        return bmp
+    }
+
+    /** Centre [art] on a copy of [frameBase]; recycles [art]. */
+    private fun blitOntoFrame(art: Bitmap, frameBase: Bitmap): Bitmap {
+        val frame  = frameBase.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(frame)
+        canvas.drawBitmap(art, (frame.width  - art.width)  / 2f,
+                               (frame.height - art.height) / 2f, null)
+        art.recycle()
+        return frame
+    }
+
+    /**
+     * Finish a camera-mode (Turntable/Morph/Sweep) art frame. Square output:
+     * composite the theme behind the transparent art in place (the fast path the
+     * 768² export always took). Portrait: blit onto the full-frame background.
+     */
+    private fun finishCameraFrame(s: UiState, art: Bitmap, frameBase: Bitmap?): Bitmap {
+        if (frameBase == null) {
+            if (s.bgColor.drawsArtBehind)
+                ThemeBackgroundRenderer.compositeOnBitmap(
+                    s.bgColor, s.customBgArgb, art, _customBgBitmap.value)
+            return art
+        }
+        return blitOntoFrame(art, frameBase)
+    }
+
+    private fun renderOutroFrame(context: Context, outroIdx: Int, w: Int, h: Int): Bitmap {
+        val size   = minOf(w, h)
         val bmp    = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
@@ -992,6 +1323,17 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         paint.typeface = Typeface.DEFAULT_BOLD
         canvas.drawText("Chaoscope", size / 2f, labelY + size * 0.13f, paint)
 
+        // Portrait output: centre the square outro on a matching-colour canvas
+        // (same solid background → seamless).
+        if (w != size || h != size) {
+            val frame = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            Canvas(frame).apply {
+                drawColor(Color.parseColor("#FF06060F"))
+                drawBitmap(bmp, (w - size) / 2f, (h - size) / 2f, null)
+            }
+            bmp.recycle()
+            return frame
+        }
         return bmp
     }
 
@@ -1116,7 +1458,8 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
 
         val canvas = Canvas(bitmap)
         val paint = Paint().apply {
-            strokeWidth = 1.5f
+            // Dot size tuned on the 768 canvas; scale so larger art keeps the look.
+            strokeWidth = 1.5f * size / PREVIEW_SIZE
             strokeCap   = Paint.Cap.ROUND
             isAntiAlias = true
             xfermode    = android.graphics.PorterDuffXfermode(
@@ -1178,6 +1521,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 bitmap        = null,
             )
         }
+        invalidateSweepTarget()
         rebuildPaletteLut()
         fetchDotPoints()
     }
@@ -1199,6 +1543,7 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
                 roll          = 0f,
             )
         }
+        invalidateSweepTarget()
         rebuildPaletteLut()   // palette changed — recolour the dot preview
         fetchDotPoints()
     }
@@ -1340,8 +1685,19 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         private const val PERSIST_DEBOUNCE_MS = 500L
         private const val PROGRESS_POLL_MS    = 200L
 
+        // Video export timing: the UI picks a duration in seconds; frames = s × fps.
+        const val VIDEO_FPS         = 30
+        const val MAX_VIDEO_SECONDS = 20
+
         // Outro appended to every video export (1 s at 30 fps).
         private const val OUTRO_FRAMES = 30
+
+        // Sweep-target preview thumbnail (rendered when entering Sweep / re-rolling).
+        private const val SWEEP_PREVIEW_SIZE       = 256
+        private const val SWEEP_PREVIEW_ITERATIONS = 300_000L
+
+        // In-canvas animation preview pacing (~30 fps).
+        private const val ANIM_PREVIEW_FRAME_MS = 33L
 
         // Iteration counts now come from RenderQuality; only the canvas sizes are fixed.
         const val PREVIEW_SIZE       = 768
@@ -1384,10 +1740,10 @@ class ChaoscopeViewModel(app: Application) : AndroidViewModel(app) {
         // turn off for the exact legacy fixed-alpha brightness.
         private const val ORBIT_NORMALIZE_BRIGHTNESS = true
 
-        // Max ping-pong base frame count to cache for reverse-half replay (incremental
-        // mode only). Each cached frame is PREVIEW_SIZE² ARGB (~2.3 MB at 768). 64
-        // covers all UI options (15/30/60); above this, ping-pong redraws each frame.
-        private const val MAX_PINGPONG_CACHE_FRAMES = 64
+        // Memory budget for the ping-pong reverse-half frame cache (incremental mode
+        // only). Frame count is derived per export from the art size (~2.3 MB each at
+        // 768², ~4.7 MB at 1080²); longer videos fall back to redrawing each frame.
+        private const val PINGPONG_CACHE_BUDGET_BYTES = 160L * 1024 * 1024
 
         const val TUTORIAL_STEPS          = 5 // Canvas, AttractorRow, ParamSlider, RenderHD, Palette
         private const val REVIEW_TRIGGER_COUNT = 20
