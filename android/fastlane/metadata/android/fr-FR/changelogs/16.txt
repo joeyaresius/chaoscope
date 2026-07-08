@@ -1,0 +1,8 @@
+• Export vidéo repensé : tailles 768, 1080 ou 9:16 pour les Reels, durée flexible
+• Turntable tourne désormais sur l'axe de votre choix : lacet, tangage ou roulis
+• Nouvelle option de densité de points HD pour des vidéos plus nettes
+• Prévisualisez l'animation en direct avant l'export
+• Sweep affiche sa cible aléatoire à l'avance
+• Fond d'écran animé retiré pour garder l'appli légère
+
+Vous aimez Chaoscope ? Une idée ou un bug à signaler ? Écrivez-nous à chaoscope@duck.com : nous lisons tout.

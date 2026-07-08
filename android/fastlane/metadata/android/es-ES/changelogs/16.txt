@@ -1,0 +1,8 @@
+• Exportación de vídeo renovada: tamaños 768, 1080 o 9:16 para Reels y duración flexible
+• Turntable ahora gira en cualquier eje: yaw, pitch o roll
+• Nueva opción de densidad de puntos HD para vídeos más nítidos
+• Previsualiza la animación en vivo antes de exportar
+• Sweep muestra su objetivo aleatorio por adelantado
+• Retiramos el fondo animado para mantener la app ligera
+
+¿Te gusta Chaoscope? ¿Una idea o un fallo que reportar? Escríbenos a chaoscope@duck.com: leemos todo.

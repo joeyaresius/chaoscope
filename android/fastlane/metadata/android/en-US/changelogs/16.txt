@@ -1,0 +1,8 @@
+• All-new video export: size presets (768, 1080 or 9:16 for Reels) and flexible duration
+• Turntable can now spin on any axis — yaw, pitch or roll
+• New HD dot density option for extra-crisp video frames
+• Preview your animation live on the canvas before exporting
+• Sweep mode shows its random target up front, with a re-roll
+• Live wallpaper retired to keep the app lean
+
+Enjoying Chaoscope? An idea or a bug to report? Write to chaoscope@duck.com — we read everything.
